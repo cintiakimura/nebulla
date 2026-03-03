@@ -1,11 +1,20 @@
-<div align="center">
+# kyn - Developer-First SaaS Starter
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+One-time setup after login—no repeats. Platform owner fills env once.
 
-  <h1>Built with AI Studio</h2>
+## Setup Instructions
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1. Copy `.env.example` to `.env`
+2. Fill in the required placeholders:
+   - `FIREBASE_PROJECT_ID`
+   - `GITHUB_CLIENT_ID`
+   - `GITHUB_CLIENT_SECRET`
+   - `NETLIFY_PAT`
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Features
 
-</div>
+- **Mind Map Wizard**: Drag and drop pages, roles, and nodes to architect your app.
+- **AI Code Generation**: AI handles code and self-debugs via REST method (Review, Explain, Solve, Test).
+- **One-Click Deploy**: Deploy directly to Firebase or Netlify from within the app.
