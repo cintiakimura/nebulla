@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import { createCheckoutSession } from "./src/api/create-checkout-session";
 import { AGENT_ID, AGENT_SYSTEM_PROMPT, AGENT_PRE_CODE_QUESTIONS } from "./src/config/agentConfig";
 import * as db from "./db.js";
 
@@ -165,6 +166,45 @@ async function startServer() {
       res.json({ status: "success", message: "Netlify hook created successfully (Mock)" });
     } catch (error) {
       res.status(500).json({ error: "Hook creation failed" });
+    }
+  });
+
+  // Stripe Checkout — see src/api/create-checkout-session.ts (env: STRIPE_SECRET_KEY, STRIPE_*_PRICE_ID)
+  app.post("/api/create-checkout-session", createCheckoutSession);
+
+  // After Stripe success: client sends plan + userId → update Supabase user paid=true, plan=...
+  app.post("/api/update-paid-status", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !supabaseKey || supabaseUrl === "PLACEHOLDER" || supabaseKey === "PLACEHOLDER") {
+      res.status(503).json({ error: "Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to .env" });
+      return;
+    }
+    const { plan, userId } = req.body as { plan?: string; userId?: string };
+    if (
+      !userId ||
+      typeof userId !== "string" ||
+      (plan !== "prototype" && plan !== "king_pro")
+    ) {
+      res.status(400).json({ error: "body: { plan: 'prototype'|'king_pro', userId } required" });
+      return;
+    }
+    const planVal = plan === "king_pro" ? "king_pro" : "prototype";
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { error } = await supabase
+        .from("users")
+        .upsert({ id: userId, paid: true, plan: planVal }, { onConflict: "id" });
+      if (error) {
+        console.error("[update-paid-status]", error);
+        res.status(500).json({ error: "Failed to update paid status" });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[update-paid-status]", err);
+      res.status(500).json({ error: "Update paid status failed" });
     }
   });
 

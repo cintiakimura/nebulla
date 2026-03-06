@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { 
   Play, Square, Terminal as TerminalIcon, Layout, 
   Mic, MicOff, Settings, FileCode, Github, Cloud,
@@ -48,8 +48,11 @@ function applyCodeFromContent(
 
 export default function Builder() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { projectId } = useParams<{ projectId?: string }>();
   const [projectLoading, setProjectLoading] = useState(!!projectId);
+  const [paidStatus, setPaidStatus] = useState(getPaidStatus);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [code, setCode] = useState(`export default function App() {
   return (
     <div style={{ padding: 20, fontFamily: 'sans-serif' }}>
@@ -83,6 +86,26 @@ export default function Builder() {
   codeRef.current = code;
   packageRef.current = packageJsonContent;
   chatRef.current = chatMessages;
+
+  // Stripe success: ?paid=true&plan=... → update Supabase via API, then persist locally and clear URL
+  useEffect(() => {
+    const paid = searchParams.get("paid");
+    const plan = searchParams.get("plan");
+    if (paid !== "true" || (plan !== "prototype" && plan !== "king_pro")) return;
+    (async () => {
+      const userId = await getUserId();
+      try {
+        await fetch("/api/update-paid-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan, userId }),
+        });
+      } catch (_) {}
+      setPaidFromSuccess(plan);
+      setPaidStatus({ paid: true, plan });
+      setSearchParams({}, { replace: true });
+    })();
+  }, [searchParams, setSearchParams]);
 
   // Load project when projectId is set
   useEffect(() => {
@@ -300,6 +323,10 @@ export default function Builder() {
   };
 
   const handleDeploy = async (type: 'github' | 'netlify') => {
+    if (!paidStatus.paid) {
+      setUpgradeModalOpen(true);
+      return;
+    }
     addLog(`[Deploy]: Initiating ${type} deployment...`);
     try {
       const endpoint = type === 'github' ? '/api/deploy' : '/api/netlify/hook';
@@ -312,6 +339,24 @@ export default function Builder() {
       }
     } catch (e) {
       addLog(`[Deploy Failed]: Network error.`);
+    }
+  };
+
+  const startCheckout = async (plan: 'prototype' | 'king_pro') => {
+    try {
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        addLog(`[Checkout]: ${data.error ?? 'Failed'}`);
+      }
+    } catch (e) {
+      addLog(`[Checkout]: Network error.`);
     }
   };
 
@@ -373,6 +418,14 @@ export default function Builder() {
         {/* Deploy Actions */}
         <div className="p-4 border-t border-[#3d3d4d] space-y-3">
           <div className="text-xs font-semibold tracking-wider text-white uppercase mb-2">Deploy</div>
+          {!paidStatus.paid && (
+            <button
+              onClick={() => setUpgradeModalOpen(true)}
+              className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
+            >
+              Upgrade to Deploy
+            </button>
+          )}
           <button 
             onClick={() => handleDeploy('github')}
             className="w-full py-2 px-3 bg-[#2d2d3d] hover:bg-[#3d3d5d] text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
@@ -610,6 +663,28 @@ export default function Builder() {
           </button>
         </div>
       </div>
+
+      {/* Upgrade modal: pick plan → Stripe Checkout */}
+      {upgradeModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
+          <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-white">Upgrade to deploy</span>
+              <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d]">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-2">
+              <button onClick={() => startCheckout('prototype')} className="w-full py-2 px-3 bg-[#2d2d3d] hover:bg-[#3d3d5d] text-white text-sm rounded">
+                Prototype $5.99/mo
+              </button>
+              <button onClick={() => startCheckout('king_pro')} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
+                King Pro $19.99/mo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
