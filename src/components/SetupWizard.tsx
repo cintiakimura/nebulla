@@ -1,0 +1,318 @@
+import { useState, useEffect } from "react";
+import { Github, Database, Globe, ExternalLink, Copy, Check, CreditCard } from "lucide-react";
+import {
+  getConnectedServices,
+  setConnectedService,
+  getSupabaseCreds,
+  setSupabaseCreds,
+  getStripeKey,
+  setStripeKey,
+  setSetupComplete,
+  setDomainVerified,
+} from "../lib/setupStorage";
+
+const VERCEL_DNS = { A: "76.76.21.21", CNAME: "cname.vercel-dns.com" };
+const SUPABASE_SIGNUP = "https://supabase.com/dashboard";
+const GODADDY = "https://www.godaddy.com/domains";
+const CLOUDFLARE = "https://dash.cloudflare.com";
+
+type Props = {
+  onComplete: () => void;
+  /** When true, we're on /setup for tweaks (show "Save" instead of "Done") */
+  isTweaks?: boolean;
+};
+
+export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
+  const [services, setServices] = useState(getConnectedServices());
+  const [supabaseUrl, setSupabaseUrl] = useState("");
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
+  const [stripeKey, setStripeKeyState] = useState("");
+  const [copied, setCopied] = useState<"A" | "CNAME" | null>(null);
+
+  useEffect(() => {
+    const creds = getSupabaseCreds();
+    if (creds) {
+      setSupabaseUrl(creds.url);
+      setSupabaseAnonKey(creds.anonKey);
+    }
+    setStripeKeyState(getStripeKey());
+  }, []);
+
+  const refreshServices = () => setServices(getConnectedServices());
+
+  const handleConnectGitHub = () => {
+    // Reuse login OAuth flow; for now mock
+    setConnectedService("github", true);
+    setTimeout(refreshServices, 300);
+  };
+
+  const handleConnectVercel = () => {
+    // OAuth GitHub → Vercel; mock
+    setConnectedService("vercel", true);
+    setTimeout(refreshServices, 300);
+  };
+
+  const handleSaveSupabase = () => {
+    if (supabaseUrl.trim() && supabaseAnonKey.trim()) {
+      setSupabaseCreds(supabaseUrl, supabaseAnonKey);
+      setConnectedService("supabase", true);
+      refreshServices();
+    }
+  };
+
+  const handleVerifyDomain = () => {
+    setDomainVerified(true);
+    setTimeout(refreshServices, 100);
+  };
+
+  const handleSaveStripe = () => {
+    setStripeKey(stripeKey);
+    setTimeout(refreshServices, 100);
+  };
+
+  const allGreen =
+    services.github && services.supabase && services.vercel && services.domainVerified;
+
+  const handleDone = () => {
+    if (!isTweaks) {
+      setSetupComplete();
+    }
+    onComplete();
+  };
+
+  const copyDns = (type: "A" | "CNAME") => {
+    const value = type === "A" ? VERCEL_DNS.A : VERCEL_DNS.CNAME;
+    navigator.clipboard.writeText(value);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-auto bg-[#1e1e1e]">
+      <div className="p-8 max-w-2xl mx-auto">
+        <h1 className="text-xl font-semibold text-white mb-1">
+          Connect Your Tools – One-Time Setup
+        </h1>
+        <p className="text-sm text-gray-400 mb-8">
+          Hey, let's hook up your stack real quick—once done, we never touch this again.
+        </p>
+
+        <div className="space-y-4">
+          {/* GitHub */}
+          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Github size={24} className="text-gray-300" />
+              <div>
+                <div className="text-sm font-medium text-white">GitHub</div>
+                <div className="text-xs text-gray-500">Repos, deploy hooks</div>
+              </div>
+            </div>
+            {services.github ? (
+              <span className="flex items-center gap-1 text-xs text-green-400">
+                <Check size={14} /> Connected
+              </span>
+            ) : (
+              <button
+                onClick={handleConnectGitHub}
+                className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded transition-colors"
+              >
+                Connect GitHub
+              </button>
+            )}
+          </div>
+
+          {/* Supabase */}
+          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <Database size={24} className="text-gray-300" />
+                <div>
+                  <div className="text-sm font-medium text-white">Supabase</div>
+                  <div className="text-xs text-gray-500">DB + auth</div>
+                </div>
+              </div>
+              {services.supabase ? (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <Check size={14} /> Set up
+                </span>
+              ) : null}
+            </div>
+            {!services.supabase && (
+              <>
+                <a
+                  href={SUPABASE_SIGNUP}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1 mb-3"
+                >
+                  Set up Supabase <ExternalLink size={12} />
+                </a>
+                <div className="space-y-2">
+                  <input
+                    type="url"
+                    placeholder="Project URL"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Anon key"
+                    value={supabaseAnonKey}
+                    onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                  />
+                  <button
+                    onClick={handleSaveSupabase}
+                    disabled={!supabaseUrl.trim() || !supabaseAnonKey.trim()}
+                    className="px-3 py-1.5 bg-[#333] hover:bg-[#444] disabled:opacity-50 text-white text-sm rounded transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Vercel */}
+          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Globe size={24} className="text-gray-300" />
+              <div>
+                <div className="text-sm font-medium text-white">Vercel</div>
+                <div className="text-xs text-gray-500">Deploy & hosting</div>
+              </div>
+            </div>
+            {services.vercel ? (
+              <span className="flex items-center gap-1 text-xs text-green-400">
+                <Check size={14} /> Connected
+              </span>
+            ) : (
+              <button
+                onClick={handleConnectVercel}
+                className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded transition-colors"
+              >
+                Connect Vercel
+              </button>
+            )}
+          </div>
+
+          {/* Stripe */}
+          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <CreditCard size={24} className="text-gray-300" />
+                <div>
+                  <div className="text-sm font-medium text-white">Stripe</div>
+                  <div className="text-xs text-gray-500">Payments & billing</div>
+                </div>
+              </div>
+              {services.stripe ? (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <Check size={14} /> Connected
+                </span>
+              ) : null}
+            </div>
+            {!services.stripe && (
+              <div className="space-y-2">
+                <input
+                  type="password"
+                  placeholder="Secret key (sk_...)"
+                  value={stripeKey}
+                  onChange={(e) => setStripeKeyState(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                />
+                <button
+                  onClick={handleSaveStripe}
+                  disabled={!stripeKey.trim()}
+                  className="px-3 py-1.5 bg-[#333] hover:bg-[#444] disabled:opacity-50 text-white text-sm rounded transition-colors"
+                >
+                  Connect
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Custom Domain */}
+          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-medium text-white">Add Custom (optional)</div>
+              {services.domainVerified ? (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <Check size={14} /> Verified
+                </span>
+              ) : (
+                <button
+                  onClick={handleVerifyDomain}
+                  className="text-xs text-blue-400 hover:underline"
+                >
+                  Check verification
+                </button>
+              )}
+            </div>
+            <div className="text-xs text-gray-500 mb-2">Add these at your DNS provider:</div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
+                  A @ {VERCEL_DNS.A}
+                </code>
+                <button
+                  onClick={() => copyDns("A")}
+                  className="p-1.5 rounded hover:bg-[#37373d] text-gray-400 hover:text-white"
+                  title="Copy"
+                >
+                  {copied === "A" ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
+                  CNAME www {VERCEL_DNS.CNAME}
+                </code>
+                <button
+                  onClick={() => copyDns("CNAME")}
+                  className="p-1.5 rounded hover:bg-[#37373d] text-gray-400 hover:text-white"
+                  title="Copy"
+                >
+                  {copied === "CNAME" ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+            </div>
+            <div className="mt-2 flex gap-3 text-xs">
+              <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                GoDaddy
+              </a>
+              <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                Cloudflare
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3">
+          {allGreen ? (
+            <button
+              onClick={handleDone}
+              className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors"
+            >
+              {isTweaks ? "Save and close" : "Done! Go build"}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={handleDone}
+                className="w-full py-3 bg-[#333] hover:bg-[#444] text-white font-medium rounded-lg transition-colors"
+              >
+                {isTweaks ? "Save and close" : "Skip?"}
+              </button>
+              {!isTweaks && (
+                <p className="text-xs text-gray-500 text-center">
+                  We'll remind once—better do it now?
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

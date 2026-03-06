@@ -1,14 +1,21 @@
 import { useNavigate } from "react-router-dom";
 import { Github, Mail, ArrowLeft } from "lucide-react";
+import { getUserId, setUserIdAfterLogin } from "../lib/auth";
 
 export default function Login() {
   const navigate = useNavigate();
 
-  const handleOAuth = (provider: string) => {
+  const handleOAuth = async (provider: string) => {
     console.log(`[Mock] Initiating ${provider} OAuth flow...`);
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 800);
+    const res = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = (await res.json()) as { userId?: string };
+    const userId = data.userId ?? crypto.randomUUID();
+    setUserIdAfterLogin(userId);
+    navigate("/dashboard");
   };
 
   return (

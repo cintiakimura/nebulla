@@ -2,6 +2,8 @@ node_modules/
 build/
 dist/
 coverage/
+release/
+kyn.db
 .DS_Store
 *.log
 .env*

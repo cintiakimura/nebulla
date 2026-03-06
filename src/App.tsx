@@ -5,6 +5,8 @@ import Pricing from "./pages/Pricing";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import Builder from "./pages/Builder";
+import Setup from "./pages/Setup";
+import Settings from "./pages/Settings";
 
 export default function App() {
   return (
@@ -17,6 +19,9 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/builder" element={<Builder />} />
+          <Route path="/builder/:projectId" element={<Builder />} />
+          <Route path="/setup" element={<Setup />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
     </BrowserRouter>
