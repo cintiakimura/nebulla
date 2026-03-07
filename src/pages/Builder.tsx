@@ -228,9 +228,15 @@ export default function Builder() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errMsg = (data as { error?: string })?.error || `Request failed (${res.status})`;
+        const dataErr = (data as { error?: string })?.error;
+        let errMsg: string;
+        if (res.status === 405 || res.status === 404) {
+          errMsg = "Grok needs your backend. Deploy the server (see README), set GROK_API_KEY there, and set VITE_API_URL to that backend URL.";
+        } else {
+          errMsg = dataErr || `Request failed (${res.status}). Add GROK_API_KEY to the backend .env (get key at console.x.ai).`;
+        }
         addLog(`[Grok Error]: ${errMsg}`);
-        const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Grok isn’t available right now: ${errMsg}. Add GROK_API_KEY to .env (get key at console.x.ai).` };
+        const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Grok isn’t available right now: ${errMsg}` };
         setChatMessages(prev => [...prev, errAssistant]);
         saveProject({ chat_messages: [...chatMessages, { id: crypto.randomUUID(), role: 'user', content: newUserContent }, errAssistant] });
         return;
@@ -325,11 +331,6 @@ export default function Builder() {
   };
 
   const openTab = (id: TabId) => {
-    if (!paidStatus.paid && (id === '/App.tsx' || id === '/package.json')) {
-      setProModalAction('view_source');
-      setProModalOpen(true);
-      return;
-    }
     setOpenTabs(prev => prev.includes(id) ? prev : [...prev, id]);
     setActiveTabId(id);
   };
@@ -341,9 +342,6 @@ export default function Builder() {
     setOpenTabs(next);
     if (activeTabId === id) setActiveTabId(next[0]);
   };
-
-  const displayTabs: TabId[] = paidStatus.paid ? openTabs : ['preview'];
-  const displayActiveTab: TabId = paidStatus.paid ? activeTabId : 'preview';
 
   const handleSetupComplete = () => {
     setSetupComplete();
@@ -437,8 +435,6 @@ export default function Builder() {
       <div className="w-64 bg-[#252536] border-r border-[#3d3d4d] flex flex-col">
         <div className="p-3 text-xs font-semibold tracking-wider text-white uppercase">Explorer</div>
         <div className="flex-1 overflow-auto">
-          {paidStatus.paid && (
-            <>
           <div
             onClick={() => openTab('/App.tsx')}
             className={`px-3 py-1 text-sm cursor-pointer flex items-center gap-2 ${activeTabId === '/App.tsx' ? 'bg-[#2d2d3d] text-white' : 'text-[#9ca3af] hover:bg-[#2a2a3e]'}`}
@@ -453,24 +449,20 @@ export default function Builder() {
             <FileCode size={14} className="text-[#ce9178]" />
             package.json
           </div>
-            </>
-          )}
-          {!paidStatus.paid && (
-            <div className="px-3 py-2 text-xs text-[#9ca3af]">Live Preview only — upgrade for code.</div>
-          )}
         </div>
         
-        {/* Deploy Actions */}
+        {/* Deploy: same layout for all; free users see only Upgrade, paid see full actions */}
         <div className="p-4 border-t border-[#3d3d4d] space-y-3">
           <div className="text-xs font-semibold tracking-wider text-white uppercase mb-2">Deploy</div>
-          {!paidStatus.paid && (
+          {!paidStatus.paid ? (
             <button
               onClick={() => { setProModalAction('deploy'); setProModalOpen(true); }}
               className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
             >
-              Upgrade to Deploy
+              Upgrade to Pro
             </button>
-          )}
+          ) : (
+            <>
           <button 
             onClick={() => handleDeploy('github')}
             className="w-full py-2 px-3 bg-[#2d2d3d] hover:bg-[#3d3d5d] text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
@@ -485,6 +477,8 @@ export default function Builder() {
             <Cloud size={16} />
             Auto-Deploy
           </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -496,9 +490,9 @@ export default function Builder() {
           <>
         {/* Tabs */}
         <div className="flex-shrink-0 h-9 bg-[#252536] flex items-center border-b border-[#3d3d4d] overflow-x-auto">
-          {displayTabs.map((tabId) => {
+          {openTabs.map((tabId) => {
             const label = tabId === 'preview' ? 'Live Preview' : tabId === '/App.tsx' ? 'App.tsx' : 'package.json';
-            const isActive = displayActiveTab === tabId;
+            const isActive = activeTabId === tabId;
             return (
               <div
                 key={tabId}
@@ -517,7 +511,7 @@ export default function Builder() {
 
         {/* Center content - one pane, absolutely filled so preview/editor get real dimensions */}
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          {displayActiveTab !== '/package.json' && (
+          {activeTabId !== '/package.json' && (
             <SandpackProvider
               template="react-ts"
               theme="dark"
@@ -525,7 +519,7 @@ export default function Builder() {
               customSetup={{ dependencies: { "lucide-react": "latest", "tailwindcss": "latest" } }}
             >
               <MonacoSync code={code} setCode={setCode} />
-              {displayActiveTab === 'preview' && (
+              {activeTabId === 'preview' && (
                 <div className="absolute inset-0 flex flex-col bg-white">
                   <div className="flex-none h-8 bg-[#252536] border-b border-[#3d3d4d] flex items-center px-4">
                     <span className="text-xs text-[#9ca3af] font-medium">Live Preview</span>
@@ -543,7 +537,7 @@ export default function Builder() {
                   )}
                 </div>
               )}
-              {displayActiveTab === '/App.tsx' && (
+              {activeTabId === '/App.tsx' && (
                 <div className="absolute inset-0 w-full">
                   <Editor
                     height="100%"
@@ -557,7 +551,7 @@ export default function Builder() {
               )}
             </SandpackProvider>
               )}
-              {displayActiveTab === '/package.json' && (
+              {activeTabId === '/package.json' && (
             <div className="absolute inset-0 w-full bg-[#1e1e2e]">
               <Editor
                 height="100%"
@@ -603,19 +597,13 @@ export default function Builder() {
           </div>
         )}
 
-        {/* Status Bar */}
+        {/* Status Bar: same layout; free users see git label without click-to-upgrade if preferred, or keep as is */}
         <div className="h-6 bg-[#007acc] text-white text-xs flex items-center px-3 justify-between">
           <div className="flex items-center gap-4">
             {paidStatus.paid ? (
               <span className="flex items-center gap-1"><Github size={12} /> main*</span>
             ) : (
-              <button
-                type="button"
-                onClick={() => { setProModalAction('github'); setProModalOpen(true); }}
-                className="flex items-center gap-1 opacity-80 hover:opacity-100"
-              >
-                <Github size={12} /> main*
-              </button>
+              <span className="flex items-center gap-1 opacity-80"><Github size={12} /> main*</span>
             )}
             <span className="flex items-center gap-1"><X size={12} className="text-red-300" /> 0</span>
           </div>
@@ -646,11 +634,11 @@ export default function Builder() {
               <div key={msg.id} className="group">
                 <div className="text-xs text-[#9ca3af] mb-0.5">{msg.role === 'user' ? 'You' : 'Assistant'}</div>
                 <div className="text-sm text-[#d4d4d4] select-text break-words pr-8">{msg.content}</div>
+                {paidStatus.paid && (
                 <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!paidStatus.paid) { setProModalAction('copy_code'); setProModalOpen(true); return; }
                       navigator.clipboard.writeText(msg.content);
                     }}
                     className="p-1 rounded hover:bg-[#2d2d3d] text-[#9ca3af] hover:text-white"
@@ -661,7 +649,6 @@ export default function Builder() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!paidStatus.paid) { setProModalAction('copy_code'); setProModalOpen(true); return; }
                       navigator.clipboard.writeText(window.location.href);
                     }}
                     className="p-1 rounded hover:bg-[#2d2d3d] text-[#9ca3af] hover:text-white"
@@ -670,6 +657,7 @@ export default function Builder() {
                     <Link2 size={12} />
                   </button>
                 </div>
+                )}
               </div>
             ))}
           </div>
@@ -725,6 +713,7 @@ export default function Builder() {
           >
             <Paperclip size={18} />
           </button>
+          {paidStatus.paid && (
           <button
             onClick={handleCopyLast}
             className="p-2 rounded-md text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d] transition-colors"
@@ -732,6 +721,7 @@ export default function Builder() {
           >
             <Copy size={18} />
           </button>
+          )}
         </div>
       </div>
 

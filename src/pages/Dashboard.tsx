@@ -21,6 +21,8 @@ import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
 import { getUserId } from "../lib/auth";
 import { getApiBase, isBackendAvailable, setBackendUnavailable } from "../lib/api";
+import { isFirstLogin, setFirstLoginDone } from "../lib/supabaseAuth";
+import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 
 type ProjectStatus = "Live" | "Preview" | "Draft";
 
@@ -44,10 +46,19 @@ export default function Dashboard() {
   const [chatMessages, setChatMessages] = useState<{ id: string; role: "user" | "assistant"; content: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [showFirstLoginOnboarding, setShowFirstLoginOnboarding] = useState<boolean | null>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
 
   const { transcript, listening } = useSpeechRecognition();
   const setupComplete = getSetupComplete();
+
+  useEffect(() => {
+    let cancelled = false;
+    isFirstLogin().then((first) => {
+      if (!cancelled) setShowFirstLoginOnboarding(first);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,6 +205,16 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-[#1e1e1e] text-gray-300 overflow-hidden font-sans">
+      {showFirstLoginOnboarding === true && (
+        <FirstLoginOnboarding
+          onComplete={() => {
+            setFirstLoginDone();
+            setShowFirstLoginOnboarding(false);
+            setChatOpen(true);
+          }}
+        />
+      )}
+
       {/* Left sidebar - explorer style */}
       <div className="w-14 flex flex-col items-center py-4 bg-[#252526] border-r border-[#333333] flex-shrink-0">
         <button

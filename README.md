@@ -35,6 +35,16 @@ The repo builds a **static frontend** (Vite). Vercel and Netlify deploy only tha
   2. In Vercel/Netlify → Environment variables, add **`VITE_API_URL`** = your backend URL (e.g. `https://your-backend.railway.app`, no trailing slash).
   3. Redeploy so the build picks up `VITE_API_URL`. Login and projects will then use the real API.
 
+## Grok API not working (405 or "Request failed")?
+
+Chat with Grok only works when the **backend** is running and has a valid **xAI** key:
+
+1. **Run the backend** (e.g. `npm run dev` locally, or deploy `server.ts` to Railway/Render/Fly.io).
+2. On the machine running the backend, set **`GROK_API_KEY`** in `.env` (get a key at [console.x.ai](https://console.x.ai)).
+3. If the frontend is on a different host (e.g. Vercel), set **`VITE_API_URL`** to that backend URL and redeploy the frontend.
+
+If you only deploy the static frontend (e.g. cintiakimura.eu), there is no server to handle `POST /api/agent/chat`, so you get 405. Deploy the Express server and point the app at it (step 2 above).
+
 ## Features
 
 - **Mind Map Wizard**: Drag and drop pages, roles, and nodes to architect your app.

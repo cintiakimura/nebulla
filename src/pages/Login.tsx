@@ -3,12 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { Github, Mail, ArrowLeft } from "lucide-react";
 import { setUserIdAfterLogin } from "../lib/auth";
 import { getApiBase, isBackendAvailable, setBackendUnavailable } from "../lib/api";
+import { getSupabaseAuthClient, isSupabaseAuthConfigured } from "../lib/supabaseAuth";
 
 export default function Login() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null); // 'google' | 'github' | null
+  const useOAuth = isSupabaseAuthConfigured();
 
-  const handleSignIn = async () => {
+  const handleOneClickSignIn = async () => {
     setError(null);
     let userId: string = crypto.randomUUID();
     if (isBackendAvailable()) {
@@ -39,9 +42,71 @@ export default function Login() {
     navigate("/dashboard", { replace: true });
   };
 
+  const handleGoogleSignIn = async () => {
+    if (!useOAuth) {
+      handleOneClickSignIn();
+      return;
+    }
+    setError(null);
+    setLoading("google");
+    const supabase = getSupabaseAuthClient();
+    if (!supabase) {
+      handleOneClickSignIn();
+      setLoading(null);
+      return;
+    }
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (err) {
+        setError(err.message || "Google sign-in failed.");
+        setLoading(null);
+        return;
+      }
+      // Supabase redirects the page; no need to navigate
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Google sign-in failed.");
+      setLoading(null);
+    }
+  };
+
+  const handleGitHubSignIn = async () => {
+    if (!useOAuth) {
+      handleOneClickSignIn();
+      return;
+    }
+    setError(null);
+    setLoading("github");
+    const supabase = getSupabaseAuthClient();
+    if (!supabase) {
+      handleOneClickSignIn();
+      setLoading(null);
+      return;
+    }
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: { redirectTo },
+      });
+      if (err) {
+        setError(err.message || "GitHub sign-in failed.");
+        setLoading(null);
+        return;
+      }
+      // Supabase redirects the page
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "GitHub sign-in failed.");
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-gray-300 font-sans">
-      <button 
+      <button
         onClick={() => navigate("/")}
         className="absolute top-8 left-8 text-gray-500 hover:text-white flex items-center gap-2 transition-colors"
       >
@@ -54,38 +119,40 @@ export default function Login() {
         <p className="text-gray-400 mb-8">Sign in to your account</p>
 
         <div className="space-y-4">
-          <button 
-            onClick={handleSignIn}
-            className="w-full py-3 px-4 bg-[#24292e] hover:bg-[#2f363d] text-white rounded-lg font-medium flex items-center justify-center gap-3 transition-colors"
+          <button
+            onClick={handleGitHubSignIn}
+            disabled={!!loading}
+            className="w-full py-3 px-4 bg-[#24292e] hover:bg-[#2f363d] disabled:opacity-60 text-white rounded-lg font-medium flex items-center justify-center gap-3 transition-colors"
           >
             <Github size={20} />
-            Continue with GitHub
+            {useOAuth ? "Continue with GitHub" : "Continue with GitHub (demo)"}
           </button>
-          
+
           <div className="relative py-4">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#333]"></div>
+              <div className="w-full border-t border-[#333]" />
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-[#111] text-gray-500">or</span>
             </div>
           </div>
 
-          <button 
-            onClick={handleSignIn}
-            className="w-full py-3 px-4 bg-white text-black hover:bg-gray-200 rounded-lg font-medium flex items-center justify-center gap-3 transition-colors"
+          <button
+            onClick={handleGoogleSignIn}
+            disabled={!!loading}
+            className="w-full py-3 px-4 bg-white text-black hover:bg-gray-200 disabled:opacity-60 rounded-lg font-medium flex items-center justify-center gap-3 transition-colors"
           >
             <Mail size={20} />
-            Continue with Google
+            {useOAuth ? "Continue with Google" : "Continue with Google (demo)"}
           </button>
         </div>
 
-        {error && (
-          <p className="mt-4 text-xs text-amber-500/90">{error}</p>
-        )}
-        
+        {error && <p className="mt-4 text-xs text-amber-500/90">{error}</p>}
+
         <p className="mt-8 text-xs text-gray-600">
-          One click → Dashboard. No password. Demo session if server is unavailable.
+          {useOAuth
+            ? "You will be redirected to Google or GitHub to sign in, then back here."
+            : "One click → Dashboard. No password. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for real Google/GitHub login."}
         </p>
       </div>
     </div>
