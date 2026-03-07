@@ -10,7 +10,7 @@ export default function Login() {
 
   const handleSignIn = async () => {
     setError(null);
-    let userId = crypto.randomUUID();
+    let userId: string = crypto.randomUUID();
     if (isBackendAvailable()) {
       const apiBase = getApiBase();
       try {

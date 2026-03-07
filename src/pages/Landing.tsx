@@ -44,16 +44,16 @@ export default function Landing() {
           {/* Right: two price options */}
           <div className="flex flex-col sm:flex-row gap-6 text-left">
             <div className="flex-1 rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 md:p-8 min-w-[200px]">
-              <p className="text-3xl font-light text-white mb-1">5.99 €</p>
-              <p className="text-[15px] text-white mb-4">per month</p>
+              <p className="text-3xl font-light text-white mb-1">Free</p>
+              <p className="text-[15px] text-white mb-4">Free tier</p>
               <button
                 onClick={() => navigate("/login")}
                 className="w-full py-3 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-[15px] mb-4"
               >
-                Start 30 days free trial
+                Sign up now
               </button>
               <p className="text-[15px] text-white leading-relaxed">
-                No credit limit. No project limits.
+                All the experience and efficiency to see your idea. No credit limit. No project limits.
               </p>
             </div>
             <div className="flex-1 rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 md:p-8 min-w-[200px]">

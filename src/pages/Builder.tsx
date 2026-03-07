@@ -17,6 +17,7 @@ import { getSetupComplete, setSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
 import { getApiBase } from "../lib/api";
 import SetupWizard from "../components/SetupWizard";
+import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
 
 // A component to sync Monaco with Sandpack
 const MonacoSync = ({ code, setCode }: { code: string, setCode: (c: string) => void }) => {
@@ -56,6 +57,8 @@ export default function Builder() {
   const [projectLoading, setProjectLoading] = useState(!!projectId);
   const [paidStatus, setPaidStatus] = useState(getPaidStatus);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [proModalOpen, setProModalOpen] = useState(false);
+  const [proModalAction, setProModalAction] = useState("");
   const [code, setCode] = useState(`export default function App() {
   return (
     <div style={{ padding: 20, fontFamily: 'sans-serif' }}>
@@ -303,6 +306,11 @@ export default function Builder() {
   });
 
   const handleCopyLast = () => {
+    if (!paidStatus.paid) {
+      setProModalAction('copy_code');
+      setProModalOpen(true);
+      return;
+    }
     const last = chatMessages.filter(m => m.role === 'assistant').pop();
     if (last) navigator.clipboard.writeText(last.content);
   };
@@ -317,6 +325,11 @@ export default function Builder() {
   };
 
   const openTab = (id: TabId) => {
+    if (!paidStatus.paid && (id === '/App.tsx' || id === '/package.json')) {
+      setProModalAction('view_source');
+      setProModalOpen(true);
+      return;
+    }
     setOpenTabs(prev => prev.includes(id) ? prev : [...prev, id]);
     setActiveTabId(id);
   };
@@ -328,6 +341,9 @@ export default function Builder() {
     setOpenTabs(next);
     if (activeTabId === id) setActiveTabId(next[0]);
   };
+
+  const displayTabs: TabId[] = paidStatus.paid ? openTabs : ['preview'];
+  const displayActiveTab: TabId = paidStatus.paid ? activeTabId : 'preview';
 
   const handleSetupComplete = () => {
     setSetupComplete();
@@ -341,7 +357,8 @@ export default function Builder() {
 
   const handleDeploy = async (type: 'github' | 'netlify') => {
     if (!paidStatus.paid) {
-      setUpgradeModalOpen(true);
+      setProModalAction(type === 'github' ? 'github' : 'deploy');
+      setProModalOpen(true);
       return;
     }
     addLog(`[Deploy]: Initiating ${type} deployment...`);
@@ -420,6 +437,8 @@ export default function Builder() {
       <div className="w-64 bg-[#252536] border-r border-[#3d3d4d] flex flex-col">
         <div className="p-3 text-xs font-semibold tracking-wider text-white uppercase">Explorer</div>
         <div className="flex-1 overflow-auto">
+          {paidStatus.paid && (
+            <>
           <div
             onClick={() => openTab('/App.tsx')}
             className={`px-3 py-1 text-sm cursor-pointer flex items-center gap-2 ${activeTabId === '/App.tsx' ? 'bg-[#2d2d3d] text-white' : 'text-[#9ca3af] hover:bg-[#2a2a3e]'}`}
@@ -434,6 +453,11 @@ export default function Builder() {
             <FileCode size={14} className="text-[#ce9178]" />
             package.json
           </div>
+            </>
+          )}
+          {!paidStatus.paid && (
+            <div className="px-3 py-2 text-xs text-[#9ca3af]">Live Preview only — upgrade for code.</div>
+          )}
         </div>
         
         {/* Deploy Actions */}
@@ -441,7 +465,7 @@ export default function Builder() {
           <div className="text-xs font-semibold tracking-wider text-white uppercase mb-2">Deploy</div>
           {!paidStatus.paid && (
             <button
-              onClick={() => setUpgradeModalOpen(true)}
+              onClick={() => { setProModalAction('deploy'); setProModalOpen(true); }}
               className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
             >
               Upgrade to Deploy
@@ -472,9 +496,9 @@ export default function Builder() {
           <>
         {/* Tabs */}
         <div className="flex-shrink-0 h-9 bg-[#252536] flex items-center border-b border-[#3d3d4d] overflow-x-auto">
-          {openTabs.map((tabId) => {
+          {displayTabs.map((tabId) => {
             const label = tabId === 'preview' ? 'Live Preview' : tabId === '/App.tsx' ? 'App.tsx' : 'package.json';
-            const isActive = activeTabId === tabId;
+            const isActive = displayActiveTab === tabId;
             return (
               <div
                 key={tabId}
@@ -493,7 +517,7 @@ export default function Builder() {
 
         {/* Center content - one pane, absolutely filled so preview/editor get real dimensions */}
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          {activeTabId !== '/package.json' && (
+          {displayActiveTab !== '/package.json' && (
             <SandpackProvider
               template="react-ts"
               theme="dark"
@@ -501,7 +525,7 @@ export default function Builder() {
               customSetup={{ dependencies: { "lucide-react": "latest", "tailwindcss": "latest" } }}
             >
               <MonacoSync code={code} setCode={setCode} />
-              {activeTabId === 'preview' && (
+              {displayActiveTab === 'preview' && (
                 <div className="absolute inset-0 flex flex-col bg-white">
                   <div className="flex-none h-8 bg-[#252536] border-b border-[#3d3d4d] flex items-center px-4">
                     <span className="text-xs text-[#9ca3af] font-medium">Live Preview</span>
@@ -509,9 +533,17 @@ export default function Builder() {
                   <div className="absolute top-8 left-0 right-0 bottom-0 w-full">
                     <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: '100%', width: '100%' }} />
                   </div>
+                  {!paidStatus.paid && (
+                    <div
+                      className="absolute bottom-2 right-2 text-[10px] text-[#6b7280] pointer-events-none select-none z-10"
+                      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                    >
+                      Lumen Academy – Upgrade for full code & deploy
+                    </div>
+                  )}
                 </div>
               )}
-              {activeTabId === '/App.tsx' && (
+              {displayActiveTab === '/App.tsx' && (
                 <div className="absolute inset-0 w-full">
                   <Editor
                     height="100%"
@@ -524,8 +556,8 @@ export default function Builder() {
                 </div>
               )}
             </SandpackProvider>
-          )}
-          {activeTabId === '/package.json' && (
+              )}
+              {displayActiveTab === '/package.json' && (
             <div className="absolute inset-0 w-full bg-[#1e1e2e]">
               <Editor
                 height="100%"
@@ -574,7 +606,17 @@ export default function Builder() {
         {/* Status Bar */}
         <div className="h-6 bg-[#007acc] text-white text-xs flex items-center px-3 justify-between">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1"><Github size={12} /> main*</span>
+            {paidStatus.paid ? (
+              <span className="flex items-center gap-1"><Github size={12} /> main*</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setProModalAction('github'); setProModalOpen(true); }}
+                className="flex items-center gap-1 opacity-80 hover:opacity-100"
+              >
+                <Github size={12} /> main*
+              </button>
+            )}
             <span className="flex items-center gap-1"><X size={12} className="text-red-300" /> 0</span>
           </div>
           <div className="flex items-center gap-4">
@@ -606,14 +648,22 @@ export default function Builder() {
                 <div className="text-sm text-[#d4d4d4] select-text break-words pr-8">{msg.content}</div>
                 <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(msg.content); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!paidStatus.paid) { setProModalAction('copy_code'); setProModalOpen(true); return; }
+                      navigator.clipboard.writeText(msg.content);
+                    }}
                     className="p-1 rounded hover:bg-[#2d2d3d] text-[#9ca3af] hover:text-white"
                     title="Copy"
                   >
                     <Copy size={12} />
                   </button>
                   <button
-                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(window.location.href); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!paidStatus.paid) { setProModalAction('copy_code'); setProModalOpen(true); return; }
+                      navigator.clipboard.writeText(window.location.href);
+                    }}
                     className="p-1 rounded hover:bg-[#2d2d3d] text-[#9ca3af] hover:text-white"
                     title="Copy link"
                   >
@@ -685,7 +735,14 @@ export default function Builder() {
         </div>
       </div>
 
-      {/* Upgrade modal: pick plan → Stripe Checkout */}
+      {/* Upgrade to Pro modal (free tier blocks) */}
+      <UpgradeProModal
+        open={proModalOpen}
+        onClose={() => setProModalOpen(false)}
+        action={proModalAction}
+      />
+
+      {/* Upgrade modal: pick plan → Stripe Checkout (paid flow) */}
       {upgradeModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
           <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
