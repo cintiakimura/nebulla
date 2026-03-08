@@ -21,7 +21,7 @@ import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognitio
 import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus } from "../lib/auth";
-import { getApiBase, isBackendAvailable, setBackendUnavailable } from "../lib/api";
+import { getApiBase, isBackendAvailable, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
 import { isFirstLogin, setFirstLoginDone } from "../lib/supabaseAuth";
 import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 import UpgradeProModal from "../components/UpgradeProModal";
@@ -73,14 +73,17 @@ export default function Dashboard() {
 
   // Fetch free-tier project limit for display
   useEffect(() => {
-    if (!isBackendAvailable()) return;
     let cancelled = false;
     getUserId().then((userId) => {
       if (cancelled) return;
-      fetch(`${getApiBase()}/api/users/${userId}/limits`)
+      const apiBase = getApiBase();
+      fetch(`${apiBase || ""}/api/users/${userId}/limits`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data: { projectLimit?: number } | null) => {
-          if (!cancelled && data?.projectLimit != null) setProjectLimit(data.projectLimit);
+          if (!cancelled && data?.projectLimit != null) {
+            clearBackendUnavailable();
+            setProjectLimit(data.projectLimit);
+          }
         })
         .catch(() => {});
     });
@@ -89,22 +92,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!isBackendAvailable()) {
-      getUserId().then(() => {
-        if (!cancelled) setLoading(false);
-      });
-      return () => { cancelled = true; };
-    }
     const api = getApiBase();
     getUserId().then((userId) => {
       if (cancelled) return;
-      fetch(`${api}/api/users/${userId}/projects`)
+      fetch(`${api || ""}/api/users/${userId}/projects`)
         .then((r) => {
           if (!r.ok) setBackendUnavailable();
           return r.json();
         })
         .then((list: { id: string; name: string; status: string; last_edited: string }[]) => {
           if (cancelled) return;
+          if (Array.isArray(list)) clearBackendUnavailable();
           setProjects(
             list.map((p) => ({
               id: p.id,
@@ -145,9 +143,7 @@ export default function Dashboard() {
       return;
     }
     if (!isBackendAvailable()) {
-      const tempId = crypto.randomUUID();
-      setCreateError("Demo mode—connect a backend (set VITE_API_URL) to save projects.");
-      navigate(`/builder/${tempId}`, { state: { demo: true } });
+      setCreateError("Set up your backend to continue. Run the server (npm run dev) and set VITE_API_URL to your backend URL if the frontend is on another host.");
       return;
     }
     try {
@@ -171,16 +167,6 @@ export default function Dashboard() {
               ...prev,
               { id: project.id, name: project.name, status: (project.status as ProjectStatus) || "Draft", lastEdited: project.last_edited || "Just now", thumbnail: null, url: null },
             ];
-            if (!paidStatus.paid && next.length === projectLimit && typeof window !== "undefined" && window.speechSynthesis) {
-              const u = new SpeechSynthesisUtterance(
-                "This project's looking solid! You've got 3 live on free plan—got more ideas brewing? Upgrade to Pro for unlimited projects and real deploy power."
-              );
-              u.rate = 0.92;
-              const voices = window.speechSynthesis.getVoices();
-              const voice = voices.find((v) => v.lang.startsWith("en-"));
-              if (voice) u.voice = voice;
-              window.speechSynthesis.speak(u);
-            }
             return next;
           });
           navigate(`/builder/${project.id}`);
@@ -190,14 +176,10 @@ export default function Dashboard() {
         return;
       }
       setBackendUnavailable();
-      const tempId = crypto.randomUUID();
-      setCreateError("Backend not connected. Opening in demo mode—your work won’t be saved until you connect a backend.");
-      navigate(`/builder/${tempId}`, { state: { demo: true } });
+      setCreateError("Backend error. Check that the server is running and VITE_API_URL points to it.");
     } catch (_err) {
       setBackendUnavailable();
-      const tempId = crypto.randomUUID();
-      setCreateError("Could not reach backend. Opening in demo mode—your work won’t be saved until you connect a backend.");
-      navigate(`/builder/${tempId}`, { state: { demo: true } });
+      setCreateError("Could not reach backend. Run the server (npm run dev) and set VITE_API_URL if the frontend is on another host.");
     }
   };
 
@@ -257,9 +239,27 @@ export default function Dashboard() {
       {showFirstLoginOnboarding === true && (
         <div className="fixed inset-0 z-[100]">
           <FirstLoginOnboarding
-            onComplete={() => {
+            onComplete={async () => {
               setFirstLoginDone();
               setShowFirstLoginOnboarding(false);
+              if (isBackendAvailable()) {
+                try {
+                  const userId = await getUserId();
+                  const api = getApiBase();
+                  const res = await fetch(`${api}/api/users/${userId}/projects`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: "My first project" }),
+                  });
+                  if (res.ok) {
+                    const project = (await res.json()) as { id: string };
+                    navigate(`/builder/${project.id}`, {
+                      state: { speakOpener: "Let's go. What's your idea?" },
+                    });
+                    return;
+                  }
+                } catch (_) {}
+              }
               setChatOpen(true);
             }}
           />
@@ -273,7 +273,7 @@ export default function Dashboard() {
             onClose={() => setUpgradeModalOpen(false)}
             action="project_limit"
             title="You've reached the free limit"
-            message="You've reached the free limit of 3 projects! Upgrade to Pro for unlimited projects, code export, GitHub integration, one-click deploy to Firebase/Netlify, and no watermarks."
+            message="You've reached the free limit of 3 projects! Upgrade to Pro for unlimited projects, code export, GitHub integration, one-click deploy to Firebase, and no watermarks."
             ctaLabel="Upgrade to Pro"
             ctaToPricing
           />

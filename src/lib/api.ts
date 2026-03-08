@@ -1,8 +1,8 @@
 const KEY_BACKEND_UNAVAILABLE = "kyn_backend_unavailable";
 
 /**
- * API base URL for backend calls. Empty = same origin (e.g. dev server).
- * Set VITE_API_URL in production only when you have a separate backend (e.g. Railway).
+ * API base URL for backend calls. Empty = same origin (e.g. dev server or when frontend is served by Express).
+ * Set VITE_API_URL in production when the frontend is on a different host (e.g. Vercel) and the backend is elsewhere (e.g. Railway).
  */
 export function getApiBase(): string {
   const url = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
@@ -10,27 +10,26 @@ export function getApiBase(): string {
 }
 
 /**
- * True when we should call the backend.
- * In production, if API base is empty or the same origin (static host has no /api), treat as no backend.
+ * True when we should try to call the backend.
+ * - Same origin (empty VITE_API_URL): always try, so the app works when served by Express (npm run dev or full-stack deploy).
+ * - Different origin (VITE_API_URL set): try that URL.
  */
 export function isBackendConfigured(): boolean {
-  const base = getApiBase();
-  if (base.length === 0) return import.meta.env.DEV === true;
-  if (typeof window !== "undefined" && import.meta.env.PROD) {
-    const origin = window.location.origin;
-    if (base === origin || base.startsWith(origin + "/")) return false;
-  }
   return true;
 }
 
-/** Mark backend as unavailable (e.g. after 404). Stops further API calls this session. */
+/** Mark backend as unavailable after a failed request. Cleared when a request succeeds. */
 export function setBackendUnavailable(): void {
   if (typeof window !== "undefined") sessionStorage.setItem(KEY_BACKEND_UNAVAILABLE, "1");
 }
 
-/** True only when backend is configured and we haven't seen a 404/failure yet. */
+/** Clear the "backend unavailable" flag so the app will try the API again. Call after a successful request. */
+export function clearBackendUnavailable(): void {
+  if (typeof window !== "undefined") sessionStorage.removeItem(KEY_BACKEND_UNAVAILABLE);
+}
+
+/** True when we haven't seen a recent API failure. After a 404/failure we set the flag; successful requests clear it. */
 export function isBackendAvailable(): boolean {
-  if (!isBackendConfigured()) return false;
-  if (typeof window !== "undefined" && sessionStorage.getItem(KEY_BACKEND_UNAVAILABLE) === "1") return false;
-  return true;
+  if (typeof window === "undefined") return true;
+  return sessionStorage.getItem(KEY_BACKEND_UNAVAILABLE) !== "1";
 }

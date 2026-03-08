@@ -67,17 +67,12 @@ So: **no API key or user ID required** to deploy. You only need your Netlify or 
 
 **Summary:** You don’t need anything from Netlify or Vercel in `.env` right now. For deploying kyn: connect the repo in their UI. The Team ID you found is useful only if we add real Netlify API deploy; then we’d need a PAT (and optionally that team ID), not a “user ID”.
 
-**Login not working on Netlify URL:** Netlify serves only the static frontend; there is no Node server, so `/api/auth/session` and other `/api/*` routes return 404. Fix: (1) Deploy the backend (Express in `server.ts`) somewhere that runs Node (e.g. Railway, Render, Fly.io). (2) In Netlify, set a **build environment variable** `VITE_API_URL` = your backend URL (e.g. `https://your-app.railway.app`, no trailing slash). Rebuild and redeploy. The frontend will then call your backend for login and all API requests.
+**Login or voice not working on Vercel/static URL:** The static host has no Node server, so `/api/*` returns 404. Fix: (1) Deploy the backend (`server.ts`) somewhere that runs Node (e.g. Railway, Render, Fly.io). (2) Set **`VITE_API_URL`** in your static host’s build env to that backend URL (e.g. `https://your-app.railway.app`, no trailing slash). Rebuild and redeploy. Then login and voice use the backend.
 
 ---
 
-## 6. Voice / open chat (talk + Grok responds with voice, everything in chat)
+## 6. Voice (Grok Eve)
 
-**Do you need a separate API for voice?** No. The app already supports:
-
-- **You talk** → browser speech-to-text (mic) → transcript appears in chat and is sent to Grok.
-- **Grok replies** (text) → shown in chat; optional **“Grok speaks”** uses the browser to read the reply aloud (text-to-speech).
-- Everything is transcribed and visible in the chat.
 
 No extra API is required for this. We use the same Grok chat API; voice in/out is handled by the browser (STT + TTS). If later you want Grok’s own voice (e.g. an xAI Voice or realtime API), that would be an optional add-on and would need whatever xAI provides.
 

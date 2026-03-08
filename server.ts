@@ -11,7 +11,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  // CORS: when frontend is on another host (e.g. Netlify), set ALLOWED_ORIGIN to that URL
+  // CORS: when frontend is on another host (e.g. Vercel), set ALLOWED_ORIGIN to that URL
   const allowedOrigin = process.env.ALLOWED_ORIGIN;
   if (allowedOrigin) {
     app.use((req, res, next) => {
@@ -189,6 +189,52 @@ async function startServer() {
     }
   });
 
+  // Grok voice (xAI TTS, voice Eve) — natural speech for onboarding and "Grok speaks" in Builder
+  app.post("/api/tts", async (req, res) => {
+    const apiKey = process.env.GROK_API_KEY;
+    if (!apiKey || apiKey === "PLACEHOLDER") {
+      res.status(503).json({ error: "Grok API key required for voice. Add GROK_API_KEY to .env." });
+      return;
+    }
+    try {
+      const { text, voice_id: voiceId } = req.body as { text?: string; voice_id?: string };
+      const toSpeak = typeof text === "string" ? text.trim() : "";
+      if (!toSpeak || toSpeak.length > 4096) {
+        res.status(400).json({ error: "text required (max 4096 chars)" });
+        return;
+      }
+      const response = await fetch("https://api.x.ai/v1/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          text: toSpeak,
+          voice_id: (voiceId && ["eve", "ara", "rex", "sal", "leo"].includes(String(voiceId).toLowerCase()))
+            ? String(voiceId).toLowerCase()
+            : "eve",
+        }),
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        let details = errText.slice(0, 300);
+        try {
+          const parsed = JSON.parse(errText) as { error?: string; message?: string };
+          details = parsed?.error || parsed?.message || details;
+        } catch (_) {}
+        res.status(response.status).json({ error: "Grok TTS failed", details });
+        return;
+      }
+      const audioBuffer = await response.arrayBuffer();
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.send(Buffer.from(audioBuffer));
+    } catch (err) {
+      console.error("[TTS]", err);
+      res.status(500).json({ error: "TTS failed", details: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // Builder.io Visual Copilot: generate UI/design code from prompt (key never exposed client-side)
   const BUILDER_FREE_DAILY_LIMIT = Math.max(0, parseInt(process.env.BUILDER_GENERATION_FREE_DAILY_LIMIT ?? "10", 10));
   const builderGenCountByUser = new Map<string, { date: string; count: number }>();
@@ -300,19 +346,6 @@ async function startServer() {
       res.json({ status: "success", message: "Deployed to GitHub/Firebase successfully (Mock)" });
     } catch (error) {
       res.status(500).json({ error: "Deploy failed" });
-    }
-  });
-
-  app.post("/api/netlify/hook", async (req, res) => {
-    try {
-      if (!process.env.NETLIFY_CLIENT_ID) {
-        console.log("Add NETLIFY_CLIENT_ID to .env");
-      }
-      // Mock Netlify hook creation
-      console.log(`[Mock] Creating Netlify hook...`);
-      res.json({ status: "success", message: "Netlify hook created successfully (Mock)" });
-    } catch (error) {
-      res.status(500).json({ error: "Hook creation failed" });
     }
   });
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { 
   Play, Square, Terminal as TerminalIcon, Layout, 
-  Mic, MicOff, Settings, FileCode, Github, Cloud,
+  Mic, MicOff, Settings, FileCode, Github,
   X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Wrench, Paperclip, Send, Volume2, VolumeX
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
@@ -15,7 +15,7 @@ import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognitio
 import { useDropzone } from 'react-dropzone';
 import { getSetupComplete, setSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
-import { getApiBase } from "../lib/api";
+import { getApiBase, clearBackendUnavailable } from "../lib/api";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import SetupWizard from "../components/SetupWizard";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
@@ -53,7 +53,6 @@ export default function Builder() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const isDemoMode = location.state?.demo === true;
   const { projectId } = useParams<{ projectId?: string }>();
   const [projectLoading, setProjectLoading] = useState(!!projectId);
   const [paidStatus, setPaidStatus] = useState(getPaidStatus);
@@ -86,7 +85,7 @@ export default function Builder() {
   const [chatInput, setChatInput] = useState("");
   const [grokSpeaks, setGrokSpeaks] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const grokAudioRef = useRef<HTMLAudioElement | null>(null);
   const codeRef = useRef(code);
   const packageRef = useRef(packageJsonContent);
   const chatRef = useRef(chatMessages);
@@ -123,8 +122,11 @@ export default function Builder() {
     let cancelled = false;
     getUserId().then((userId) => {
       if (cancelled) return;
-      fetch(`${getApiBase()}/api/users/${userId}/projects/${projectId}`)
-        .then((r) => (r.ok ? r.json() : null))
+      fetch(`${getApiBase() || ""}/api/users/${userId}/projects/${projectId}`)
+        .then((r) => {
+          if (r.ok) clearBackendUnavailable();
+          return r.ok ? r.json() : null;
+        })
         .then((project: { code?: string; package_json?: string; chat_messages?: string } | null) => {
           if (cancelled) {
             setProjectLoading(false);
@@ -144,7 +146,7 @@ export default function Builder() {
               }
             } catch (_) {}
           } else {
-            // Project not found (e.g. 404 from demo/temp id): show Grok opener so "Start with Grok" still works
+            // Project not found (e.g. 404): show Grok opener so "Start with Grok" still works
             if (getSetupComplete()) {
               const opener = [{ id: crypto.randomUUID(), role: "assistant" as const, content: "Hey—what's on your mind? What do you wanna build, and why?" }];
               setChatMessages(opener);
@@ -156,6 +158,19 @@ export default function Builder() {
     });
     return () => { cancelled = true; };
   }, [projectId]);
+
+  // After onboarding: Grok speaks the opener ("Let's go. What's your idea?") in chat
+  const spokeOpenerRef = useRef(false);
+  useEffect(() => {
+    const opener = location.state?.speakOpener as string | undefined;
+    if (!opener || projectLoading || spokeOpenerRef.current) return;
+    spokeOpenerRef.current = true;
+    const msg = { id: crypto.randomUUID(), role: "assistant" as const, content: opener };
+    setChatMessages([msg]);
+    saveProject({ chat_messages: [msg] });
+    speakWithGrokEve(opener, true);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state?.speakOpener, location.pathname, projectLoading, navigate]);
 
   const saveProject = async (updates?: { code?: string; package_json?: string; chat_messages?: { id: string; role: string; content: string; images?: string[] }[] }) => {
     if (!projectId) return;
@@ -189,30 +204,42 @@ export default function Builder() {
 
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+      grokAudioRef.current?.pause();
+      grokAudioRef.current = null;
     };
   }, []);
 
-  /** Prefer a more natural-sounding system voice when available (browser TTS is still robotic; for Grok-like voice use xAI Voice Agent API). */
-  const getPreferredVoice = (): SpeechSynthesisVoice | null => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-    const prefer = voices.find(v => /samantha|karen|daniel|alex|victoria|moira|fiona/i.test(v.name))
-      ?? voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('natural'))
-      ?? voices.find(v => v.lang.startsWith('en-'));
-    return prefer ?? voices[0] ?? null;
-  };
-
-  const speakWithTTS = (text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis || !text.trim()) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text.slice(0, 2000));
-    utterance.rate = 0.92;
-    utterance.pitch = 1;
-    const voice = getPreferredVoice();
-    if (voice) utterance.voice = voice;
-    speechSynthRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+  /** Play Grok reply with Eve voice (xAI TTS). No browser TTS. force = always play (e.g. post-onboarding opener). */
+  const speakWithGrokEve = (text: string, force?: boolean) => {
+    if (typeof window === "undefined" || !text.trim()) return;
+    grokAudioRef.current?.pause();
+    grokAudioRef.current = null;
+    if (!force && !grokSpeaks) return;
+    const apiBase = getApiBase();
+    const url = apiBase ? `${apiBase}/api/tts` : "/api/tts";
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.slice(0, 4096), voice_id: "eve" }),
+    })
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .then((buf) => {
+        if (!buf) return;
+        const blob = new Blob([buf], { type: "audio/mpeg" });
+        const objectUrl = URL.createObjectURL(blob);
+        const audio = new Audio(objectUrl);
+        grokAudioRef.current = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(objectUrl);
+          if (grokAudioRef.current === audio) grokAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          if (grokAudioRef.current === audio) grokAudioRef.current = null;
+        };
+        audio.play().catch(() => {});
+      })
+      .catch(() => {});
   };
 
   const sendToGrok = async (newUserContent: string) => {
@@ -250,7 +277,7 @@ export default function Builder() {
       const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content };
       setChatMessages(prev => [...prev, assistantMsg]);
       applyCodeFromContent(content, setCode, setPackageJsonContent);
-      if (grokSpeaks) speakWithTTS(content);
+      if (grokSpeaks) speakWithGrokEve(content);
       const newChat = [...chatMessages, { id: crypto.randomUUID(), role: 'user' as const, content: newUserContent }, assistantMsg];
       saveProject({ chat_messages: newChat });
     } catch (err) {
@@ -295,14 +322,7 @@ export default function Builder() {
             const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
             setChatMessages(prev => [...prev, builderMsg]);
             saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });
-            if (grokSpeaks && typeof window !== "undefined" && window.speechSynthesis) {
-              const u = new SpeechSynthesisUtterance(kynContent);
-              u.rate = 0.92;
-              const voices = window.speechSynthesis.getVoices();
-              const v = voices.find((x) => x.lang.startsWith("en-"));
-              if (v) u.voice = v;
-              window.speechSynthesis.speak(u);
-            }
+            if (grokSpeaks) speakWithGrokEve(kynContent);
           } else if (data.error && !data.placeholder) {
             const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
             setChatMessages(prev => [...prev, errMsg]);
@@ -348,14 +368,7 @@ export default function Builder() {
                 const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
                 setChatMessages(prev => [...prev, builderMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });
-                if (grokSpeaks && typeof window !== "undefined" && window.speechSynthesis) {
-                  const u = new SpeechSynthesisUtterance(kynContent);
-                  u.rate = 0.92;
-                  const voices = window.speechSynthesis.getVoices();
-                  const v = voices.find((x) => x.lang.startsWith("en-"));
-                  if (v) u.voice = v;
-                  window.speechSynthesis.speak(u);
-                }
+                if (grokSpeaks) speakWithGrokEve(kynContent);
               } else if (data.error && !data.placeholder) {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
                 setChatMessages(prev => [...prev, errMsg]);
@@ -438,16 +451,15 @@ export default function Builder() {
     }]);
   };
 
-  const handleDeploy = async (type: 'github' | 'netlify') => {
+  const handleDeploy = async () => {
     if (!paidStatus.paid) {
-      setProModalAction(type === 'github' ? 'github' : 'deploy');
+      setProModalAction('deploy');
       setProModalOpen(true);
       return;
     }
-    addLog(`[Deploy]: Initiating ${type} deployment...`);
+    addLog(`[Deploy]: Initiating deployment...`);
     try {
-      const endpoint = type === 'github' ? '/api/deploy' : '/api/netlify/hook';
-      const res = await fetch(`${getApiBase()}${endpoint}`, { method: 'POST' });
+      const res = await fetch(`${getApiBase()}/api/deploy`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         addLog(`[Deploy Success]: ${data.message}`);
@@ -479,11 +491,6 @@ export default function Builder() {
 
   return (
     <div className="flex h-screen bg-[#1e1e2e] text-[#d4d4d4] overflow-hidden font-sans flex-col">
-      {isDemoMode && (
-        <div className="flex-shrink-0 px-4 py-2 bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-sm text-center">
-          Demo mode—projects won’t be saved until you connect a backend. Set VITE_API_URL in Netlify to your backend URL and redeploy.
-        </div>
-      )}
       <div className="flex flex-1 min-h-0">
       <div className="w-12 bg-[#252536] flex flex-col items-center py-4 border-r border-[#3d3d4d] z-10">
         <button
@@ -549,18 +556,11 @@ export default function Builder() {
           ) : (
             <>
           <button 
-            onClick={() => handleDeploy('github')}
+            onClick={() => handleDeploy()}
             className="w-full py-2 px-3 bg-[#2d2d3d] hover:bg-[#3d3d5d] text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
           >
             <Github size={16} />
             Push to GitHub
-          </button>
-          <button 
-            onClick={() => handleDeploy('netlify')}
-            className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
-          >
-            <Cloud size={16} />
-            Auto-Deploy
           </button>
             </>
           )}

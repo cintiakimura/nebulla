@@ -21,19 +21,19 @@ These do not affect build or runtime. The Vite **chunk size** warning is relaxed
    - `FIREBASE_PROJECT_ID`
    - `GITHUB_CLIENT_ID`
    - `GITHUB_CLIENT_SECRET`
-   - `NETLIFY_PAT`
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
 
-## Deploying frontend (Vercel / Netlify) and backend
+## Deploying frontend (Vercel) and backend
 
-The repo builds a **static frontend** (Vite). Vercel and Netlify deploy only that—there is **no API** on the static host, so `/api/auth/session` and `/api/users/.../projects` would 404.
+The repo builds a **static frontend** (Vite). You must run the **backend** (Express in `server.ts`) for login and projects to work. There is no API on a static host alone.
 
-- **Frontend only (no backend):** Do **not** set `VITE_API_URL`. The app runs in **demo mode**: after the first failed request it stops calling the API, so no 404s. Login and “Start with Grok” work with a local session and open the Builder in demo mode. Use **`vercel.json`** (Vercel) or **`public/_redirects`** (Netlify) so routes like `/login` and `/dashboard` serve the app (SPA).
 - **With a backend:** Deploy the Express server (e.g. **Railway**, **Render**, **Fly.io**) and point the frontend to it:
   1. On the backend, set `ALLOWED_ORIGIN` to your frontend URL (e.g. `https://your-app.vercel.app`) for CORS.
-  2. In Vercel/Netlify → Environment variables, add **`VITE_API_URL`** = your backend URL (e.g. `https://your-backend.railway.app`, no trailing slash).
+  2. In Vercel (or your static host) → Environment variables, add **`VITE_API_URL`** = your backend URL (e.g. `https://your-backend.railway.app`, no trailing slash).
   3. Redeploy so the build picks up `VITE_API_URL`. Login and projects will then use the real API.
+
+Use **`vercel.json`** (Vercel) or your host's SPA redirect so routes like `/login` and `/dashboard` serve the app.
 
 ## Grok API not working (405 or "Request failed")?
 
@@ -55,4 +55,4 @@ If you only deploy the static frontend, there is no server to handle `POST /api/
 
 - **Mind Map Wizard**: Drag and drop pages, roles, and nodes to architect your app.
 - **AI Code Generation**: AI handles code and self-debugs via REST method (Review, Explain, Solve, Test).
-- **One-Click Deploy**: Deploy directly to Firebase or Netlify from within the app.
+- **One-Click Deploy**: Deploy directly to Firebase from within the app.

@@ -183,8 +183,6 @@ async function runTests() {
     try {
       const deployRes = await fetch(testBase + "/api/deploy", { method: "POST" });
       record("POST /api/deploy", deployRes.ok, deployRes.ok ? "mock ok" : String(deployRes.status));
-      const netlifyRes = await fetch(testBase + "/api/netlify/hook", { method: "POST" });
-      record("POST /api/netlify/hook", netlifyRes.ok, netlifyRes.ok ? "mock ok" : String(netlifyRes.status));
     } catch (e) {
       record("Deploy mocks", false, e.message);
     }
