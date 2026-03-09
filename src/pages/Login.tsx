@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Lock } from "lucide-react";
 import { setUserIdAfterLogin } from "../lib/auth";
@@ -42,7 +42,7 @@ export default function Login() {
     }
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     if (!email.trim() || !password) {
