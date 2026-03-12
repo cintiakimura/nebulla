@@ -5,23 +5,38 @@ const KEY_API_BASE_FALLBACK = "kyn_api_base_fallback";
 
 /**
  * API base URL for backend calls. Empty = same origin (e.g. dev server or when frontend is served by Express).
- * Set VITE_API_URL in production when the frontend is on a different host (e.g. Vercel) and the backend is elsewhere (e.g. Railway).
- * If VITE_API_URL is not set, falls back to localStorage (wizard-pasted Railway URL) for progressive enhancement.
+ * Set VITE_API_URL in production when the frontend is on another host (e.g. Vercel). Use the backend origin:
+ * - With protocol: https://your-backend.example.com (no trailing slash).
+ * - Without protocol (e.g. cintiakimura.eu): we prepend https:// so fetch() uses an absolute URL, not a relative path.
+ * If the value ends with /api we strip it so requests don't double to /api/api/...
  */
+function ensureAbsoluteUrl(url: string): string {
+  const t = url.trim();
+  if (!t) return t;
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://${t}`;
+}
+
 export function getApiBase(): string {
-  const envUrl = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
-  if (envUrl) return envUrl.replace(/\/$/, "");
+  let envUrl = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
+  if (envUrl) {
+    envUrl = envUrl.replace(/\/$/, "").replace(/\/api$/i, "");
+    return ensureAbsoluteUrl(envUrl);
+  }
   if (typeof window !== "undefined") {
     const fallback = localStorage.getItem(KEY_API_BASE_FALLBACK);
-    if (fallback && typeof fallback === "string") return fallback.replace(/\/$/, "");
+    if (fallback && typeof fallback === "string") {
+      const v = fallback.replace(/\/$/, "").replace(/\/api$/i, "");
+      return ensureAbsoluteUrl(v);
+    }
   }
   return "";
 }
 
-/** Set wizard-pasted backend URL (e.g. after Railway deploy). Used when VITE_API_URL is not set. */
+/** Set wizard-pasted backend URL. Used when VITE_API_URL is not set. Trims and strips trailing /api. */
 export function setApiBaseFallback(url: string): void {
   if (typeof window === "undefined") return;
-  const v = url.trim().replace(/\/$/, "");
+  const v = url.trim().replace(/\/$/, "").replace(/\/api$/i, "");
   if (v) localStorage.setItem(KEY_API_BASE_FALLBACK, v);
   else localStorage.removeItem(KEY_API_BASE_FALLBACK);
   window.dispatchEvent(new CustomEvent("kyn-api-base-changed"));
