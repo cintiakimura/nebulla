@@ -4,6 +4,8 @@ dist/
 coverage/
 release/
 kyn.db
+*.sqlite
+*.sqlite3
 .DS_Store
 *.log
 .env*

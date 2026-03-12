@@ -6,7 +6,7 @@ When enabled, anyone who hits the app URL goes straight to the dashboard. No lan
 
 ## Enable
 
-1. **Backend (e.g. Railway)**  
+1. **Backend (e.g. Render, Fly.io)**  
    - **`OPEN_MODE_FALLBACK_USER_ID`** = your Supabase user UUID (Supabase Dashboard → Authentication → Users → copy your UUID).  
    - Optional: **`OPEN_MODE_ORIGIN`** = `https://cintiakimura.eu` so only requests from that origin get the fallback user and Stripe disabled. If unset, all requests use the fallback when no token.
 

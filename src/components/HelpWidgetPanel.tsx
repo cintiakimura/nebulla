@@ -85,7 +85,7 @@ export default function HelpWidgetPanel() {
                   <h3 className="text-white font-medium">Common issues</h3>
                   <details className="rounded-lg bg-[#1e1e1e] border border-[#333333] p-3">
                     <summary className="cursor-pointer font-medium text-gray-300">CORS / 404 on API</summary>
-                    <p className="mt-2 text-xs">Set VITE_API_URL to your backend URL (e.g. Railway). Set ALLOWED_ORIGIN on backend to your Vercel domain.</p>
+                    <p className="mt-2 text-xs">Set VITE_API_URL to your backend URL. Set ALLOWED_ORIGIN on backend to your Vercel domain.</p>
                   </details>
                   <details className="rounded-lg bg-[#1e1e1e] border border-[#333333] p-3">
                     <summary className="cursor-pointer font-medium text-gray-300">Supabase "forbid secret"</summary>
@@ -135,8 +135,8 @@ export default function HelpWidgetPanel() {
                   <a href="https://vercel.com/docs" target="_blank" rel="noopener noreferrer" className="block text-blue-400 hover:underline">
                     Vercel Docs
                   </a>
-                  <a href="https://docs.railway.app" target="_blank" rel="noopener noreferrer" className="block text-blue-400 hover:underline">
-                    Railway Docs
+                  <a href="https://vercel.com/docs" target="_blank" rel="noopener noreferrer" className="block text-blue-400 hover:underline">
+                    Vercel Docs
                   </a>
                 </div>
               )}

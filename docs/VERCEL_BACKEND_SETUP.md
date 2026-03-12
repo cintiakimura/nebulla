@@ -8,7 +8,6 @@ The API lives in `server.ts`. Deploy it to a host that runs Node:
 
 | Host    | Steps |
 |--------|--------|
-| **Railway** | New project → Deploy from GitHub (this repo) → Set root directory to repo root → Add env vars (see below) → Deploy. Copy the public URL (e.g. `https://kyn-production.up.railway.app`). |
 | **Render**  | New Web Service → Connect repo → Build: `npm install` / Start: `npm start` (or `npx tsx server.ts`). Add env vars. Copy the service URL. |
 | **Fly.io**  | `fly launch` in repo, then `fly secrets set KEY=value` for env. Copy `https://your-app.fly.dev`. |
 
@@ -26,7 +25,7 @@ In **Vercel** → your project → **Settings** → **Environment Variables**, a
 
 | Name | Value | Environment |
 |------|--------|-------------|
-| **VITE_API_URL** | Your backend URL, e.g. `https://kyn-production.up.railway.app` | Production (and Preview) |
+| **VITE_API_URL** | Your backend URL, e.g. `https://your-app.onrender.com` | Production (and Preview) |
 | **VITE_SUPABASE_URL** | Your Supabase project URL | Production (and Preview) |
 | **VITE_SUPABASE_ANON_KEY** | Supabase anon (publishable) key | Production (and Preview) |
 

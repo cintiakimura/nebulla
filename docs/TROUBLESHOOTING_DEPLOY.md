@@ -10,28 +10,28 @@ If you committed and pushed but the **live site** (e.g. Vercel) still shows the 
 
 - In Vercel → Project → **Settings** → **Environment Variables**:
   - Edit **`VITE_API_URL`** and set **Environment** to **Production** (or “All Environments”).  
-  - Value = your Railway backend URL, e.g. `https://your-app.up.railway.app` (no trailing slash).
+  - Value = your backend URL, e.g. `https://your-app.onrender.com` (no trailing slash).
 - Save, then **redeploy** Production so the new build includes the variable.
 
 ---
 
 ## 1. Frontend doesn’t know where the backend is
 
-The app runs in the **browser**. Login, magic link, GitHub, and Grok all call **your backend** (e.g. Railway). The frontend needs the backend URL **at build time**.
+The app runs in the **browser**. Login, magic link, GitHub, and Grok all call **your backend**. The frontend needs the backend URL **at build time**.
 
 - **On Vercel:** Set **Environment Variables** for the project:
-  - **`VITE_API_URL`** = your backend URL, e.g. `https://your-app.up.railway.app`  
-    No trailing slash. This is the same URL you use for the API (Railway, Render, etc.).
+  - **`VITE_API_URL`** = your backend URL, e.g. `https://your-app.onrender.com`  
+    No trailing slash. This is the same URL you use for the API (Render, Fly.io, etc.).
 - Then **redeploy**: Deployments → … → Redeploy (or push a small commit).  
   If you only added `VITE_API_URL` after the last deploy, the current build **does not** include it until you redeploy.
 
-**Check:** Open the live site → DevTools → Console. In the app, trigger something that calls the API (e.g. open Login or Dashboard). In Network tab, see whether requests go to `https://your-backend.up.railway.app/...` or to `https://your-vercel-domain.vercel.app/api/...`. If they go to Vercel’s `/api/...`, the frontend has no backend URL (VITE_API_URL not set or not in the build).
+**Check:** Open the live site → DevTools → Console. In the app, trigger something that calls the API (e.g. open Login or Dashboard). In Network tab, see whether requests go to your backend URL or to `https://your-vercel-domain.vercel.app/api/...`. If they go to Vercel’s `/api/...`, the frontend has no backend URL (VITE_API_URL not set or not in the build).
 
 ---
 
 ## 2. Backend not running or not reachable
 
-- **Railway / Render / Fly.io:** Confirm the service is **running** and the URL is the one you put in `VITE_API_URL`. Open `https://your-backend-url/api/health` in a browser; you should get a short JSON response, not 404 or connection error.
+- **Render / Fly.io:** Confirm the service is **running** and the URL is the one you put in `VITE_API_URL`. Open `https://your-backend-url/api/health` in a browser; you should get a short JSON response, not 404 or connection error.
 - **CORS:** On the backend, set **`ALLOWED_ORIGIN`** to your frontend origin, e.g. `https://your-app.vercel.app`. No trailing slash. If this is wrong, the browser will block API requests and you’ll see CORS errors in the console.
 
 ---
@@ -45,7 +45,7 @@ Login (email/magic link) and “Sign in with Google/GitHub” use **Supabase Aut
 - **Vercel (frontend):** Use the **Publishable** key for `VITE_SUPABASE_ANON_KEY`.  
   In Supabase → Project Settings → API → **Publishable key** (the one that says “safe to use in a browser”).  
   Do **not** put a **Secret** key in `VITE_SUPABASE_ANON_KEY` — that’s for server-only and would break auth.
-- **Railway (backend):** Use **`SUPABASE_URL`** and **`SUPABASE_ANON_KEY`** (same anon/publishable key is fine for validating tokens). Use **`SUPABASE_SERVICE_ROLE_KEY`** only on the backend, never on Vercel.
+- **Backend:** Use **`SUPABASE_URL`** and **`SUPABASE_ANON_KEY`** (same anon/publishable key is fine for validating tokens). Use **`SUPABASE_SERVICE_ROLE_KEY`** only on the backend, never on Vercel.
 
 **Supabase Dashboard** → Authentication → URL Configuration:
 

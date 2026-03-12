@@ -1,10 +1,10 @@
 # Deploy kyn as Hosted SaaS (e.g. kyn.app)
 
-Use this checklist to deploy kyn as a complete hosted SaaS: frontend on Vercel, backend on Railway, Supabase multi-tenant, Stripe billing.
+Use this checklist to deploy kyn as a complete hosted SaaS: frontend on Vercel, backend on Render/Fly.io (or any Node host), Supabase multi-tenant.
 
 ## 1. Environment variables
 
-### Backend (Railway or your Node host)
+### Backend (Render, Fly.io, or your Node host)
 
 Set these on the backend. **Required for full SaaS:**
 
@@ -25,7 +25,7 @@ Optional: `FREE_PROJECT_LIMIT`, `FREE_GROK_DAILY_LIMIT`, `BUILDER_PRIVATE_KEY`, 
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_API_URL` | Backend URL, e.g. `https://your-backend.railway.app` (no trailing slash). Build-time only. |
+| `VITE_API_URL` | Backend URL, e.g. `https://your-backend.onrender.com` (no trailing slash). Build-time only. |
 
 Optional: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` if you want to pin Supabase on the client; otherwise the app fetches them from `/api/config`.
 
@@ -43,7 +43,7 @@ Optional: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` if you want to pin Supab
    Note the Price ID (e.g. `price_xxx`) for your .env.
 
 2. **Set webhook:** Developers → Webhooks → Add endpoint.
-   - URL: `https://your-domain/api/stripe/webhook` (use your backend URL, e.g. `https://your-backend.railway.app/api/stripe/webhook`).
+   - URL: `https://your-domain/api/stripe/webhook` (use your backend URL, e.g. `https://your-backend.onrender.com/api/stripe/webhook`).
    - Events: `checkout.session.completed`, `customer.subscription.deleted`, `customer.subscription.updated`.
    - Copy the signing secret → `STRIPE_WEBHOOK_SECRET`.
 
@@ -51,9 +51,9 @@ Optional: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` if you want to pin Supab
 
 4. **Go live:** When ready, switch Stripe to **live** mode, create live product/price and webhook, then update backend env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID` (or `STRIPE_KING_PRO_PRICE_ID`) with live values.
 
-5. **Monitor:** Check Railway logs for webhook delivery and any errors; use Supabase dashboard for usage and `users.is_pro`.
+5. **Monitor:** Check backend logs for webhook delivery and any errors; use Supabase dashboard for usage and `users.is_pro`.
 
-**Monitoring:** Check Railway logs for webhook events; use the Supabase dashboard for usage.
+**Monitoring:** Check backend logs for webhook events; use the Supabase dashboard for usage.
 
 Customer Portal: enable in Stripe Dashboard (Settings → Billing → Customer portal) so “Manage Subscription” works.
 
@@ -66,18 +66,18 @@ Customer Portal: enable in Stripe Dashboard (Settings → Billing → Customer p
 3. **Switch Stripe live** – Create live product/price and webhook; update backend env with live keys.
 4. **Announce** – Launch on X (Twitter), Product Hunt, or your channels.
 
-## 4. Deploy backend (Railway)
+## 4. Deploy backend (Render, Fly.io, or your Node host)
 
-1. Connect the repo to Railway; set root to the project root.
+1. Connect the repo to Render or Fly.io; set root to the project root.
 2. Build: `npm install && npm run build` (or use a Dockerfile if you have one).
-3. Start: `node server.js` or `npm run start` (ensure `server.js` is the built entry; adjust for your `package.json` scripts).
+3. Start: `node server.js` or `npm run start` (ensure `server.js` is the built entry; or use `npx tsx server.ts`). Adjust for your `package.json` scripts.
 4. Add all env vars from step 1 (backend list).
-5. Deploy; note the public URL (e.g. `https://kyn-backend.railway.app`).
+5. Deploy; note the public URL (e.g. `https://kyn-backend.onrender.com`).
 
 ## 5. Deploy frontend (Vercel)
 
 1. Connect the repo to Vercel; framework preset Vite.
-2. Set **Environment variable** `VITE_API_URL` = your backend URL (e.g. `https://kyn-backend.railway.app`).
+2. Set **Environment variable** `VITE_API_URL` = your backend URL (e.g. `https://kyn-backend.onrender.com`).
 3. Deploy. Ensure SPA fallback is on (e.g. `vercel.json` with `rewrites` to `index.html` for non-api routes).
 
 ## 6. Test flow
@@ -98,7 +98,7 @@ Customer Portal: enable in Stripe Dashboard (Settings → Billing → Customer p
 
 ## 8. Optional
 
-- **Custom domain:** Attach to Vercel (frontend) and Railway (backend); update Supabase redirect URLs and Stripe webhook URL if you change domains.
+- **Custom domain:** Attach to Vercel (frontend) and your backend host (e.g. Render/Fly.io); update Supabase redirect URLs and Stripe webhook URL if you change domains.
 
 ---
 
@@ -107,7 +107,7 @@ Customer Portal: enable in Stripe Dashboard (Settings → Billing → Customer p
 - [ ] Env vars set (backend: Supabase service role, Stripe keys + webhook secret, Grok key, ALLOWED_ORIGIN; frontend: VITE_API_URL).
 - [ ] Supabase schema applied; Auth URL/redirects and providers configured.
 - [ ] Stripe: Pro €19.90/mo price created (recurring monthly); webhook URL set; test mode verified, then live keys when going live.
-- [ ] Backend deployed (e.g. Railway); health check `/api/health` returns 200.
+- [ ] Backend deployed (e.g. Render, Fly.io); health check `/api/health` returns 200.
 - [ ] Frontend deployed (e.g. Vercel); SPA fallback and VITE_API_URL set.
 - [ ] Test flow: sign up → hit free limit → upgrade → unlimited → export → Manage Subscription → read-only after expiry.
 

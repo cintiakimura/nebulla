@@ -1,8 +1,7 @@
 # kyn — Audit test report
 
-**Date:** 2026-03-08  
-**Branch:** main  
-**Remediation applied:** Yes (see Section 5.2)
+**Date:** 2026-03-10  
+**Branch:** main
 
 ---
 
@@ -10,38 +9,19 @@
 
 | Check | Command | Result | Notes |
 |-------|---------|--------|-------|
-| **Security** | `npm audit` | ✅ 0 vulnerabilities | After overrides + electron bump |
+| **Security** | `npm audit` | ✅ 0 vulnerabilities | — |
 | **Lint** | `npm run lint` (tsc --noEmit) | ✅ PASS | Exit code 0 |
 | **Build** | `npm run build` (vite build) | ✅ PASS | ~21s, dist/ produced |
-| **Tests** | — | ⚪ N/A | No test script in package.json |
+| **API tests** | `npm run test:all:server` | ✅ 13/13 PASS | Server auto-starts on port 3077, SQLite + open-mode |
 
 ---
 
-## 2. npm audit (security) — remediation applied
+## 2. npm audit (security)
 
 **Current status:** `npm audit` reports **0 vulnerabilities**.
 
-### Changes made
-
-1. **package.json overrides**
-   - Added `"overrides": { "dompurify": "3.3.2" }` so all consumers (including monaco-editor) use patched DOMPurify (XSS fix for 3.1.3–3.3.1).
-
-2. **Electron**
-   - Bumped `devDependencies.electron` from `^33.0.0` to `^35.7.5` (ASAR integrity bypass fix; no major upgrade to 40.x).
-
-3. **Install**
-   - Ran `npm install` to apply overrides and update lockfile.
-
-### Previous audit output (for reference)
-
 ```
-# npm audit report (before fix)
-
-dompurify  3.1.3 - 3.3.1  → fixed via override 3.3.2
-monaco-editor  (depends on dompurify)  → fixed by override
-electron  <35.7.5  → fixed by upgrading to ^35.7.5
-
-3 moderate severity vulnerabilities → 0 after remediation
+found 0 vulnerabilities
 ```
 
 ---
@@ -65,27 +45,68 @@ No type or emit errors reported.
 | `npm run build` | ✅ PASS |
 | Tool | Vite 6.x |
 | Output | `dist/` |
-| Duration | ~31s (typical) |
+| Duration | ~21s |
 
 ### Build artifacts (sample)
 
 | File | Size (gzip) |
 |------|-------------|
 | dist/index.html | 0.55 kB (0.37 kB gzip) |
-| dist/assets/index-*.css | 50.81 kB (9.52 kB gzip) |
-| dist/assets/index-*-*.js (chunks) | Multiple; largest ~1,352 kB (437 kB gzip) |
+| dist/assets/index-*.css | ~56 kB (~10 kB gzip) |
+| dist/assets/index-*-*.js (chunks) | Multiple; largest ~1,592 kB (~502 kB gzip) |
+
+*(Note: Some chunks >1500 kB; consider code-splitting.)*
 
 ---
 
-## 5. Tests
+## 5. API tests (`npm run test:all:server`)
 
-| Item | Status |
-|------|--------|
-| Test script | None in `package.json` |
-| Test framework | Not configured |
-| Coverage | N/A |
+Full functionality test: server is started with `OPEN_MODE_FALLBACK_USER_ID=test-open-mode-user`, `OPEN_MODE_ORIGIN=` (empty), and SQLite (Supabase env cleared) so all checks run without external services.
 
-Recommendation: Add a test script (e.g. Vitest or Jest) and basic smoke tests for API routes and critical UI flows.
+### Test output (2026-03-10)
+
+```
+=== kyn full functionality test ===
+
+Starting server on port 3077...
+Server ready.
+
+--- 1. Auth / Login-Sign up (session) ---
+  [PASS] POST /api/auth/session returns userId
+  [PASS] POST /api/auth/session echoes userId
+
+--- 2. Projects ---
+  [PASS] GET /api/users/:userId/projects
+  [PASS] GET /api/users/:userId/limits — limit=3
+  [PASS] POST /api/users/:userId/projects — id=...
+  [PASS] GET /api/users/:userId/projects/:id
+  [PASS] PUT /api/users/:userId/projects/:id
+
+--- 3. Agent config ---
+  [PASS] GET /api/agent/config — agentId=grok-eve
+
+--- 4. Agent chat (Grok) ---
+  [PASS] POST /api/agent/chat — reply received
+
+--- 5. UI generation (Builder.io) ---
+  [PASS] POST /api/builder/generate — 503 (BUILDER_PRIVATE_KEY not set)
+
+--- 6. Stripe & update-paid-status (410 = removed) ---
+  [PASS] POST /api/create-checkout-session — 410 (payments removed)
+  [PASS] POST /api/update-paid-status — 410 (payments removed)
+
+--- 7. Deploy mocks ---
+  [PASS] POST /api/deploy — mock ok
+
+=== REPORT ===
+Total: 13  Passed: 13  Failed: 0
+--- End of report ---
+```
+
+### How to re-run
+
+- **With server auto-start:** `npm run test:all:server` (starts server on 3077, runs tests, stops server).
+- **With existing server:** `node scripts/test-all.mjs http://localhost:3000` (or your base URL).
 
 ---
 
@@ -94,18 +115,17 @@ Recommendation: Add a test script (e.g. Vitest or Jest) and basic smoke tests fo
 | Endpoint | Method | Status | Notes |
 |----------|--------|--------|------|
 | `/api/auth/session` | POST | ✅ | Returns/creates userId (mock auth). |
-| `/api/users/:userId/projects` | GET | ✅ | List projects (SQLite). |
+| `/api/users/:userId/projects` | GET | ✅ | List projects (SQLite/Supabase). |
 | `/api/users/:userId/limits` | GET | ✅ | Returns `{ projectLimit }` (FREE_PROJECT_LIMIT). |
 | `/api/users/:userId/projects` | POST | ✅ | Create project; body `{ name }`; 403 when free limit reached. |
 | `/api/users/:userId/projects/:projectId` | GET | ✅ | Get project (code, package_json, chat_messages). |
 | `/api/users/:userId/projects/:projectId` | PUT | ✅ | Update project. |
 | `/api/agent/config` | GET | ✅ | agentId, systemPrompt, preCodeQuestions. |
 | `/api/agent/chat` | POST | ✅ | Grok chat; body `{ messages }`; GROK_API_KEY. |
-| `/api/builder/generate` | POST | ✅ | Builder.io Visual Copilot; body `{ prompt, userId }`; BUILDER_PRIVATE_KEY. |
-| `/api/create-checkout-session` | POST | ✅ | Stripe Checkout; body `{ plan }`. |
-| `/api/update-paid-status` | POST | ✅ | Body `{ plan, userId }`; Supabase upsert. |
+| `/api/builder/generate` | POST | ✅ | Builder.io Visual Copilot; 503 if BUILDER_PRIVATE_KEY not set. |
+| `/api/create-checkout-session` | POST | ✅ | **410 Gone** (payments removed). |
+| `/api/update-paid-status` | POST | ✅ | **410 Gone** (payments removed). |
 | `/api/deploy` | POST | ✅ | Mock. |
-| `/api/netlify/hook` | POST | ✅ | Mock. |
 
 ---
 
@@ -115,6 +135,7 @@ Recommendation: Add a test script (e.g. Vitest or Jest) and basic smoke tests fo
 |------|--------|
 | Dev server port | `process.env.PORT` or **3000** |
 | Start command | `npm run dev` (tsx server.ts → Express + Vite) |
+| Test server port (test:all:server) | **3077** |
 | Preview (static only) | `npm run preview` → Vite default (e.g. 4173) |
 
 ---
@@ -132,21 +153,23 @@ Recommendation: Add a test script (e.g. Vitest or Jest) and basic smoke tests fo
 
 | Area | Result |
 |------|--------|
-| Security (npm audit) | ✅ 0 vulnerabilities (remediation applied: dompurify override 3.3.2, electron ^35.7.5). |
-| Lint | Pass. |
-| Build | Pass. |
-| Tests | No suite. |
-| API | Endpoints present; free-tier limits and Builder.io proxy in place. |
+| Security (npm audit) | ✅ 0 vulnerabilities |
+| Lint | ✅ Pass |
+| Build | ✅ Pass |
+| API tests | ✅ 13/13 pass (test:all:server) |
+| Payments | 410 Gone (Stripe removed); audit treats 410 as pass |
 
 ---
 
-## 10. Recommendations
+## 10. Re-verify commands
 
-1. ~~Run `npm audit fix`~~ **Done.** Overrides + electron bump applied; audit reports 0 vulnerabilities.
-2. Add a test script and baseline tests for `/api/auth/session`, project CRUD, and critical UI (e.g. Dashboard create project).
-3. Ensure `.env` has `GROK_API_KEY` for chat and `BUILDER_PRIVATE_KEY` for UI generation when using those features.
-4. Manual test: Login → Dashboard → Plus (New Project) or Start with Grok → Builder → chat / UI generation.
+```bash
+npm run lint
+npm run build
+npm audit
+npm run test:all:server
+```
 
 ---
 
-*Report generated from audit run (npm audit, npm run lint, npm run build).*
+*Report generated from audit run (npm audit, npm run lint, npm run build, npm run test:all:server).*

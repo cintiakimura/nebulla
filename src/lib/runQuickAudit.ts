@@ -134,6 +134,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     const checkoutData = await checkoutRes.json().catch(() => ({})) as { url?: string; id?: string };
     if (checkoutRes.ok && (checkoutData?.url || checkoutData?.id)) record("POST /api/create-checkout-session", true, "session");
     else if (checkoutRes.status === 503) record("POST /api/create-checkout-session", true, "503 (Stripe not configured)");
+    else if (checkoutRes.status === 410) record("POST /api/create-checkout-session", true, "410 (payments removed)");
     else record("POST /api/create-checkout-session", false, String(checkoutRes.status));
 
     const updatePaidRes = await fetch(`${base}/api/update-paid-status`, {
@@ -143,6 +144,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     });
     if (updatePaidRes.ok) record("POST /api/update-paid-status", true, "ok");
     else if (updatePaidRes.status === 503) record("POST /api/update-paid-status", true, "503 (Supabase not configured)");
+    else if (updatePaidRes.status === 410) record("POST /api/update-paid-status", true, "410 (payments removed)");
     else record("POST /api/update-paid-status", false, String(updatePaidRes.status));
   } catch (e) {
     record("Stripe/update-paid", false, e instanceof Error ? e.message : String(e));

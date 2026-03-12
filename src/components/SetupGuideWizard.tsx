@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useHelpWidget } from "../context/HelpWidgetContext";
 import { type SetupStepId } from "../lib/helpWidgetStorage";
-import { getApiBase, setApiBaseFallback } from "../lib/api";
+import { getApiBase, setApiBaseFallback, clearBackendUnavailable } from "../lib/api";
 import { setSupabaseCreds, setConnectedService, setSecrets, getSupabaseCreds, getSecrets } from "../lib/setupStorage";
 import { testSupabaseConnection } from "../lib/healthCheck";
 import { getUserId } from "../lib/auth";
@@ -85,8 +85,11 @@ export default function SetupGuideWizard() {
   };
 
   const handleSaveBackendUrl = () => {
-    const url = backendUrl.trim().replace(/\/$/, "");
-    if (url) setApiBaseFallback(url);
+    const url = backendUrl.trim().replace(/\/$/, "").replace(/\/api$/i, "");
+    if (url) {
+      setApiBaseFallback(url);
+      clearBackendUnavailable();
+    }
     setStepDone("railway-backend", true);
   };
 
@@ -187,11 +190,11 @@ export default function SetupGuideWizard() {
 • Supabase (auth + db)
 • Express (backend API)
 • Vercel (frontend deploy)
-• Railway (backend deploy)`}</pre>
+• Backend (deploy server.ts)`}</pre>
             </div>
             {/* TODO: screenshot or Mermaid diagram placeholder */}
             <p className="text-gray-500 italic text-xs">
-              {/* TODO: diagram of Vite → Vercel, Express → Railway, Supabase */}
+              {/* Diagram: Vite → Vercel, Express → your backend host, Supabase */}
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -344,30 +347,33 @@ export default function SetupGuideWizard() {
           </>
         )}
 
-        {/* Step 4: Backend deploy — Railway + paste URL */}
+        {/* Step 4: Backend deploy — paste URL (any host: Render, Fly.io, etc.) */}
         {wizardStep === "railway-backend" && (
           <>
             <h3 className="text-base font-semibold text-white flex items-center gap-2">
               <Server size={18} /> Per-project: Deploy backend
             </h3>
             <p className="text-gray-400">
-              Deploy from GitHub (root: <code className="bg-[#1e1e1e] px-1">/</code>, server.ts at root).
+              Deploy from GitHub (root: <code className="bg-[#1e1e1e] px-1">/</code>, server.ts at root). Use any host (e.g. Render, Fly.io).
             </p>
             <a
-              href="https://railway.app/new?referralCode=starter"
+              href="https://github.com/cintiakimura/kyn"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-blue-400 hover:underline text-sm"
             >
-              Railway → New Project → Deploy from GitHub <ExternalLink size={14} />
+              Deploy from GitHub <ExternalLink size={14} />
             </a>
             <p className="text-gray-400 text-xs">
               Add variables: PORT=8080, NODE_ENV=production, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. After deploy, copy the public URL.
             </p>
+            <p className="text-gray-400 text-xs">
+              Backend can run on Render, Fly.io, or any Node host.
+            </p>
             <div className="space-y-2">
               <input
                 type="url"
-                placeholder="https://your-app.up.railway.app"
+                placeholder="https://your-backend.example.com"
                 value={backendUrl}
                 onChange={(e) => setBackendUrl(e.target.value)}
                 className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
@@ -403,7 +409,7 @@ export default function SetupGuideWizard() {
               <Sparkles size={18} /> Optional: Grok & Builder.io
             </h3>
             <p className="text-gray-400 text-xs">
-              Add these in your backend env (Railway/Render), not in the browser.
+              Add these in your backend env (e.g. Render, Fly.io), not in the browser.
             </p>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={grokEnabled} onChange={(e) => setGrokEnabled(e.target.checked)} className="rounded border-gray-500" />
@@ -474,7 +480,6 @@ export default function SetupGuideWizard() {
               <a href="https://github.com/cintiakimura/kyn#readme" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs">README</a>
               <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs">Supabase</a>
               <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs">Vercel</a>
-              <a href="https://railway.app/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs">Railway</a>
             </div>
           </>
         )}

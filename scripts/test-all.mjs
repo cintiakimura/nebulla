@@ -37,7 +37,15 @@ async function runTests() {
   if (START_SERVER) {
     console.log("Starting server on port " + TEST_PORT + "...");
     serverProcess = spawn("npx", ["tsx", "server.ts"], {
-      env: { ...process.env, PORT: String(TEST_PORT), NODE_ENV: "test" },
+      env: {
+        ...process.env,
+        PORT: String(TEST_PORT),
+        NODE_ENV: "test",
+        OPEN_MODE_FALLBACK_USER_ID: "test-open-mode-user",
+        OPEN_MODE_ORIGIN: "", // allow fallback for localhost (no origin check)
+        SUPABASE_URL: "", // force SQLite for reproducible audit
+        SUPABASE_ANON_KEY: "",
+      },
       cwd: join(__dirname, ".."),
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -75,7 +83,7 @@ async function runTests() {
     }
 
     console.log("\n--- 2. Projects ---");
-    const userId = "test-user-" + Date.now();
+    const userId = START_SERVER ? "test-open-mode-user" : "test-user-" + Date.now();
     try {
       const listRes = await fetch(testBase + "/api/users/" + userId + "/projects");
       const listJson = await listRes.json().catch(() => null);
@@ -155,7 +163,7 @@ async function runTests() {
       record("Builder UI generate", false, e.message);
     }
 
-    console.log("\n--- 6. Stripe & update-paid-status ---");
+    console.log("\n--- 6. Stripe & update-paid-status (410 = removed) ---");
     try {
       const checkoutRes = await fetch(testBase + "/api/create-checkout-session", {
         method: "POST",
@@ -165,6 +173,7 @@ async function runTests() {
       const checkoutData = await checkoutRes.json().catch(() => ({}));
       if (checkoutRes.ok && (checkoutData.url || checkoutData.id)) record("POST /api/create-checkout-session", true, "session");
       else if (checkoutRes.status === 503) record("POST /api/create-checkout-session", true, "503 (Stripe not configured)");
+      else if (checkoutRes.status === 410) record("POST /api/create-checkout-session", true, "410 (payments removed)");
       else record("POST /api/create-checkout-session", false, String(checkoutRes.status));
 
       const updatePaidRes = await fetch(testBase + "/api/update-paid-status", {
@@ -174,6 +183,7 @@ async function runTests() {
       });
       if (updatePaidRes.ok) record("POST /api/update-paid-status", true, "ok");
       else if (updatePaidRes.status === 503) record("POST /api/update-paid-status", true, "503 (Supabase not configured)");
+      else if (updatePaidRes.status === 410) record("POST /api/update-paid-status", true, "410 (payments removed)");
       else record("POST /api/update-paid-status", false, String(updatePaidRes.status));
     } catch (e) {
       record("Stripe/update-paid", false, e.message);

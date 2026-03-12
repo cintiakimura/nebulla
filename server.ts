@@ -2,11 +2,7 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
-import { createCheckoutSession } from "./src/api/create-checkout-session.js";
-import { handleStripeWebhook } from "./src/api/stripe-webhook.js";
 import { handleExportProject } from "./src/api/export-project.js";
-import { cancelSubscription } from "./src/api/cancel-subscription.js";
-import { createBillingPortalSession } from "./src/api/billing-portal.js";
 import { AGENT_ID, AGENT_SYSTEM_PROMPT, AGENT_PRE_CODE_QUESTIONS } from "./src/config/agentConfig.js";
 import * as db from "./db.js";
 import {
@@ -89,20 +85,9 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Stripe webhook must get raw body (before express.json())
-  app.post(
-    "/api/stripe/webhook",
-    express.raw({ type: "application/json" }),
-    (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      (req as unknown as { rawBody?: Buffer }).rawBody = req.body as Buffer;
-      next();
-    },
-    handleStripeWebhook
-  );
-
   app.use(express.json());
 
-  // Health check (for wizard + load-time checks). No auth required.
+  // Health check
   app.get("/api/health", (_req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY;
@@ -224,8 +209,10 @@ async function startServer() {
     });
   });
 
-  /** True if user has write access (Pro: is_pro or paid). No paid_until — flat access. */
+  /** True if user has write access. Open-mode fallback user always has full access. No Stripe — use is_pro/paid in Supabase or fallback. */
   async function hasWriteAccess(userId: string): Promise<boolean> {
+    const fallback = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
+    if (fallback && userId === fallback) return true;
     if (!isSupabaseConfigured()) return true;
     const meta = await ensureUserAndGetMetadata(userId);
     return meta?.is_pro === true || meta?.paid === true;
@@ -532,14 +519,16 @@ async function startServer() {
       const { messages, userId: bodyUserId } = req.body as { messages?: { role: string; content: string }[]; userId?: string };
       const authUserId = (req as RequestWithUserId).userId;
       if (isSupabaseConfigured() && !authUserId) {
-        res.status(401).json({ error: "Unauthorized. Sign in to use Grok." });
+        res.status(401).json({ error: "Unauthorized. Sign in or use the app from the open-mode origin." });
         return;
       }
       const userId = authUserId ?? bodyUserId;
+      const fallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
       if (userId && isSupabaseConfigured()) {
         const meta = await ensureUserAndGetMetadata(userId);
         const isPro = meta?.is_pro ?? meta?.paid ?? false;
-        if (!isPro) {
+        const isOpenModeUser = !!fallbackUserId && userId === fallbackUserId;
+        if (!isPro && !isOpenModeUser) {
           const { count } = await getGrokUsage(userId);
           const limit = Math.max(0, parseInt(process.env.FREE_GROK_DAILY_LIMIT ?? "10", 10));
           if (count >= limit) {
@@ -771,108 +760,13 @@ async function startServer() {
     }
   });
 
-  // Stripe Checkout — disabled in open mode (OPEN_MODE_FALLBACK_USER_ID + optional OPEN_MODE_ORIGIN). Code kept for re-enable.
-  const isStripeDisabled = (req: express.Request) => {
-    const fallback = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
-    if (!fallback) return false;
-    const origin = process.env.OPEN_MODE_ORIGIN?.trim();
-    return !origin || requestFromOpenModeOrigin(req);
-  };
-  app.post(
-    "/api/create-checkout-session",
-    (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (isStripeDisabled(req)) {
-        res.status(503).json({ error: "Payments disabled in open mode" });
-        return;
-      }
-      next();
-    },
-    createCheckoutSession
-  );
-  app.post(
-    "/api/cancel-subscription",
-    (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (isStripeDisabled(req)) {
-        res.status(503).json({ error: "Payments disabled in open mode" });
-        return;
-      }
-      next();
-    },
-    resolveUserId,
-    requireAuth,
-    cancelSubscription
-  );
-  app.post(
-    "/api/billing-portal",
-    (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (isStripeDisabled(req)) {
-        res.status(503).json({ error: "Payments disabled in open mode" });
-        return;
-      }
-      next();
-    },
-    resolveUserId,
-    requireAuth,
-    createBillingPortalSession
-  );
-
-  // After Stripe success: client sends plan + userId → update Supabase user paid=true, is_pro (plan "pro" only).
-  app.post("/api/update-paid-status", async (req, res) => {
-    const { plan, userId } = req.body as { plan?: string; userId?: string };
-    if (!userId || typeof userId !== "string") {
-      res.status(400).json({ error: "body: { plan, userId } required" });
-      return;
-    }
-    if (plan !== "pro" && plan !== "king_pro") {
-      res.status(400).json({ error: "plan must be 'pro'" });
-      return;
-    }
-    if (isSupabaseConfigured()) {
-      const { setUserPro } = await import("./src/lib/supabase-multi-tenant.js");
-      const ok = await setUserPro(userId, true, undefined, undefined, "pro");
-      if (!ok) {
-        res.status(503).json({ error: "Failed to update user" });
-        return;
-      }
-      res.json({ ok: true });
-      return;
-    }
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseKey || supabaseUrl === "PLACEHOLDER" || supabaseKey === "PLACEHOLDER") {
-      res.status(503).json({ error: "Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to .env" });
-      return;
-    }
-    try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { error } = await supabase
-        .from("users")
-        .upsert({ id: userId, paid: true, is_pro: true, plan: "pro" }, { onConflict: "id" });
-      if (error) {
-        console.error("[update-paid-status]", error);
-        res.status(503).json({ error: "Supabase update failed" });
-        return;
-      }
-      res.json({ ok: true });
-    } catch (err) {
-      console.error("[update-paid-status]", err);
-      res.status(503).json({ error: "Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to .env" });
-    }
-  });
-
-  app.post("/api/stripe/checkout", async (req, res) => {
-    try {
-      if (!process.env.STRIPE_SECRET_KEY) {
-        console.log("Add STRIPE_SECRET_KEY to .env");
-      }
-      // Mock Stripe checkout session creation
-      console.log(`[Mock] Creating Stripe checkout session...`);
-      res.json({ status: "success", url: "https://checkout.stripe.com/mock" });
-    } catch (error) {
-      res.status(500).json({ error: "Checkout failed" });
-    }
-  });
+  // Stripe and login removed — these routes return 410 Gone
+  app.post("/api/create-checkout-session", (_req, res) => res.status(410).json({ error: "Payments removed" }));
+  app.post("/api/cancel-subscription", (_req, res) => res.status(410).json({ error: "Payments removed" }));
+  app.post("/api/billing-portal", (_req, res) => res.status(410).json({ error: "Payments removed" }));
+  app.post("/api/update-paid-status", (_req, res) => res.status(410).json({ error: "Payments removed" }));
+  app.post("/api/stripe/webhook", (_req, res) => res.status(410).send());
+  app.post("/api/stripe/checkout", (_req, res) => res.status(410).json({ error: "Payments removed" }));
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

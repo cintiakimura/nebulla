@@ -37,7 +37,7 @@ The app (frontend + Node server) is deployed on a **hosting platform**, not on S
 |---------------------|--------------------|
 | **Vercel**          | Account; connect GitHub repo (no API key for basic deploy). |
 | **Netlify**         | Account; connect repo or Netlify API token. |
-| **Railway / Render / Fly.io** | Account; often API token or GitHub. |
+| **Render / Fly.io** | Account; often API token or GitHub. |
 | **Your own server** | Server + Node; no deploy API. |
 
 You do **not** need a special "deploy API" for Supabase. You only need whatever the **hosting platform** (Vercel, Netlify, etc.) requires (e.g. GitHub connection or their token).
@@ -66,7 +66,7 @@ So: **no API key or user ID required** to deploy. You only need your Netlify or 
 
 **Summary:** You don’t need anything from Netlify or Vercel in `.env` right now. For deploying kyn: connect the repo in their UI. The Team ID you found is useful only if we add real Netlify API deploy; then we’d need a PAT (and optionally that team ID), not a “user ID”.
 
-**Login or voice not working on Vercel/static URL:** The static host has no Node server, so `/api/*` returns 404. Fix: (1) Deploy the backend (`server.ts`) somewhere that runs Node (e.g. Railway, Render, Fly.io). (2) Set **`VITE_API_URL`** in your static host’s build env to that backend URL (e.g. `https://your-app.railway.app`, no trailing slash). Rebuild and redeploy. Then login and voice use the backend.
+**Login or voice not working on Vercel/static URL:** The static host has no Node server, so `/api/*` returns 404. Fix: (1) Deploy the backend (`server.ts`) somewhere that runs Node (e.g. Render, Fly.io). (2) Set **`VITE_API_URL`** in your static host’s build env to that backend URL (e.g. `https://your-app.onrender.com`, no trailing slash). Rebuild and redeploy. Then login and voice use the backend.
 
 ---
 

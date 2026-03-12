@@ -95,7 +95,7 @@ Status key: **OK** = implemented and working | **Partial** = works with config/e
 | Item | Status | Notes |
 |------|--------|------|
 | **Vercel (frontend)** | OK | Static build; `vercel.json` SPA rewrite |
-| **Backend (Node)** | Config | Must deploy `server.ts` (e.g. Railway/Render); set `ALLOWED_ORIGIN` for CORS |
+| **Backend (Node)** | Config | Must deploy `server.ts` (e.g. Render, Fly.io); set `ALLOWED_ORIGIN` for CORS |
 | **VITE_API_URL** | Config | Set in Vercel (and backend URL in env) so frontend calls backend |
 | **VITE_SUPABASE_*** | Config | Set in Vercel for magic link / email login |
 

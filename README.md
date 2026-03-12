@@ -30,13 +30,13 @@ These do not affect build or runtime. The Vite **chunk size** warning is relaxed
 
 The repo builds a **static frontend** (Vite). You must run the **backend** (Express in `server.ts`) for login and projects to work. There is no API on a static host alone.
 
-**Full hosted SaaS checklist (env vars, Vercel + Railway, Stripe, test flow):** see **[docs/DEPLOY_SAAS.md](docs/DEPLOY_SAAS.md)**.
+**Full hosted SaaS checklist (env vars, Vercel + backend, Supabase):** see **[docs/DEPLOY_SAAS.md](docs/DEPLOY_SAAS.md)**.
 
-**Monitoring:** Check Railway logs for webhook events and errors; use the Supabase dashboard for usage and `users.is_pro`.
+**Monitoring:** Use the Supabase dashboard for usage and `users.is_pro`.
 
-- **With a backend:** Deploy the Express server (e.g. **Railway**, **Render**, **Fly.io**) and point the frontend to it:
+- **With a backend:** Deploy the Express server (e.g. **Render**, **Fly.io**) and point the frontend to it:
   1. On the backend, set `ALLOWED_ORIGIN` to your frontend URL (e.g. `https://your-app.vercel.app`) for CORS.
-  2. In Vercel (or your static host) → Environment variables, add **`VITE_API_URL`** = your backend URL (e.g. `https://your-backend.railway.app`, no trailing slash).
+  2. In Vercel (or your static host) → Environment variables, add **`VITE_API_URL`** = your backend URL (e.g. `https://your-backend.example.com`, no trailing slash).
   3. Redeploy so the build picks up `VITE_API_URL`. Login and projects will then use the real API.
 
 Use **`vercel.json`** (Vercel) or your host's SPA redirect so routes like `/login` and `/dashboard` serve the app.
