@@ -1032,7 +1032,7 @@ export default function Builder() {
             </div>
             <div className="space-y-2">
               <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
-                Pro €19.99/mo
+                Upgrade to Pro
               </button>
             </div>
           </div>

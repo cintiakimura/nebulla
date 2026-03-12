@@ -58,7 +58,7 @@ export default function Landing() {
             </div>
             <div className="flex-1 rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 md:p-8 min-w-[200px]">
               <p className="text-3xl font-light text-white mb-1">Pro</p>
-              <p className="text-[15px] text-white mb-4">€19.99 per month</p>
+              <p className="text-[15px] text-white mb-4">Pro — contact for pricing</p>
               <button
                 onClick={() => navigate("/pricing")}
                 className="w-full py-3 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-[15px] mb-4"

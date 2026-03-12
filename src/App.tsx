@@ -10,8 +10,6 @@ import Builder from "./pages/Builder";
 import Setup from "./pages/Setup";
 import Settings from "./pages/Settings";
 import MasterPlanBrainstorming from "./pages/MasterPlanBrainstorming";
-import { HelpWidgetProvider } from "./context/HelpWidgetContext";
-import HelpWidget from "./components/HelpWidget";
 import { ensureSupabaseConfig } from "./lib/supabaseAuth";
 import { isOpenMode } from "./lib/auth";
 
@@ -25,7 +23,7 @@ export default function App() {
   useEffect(() => {
     ensureSupabaseConfig()
       .then(() => setConfigReady(true))
-      .catch(() => setConfigReady(true)); // proceed even on failure so env/wizard fallback can be used
+      .catch(() => setConfigReady(true));
   }, []);
 
   if (!configReady) {
@@ -37,27 +35,24 @@ export default function App() {
   }
 
   return (
-    <HelpWidgetProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-[#1e1e1e] text-gray-300 font-sans selection:bg-blue-500/30">
-          <Routes>
-            <Route path="/" element={<RootRedirect />} />
-            <Route path="/landing" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/pricing" element={isOpenMode() ? <Navigate to="/dashboard" replace /> : <Pricing />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/builder" element={<Builder />} />
-            <Route path="/builder/:projectId" element={<Builder />} />
-            <Route path="/setup" element={<Setup />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/master-plan-brainstorming" element={<MasterPlanBrainstorming />} />
-          </Routes>
-          <HelpWidget />
-        </div>
-      </BrowserRouter>
-    </HelpWidgetProvider>
+    <BrowserRouter>
+      <div className="min-h-screen bg-[#1e1e1e] text-gray-300 font-sans selection:bg-blue-500/30">
+        <Routes>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/landing" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/pricing" element={isOpenMode() ? <Navigate to="/dashboard" replace /> : <Pricing />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/builder" element={<Builder />} />
+          <Route path="/builder/:projectId" element={<Builder />} />
+          <Route path="/setup" element={<Setup />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/master-plan-brainstorming" element={<MasterPlanBrainstorming />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 

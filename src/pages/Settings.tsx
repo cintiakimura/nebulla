@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
-import { getApiBase } from "../lib/api";
+import { getApiBase, setApiBaseFallback, clearBackendUnavailable } from "../lib/api";
 import { isOpenMode } from "../lib/auth";
 
 const KEY_USER_ID = "kyn_user_id";
@@ -18,10 +18,17 @@ export default function Settings() {
   const navigate = useNavigate();
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
+  const [backendUrl, setBackendUrl] = useState("");
   const [stripePriceId, setStripePriceId] = useState("");
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const base = getApiBase();
+    setBackendUrl(base || "");
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -56,6 +63,16 @@ export default function Settings() {
   const saveStripePriceId = () => {
     if (typeof window === "undefined") return;
     localStorage.setItem(KEY_STRIPE_PRICE_ID, stripePriceId.trim());
+  };
+
+  const saveBackendUrl = () => {
+    const url = backendUrl.trim().replace(/\/$/, "").replace(/\/api$/i, "");
+    if (url) {
+      setApiBaseFallback(url);
+      clearBackendUnavailable();
+    } else {
+      setApiBaseFallback("");
+    }
   };
 
   const copyEnvVar = (name: string) => {
@@ -125,6 +142,23 @@ export default function Settings() {
             onChange={(e) => setSupabaseAnonKey(e.target.value)}
           />
           <button type="button" onClick={saveSupabase}>
+            Save
+          </button>
+        </section>
+
+        <section>
+          <h2>Backend URL</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            URL where your <strong>backend</strong> runs (server.ts), e.g. <code className="bg-black/20 px-1">https://api.yourdomain.com</code> or <code className="bg-black/20 px-1">https://your-app.onrender.com</code>. Not your frontend site (e.g. www.cintiakimura.eu) — the API must be served by a separate backend. Do not paste API keys here.
+          </p>
+          <input
+            type="url"
+            placeholder="https://your-backend.example.com"
+            value={backendUrl}
+            onChange={(e) => setBackendUrl(e.target.value)}
+            className="w-full max-w-md px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500"
+          />
+          <button type="button" onClick={saveBackendUrl} className="ml-2 px-3 py-2 bg-[#007acc] text-white rounded text-sm">
             Save
           </button>
         </section>
