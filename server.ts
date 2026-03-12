@@ -236,10 +236,9 @@ async function startServer() {
       const { name } = req.body as { name?: string };
       const limit = freeProjectLimit();
       const count = isSupabaseConfigured() ? await supabaseCountProjects(userId) : db.countProjects(userId);
-      let isPaid = true;
+      let isPaid = false;
       if (isSupabaseConfigured()) {
-        const meta = await ensureUserAndGetMetadata(userId);
-        isPaid = meta?.is_pro ?? meta?.paid ?? false;
+        isPaid = await hasWriteAccess(userId);
       } else {
         const supabaseUrl = process.env.SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -247,8 +246,10 @@ async function startServer() {
           try {
             const { createClient } = await import("@supabase/supabase-js");
             const supabase = createClient(supabaseUrl, supabaseKey);
-            const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
-            isPaid = row?.paid === true || row?.is_pro === true;
+            const { data: row } = await supabase.from("users").select("paid, is_pro, paid_until").eq("id", userId).maybeSingle();
+            const paidUntil = row?.paid_until ?? null;
+            const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
+            isPaid = !isExpired && (row?.paid === true || row?.is_pro === true || (paidUntil != null && new Date(paidUntil) > new Date()));
           } catch (_) {}
         }
       }
@@ -387,8 +388,7 @@ async function startServer() {
       const count = isSupabaseConfigured() ? await supabaseCountProjects(userId) : db.countProjects(userId);
       let isPaid = false;
       if (isSupabaseConfigured()) {
-        const meta = await ensureUserAndGetMetadata(userId);
-        isPaid = meta?.is_pro ?? meta?.paid ?? false;
+        isPaid = await hasWriteAccess(userId);
       } else {
         const supabaseUrl = process.env.SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -396,8 +396,10 @@ async function startServer() {
           try {
             const { createClient } = await import("@supabase/supabase-js");
             const supabase = createClient(supabaseUrl, supabaseKey);
-            const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
-            isPaid = row?.paid === true || row?.is_pro === true;
+            const { data: row } = await supabase.from("users").select("paid, is_pro, paid_until").eq("id", userId).maybeSingle();
+            const paidUntil = row?.paid_until ?? null;
+            const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
+            isPaid = !isExpired && (row?.paid === true || row?.is_pro === true || (paidUntil != null && new Date(paidUntil) > new Date()));
           } catch (_) {}
         }
       }
