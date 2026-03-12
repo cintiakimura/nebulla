@@ -23,6 +23,23 @@ import {
 
 type RequestWithUserId = express.Request & { userId?: string };
 
+/** True when request Origin or Referer matches OPEN_MODE_ORIGIN (e.g. https://cintiakimura.eu or cintiakimura.eu). */
+function requestFromOpenModeOrigin(req: express.Request): boolean {
+  const origin = process.env.OPEN_MODE_ORIGIN?.trim();
+  if (!origin) return false;
+  const o = req.get("origin") ?? req.get("referer") ?? "";
+  if (!o) return false;
+  try {
+    const url = new URL(o);
+    const host = url.hostname.toLowerCase();
+    const want = origin.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const wantHost = want.includes("/") ? new URL(want.startsWith("http") ? want : `https://${want}`).hostname : want;
+    return host === wantHost || host === `www.${wantHost}`;
+  } catch {
+    return o.includes(origin) || o.includes(origin.replace(/^https?:\/\//, ""));
+  }
+}
+
 async function resolveUserId(req: RequestWithUserId, res: express.Response, next: express.NextFunction): Promise<void> {
   const auth = req.headers.authorization;
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -40,7 +57,13 @@ async function resolveUserId(req: RequestWithUserId, res: express.Response, next
       } catch (_) {}
     }
   }
-  // Do NOT fall back to req.params.userId — unauthenticated callers must not access other users' data
+  // Open mode: when no token, use fallback user so anyone can use the app without login.
+  // When OPEN_MODE_ORIGIN is set (e.g. https://cintiakimura.eu), only use fallback for requests from that origin.
+  const openModeFallback = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
+  const openModeOrigin = process.env.OPEN_MODE_ORIGIN?.trim();
+  if (!req.userId && openModeFallback && (!openModeOrigin || requestFromOpenModeOrigin(req))) {
+    req.userId = openModeFallback;
+  }
   next();
 }
 
@@ -110,13 +133,15 @@ async function startServer() {
     });
   }
 
-  // Public config: Supabase anon key for frontend (no auth)
+  // Public config: Supabase anon key for frontend (no auth). Open mode: expose fallback user id for getUserId().
   app.get("/api/config", (_req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL?.trim() ?? "";
     const supabaseAnon = process.env.SUPABASE_ANON_KEY?.trim() ?? "";
+    const openModeFallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim() ?? null;
     res.json({
       supabaseUrl: supabaseUrl && supabaseUrl !== "PLACEHOLDER" ? supabaseUrl : "",
       supabaseAnonKey: supabaseAnon && supabaseAnon !== "PLACEHOLDER" ? supabaseAnon : "",
+      openModeFallbackUserId,
     });
   });
 
@@ -746,10 +771,50 @@ async function startServer() {
     }
   });
 
-  // Stripe Checkout — see src/api/create-checkout-session.ts (env: STRIPE_SECRET_KEY, STRIPE_*_PRICE_ID)
-  app.post("/api/create-checkout-session", createCheckoutSession);
-  app.post("/api/cancel-subscription", resolveUserId, requireAuth, cancelSubscription);
-  app.post("/api/billing-portal", resolveUserId, requireAuth, createBillingPortalSession);
+  // Stripe Checkout — disabled in open mode (OPEN_MODE_FALLBACK_USER_ID + optional OPEN_MODE_ORIGIN). Code kept for re-enable.
+  const isStripeDisabled = (req: express.Request) => {
+    const fallback = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
+    if (!fallback) return false;
+    const origin = process.env.OPEN_MODE_ORIGIN?.trim();
+    return !origin || requestFromOpenModeOrigin(req);
+  };
+  app.post(
+    "/api/create-checkout-session",
+    (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (isStripeDisabled(req)) {
+        res.status(503).json({ error: "Payments disabled in open mode" });
+        return;
+      }
+      next();
+    },
+    createCheckoutSession
+  );
+  app.post(
+    "/api/cancel-subscription",
+    (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (isStripeDisabled(req)) {
+        res.status(503).json({ error: "Payments disabled in open mode" });
+        return;
+      }
+      next();
+    },
+    resolveUserId,
+    requireAuth,
+    cancelSubscription
+  );
+  app.post(
+    "/api/billing-portal",
+    (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (isStripeDisabled(req)) {
+        res.status(503).json({ error: "Payments disabled in open mode" });
+        return;
+      }
+      next();
+    },
+    resolveUserId,
+    requireAuth,
+    createBillingPortalSession
+  );
 
   // After Stripe success: client sends plan + userId → update Supabase user paid=true, is_pro (plan "pro" only).
   app.post("/api/update-paid-status", async (req, res) => {

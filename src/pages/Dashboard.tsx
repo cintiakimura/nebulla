@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from "motion/react";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
-import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
+import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib/auth";
 import { getApiBase, isBackendAvailable, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
@@ -206,7 +206,7 @@ export default function Dashboard() {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
         setCreateError("Please sign in again.");
-        navigate("/login", { replace: true });
+        if (!isOpenMode()) navigate("/login", { replace: true });
         return;
       }
       if (res.status === 403 && (data as { error?: string }).error === "free_project_limit_reached") {

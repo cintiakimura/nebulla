@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -13,6 +13,11 @@ import MasterPlanBrainstorming from "./pages/MasterPlanBrainstorming";
 import { HelpWidgetProvider } from "./context/HelpWidgetContext";
 import HelpWidget from "./components/HelpWidget";
 import { ensureSupabaseConfig } from "./lib/supabaseAuth";
+import { isOpenMode } from "./lib/auth";
+
+function RootRedirect() {
+  return isOpenMode() ? <Navigate to="/dashboard" replace /> : <Landing />;
+}
 
 export default function App() {
   const [configReady, setConfigReady] = useState(false);
@@ -36,10 +41,11 @@ export default function App() {
       <BrowserRouter>
         <div className="min-h-screen bg-[#1e1e1e] text-gray-300 font-sans selection:bg-blue-500/30">
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/landing" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/pricing" element={isOpenMode() ? <Navigate to="/dashboard" replace /> : <Pricing />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/builder" element={<Builder />} />

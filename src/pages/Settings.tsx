@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
 import { getApiBase } from "../lib/api";
+import { isOpenMode } from "../lib/auth";
 
 const KEY_USER_ID = "kyn_user_id";
 const KEY_SUPABASE_URL = "supabase_url";
@@ -24,6 +25,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isOpenMode()) return;
     if (!localStorage.getItem(KEY_USER_ID)) {
       navigate("/login", { replace: true });
       return;

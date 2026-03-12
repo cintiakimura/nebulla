@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileCode, Layout, Settings, Wrench } from "lucide-react";
 import SetupWizard from "../components/SetupWizard";
+import { isOpenMode } from "../lib/auth";
 
 const KEY_USER_ID = "kyn_user_id";
 
@@ -11,6 +12,7 @@ export default function Setup() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isOpenMode()) return;
     if (!localStorage.getItem(KEY_USER_ID)) {
       navigate("/login", { replace: true });
     }
@@ -20,7 +22,7 @@ export default function Setup() {
     navigate("/builder");
   };
 
-  if (typeof window !== "undefined" && !localStorage.getItem(KEY_USER_ID)) {
+  if (typeof window !== "undefined" && !isOpenMode() && !localStorage.getItem(KEY_USER_ID)) {
     return null;
   }
 
