@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, CheckCircle, Download, LayoutTemplate } from "lu
 import MindMap from "../components/MindMap";
 import { getUserId } from "../lib/auth";
 import { getApiBase, isBackendAvailable, setBackendUnavailable } from "../lib/api";
+import { getSessionToken } from "../lib/supabaseAuth";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -45,9 +46,12 @@ export default function Onboarding() {
     try {
       const userId = await getUserId();
       const api = getApiBase();
+      const token = await getSessionToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch(`${api}/api/users/${userId}/projects`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ name: "New project" }),
       });
       if (res.ok) {

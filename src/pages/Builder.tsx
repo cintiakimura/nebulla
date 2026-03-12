@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, useLocation, Link } from "react-router-dom";
 import { 
   Play, Square, Terminal as TerminalIcon, Layout, 
   Mic, MicOff, Settings, FileCode, Github,
-  X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Wrench, Paperclip, Send, Volume2, VolumeX
+  X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Wrench, Paperclip, Send, Volume2, VolumeX, Download
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import {
@@ -16,9 +16,11 @@ import { useDropzone } from 'react-dropzone';
 import { getSetupComplete, setSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
 import { getApiBase, clearBackendUnavailable } from "../lib/api";
+import { getSessionToken } from "../lib/supabaseAuth";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import SetupWizard from "../components/SetupWizard";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
+import UpgradeBubble from "../components/UpgradeBubble";
 
 // A component to sync Monaco with Sandpack
 const MonacoSync = ({ code, setCode }: { code: string, setCode: (c: string) => void }) => {
@@ -83,7 +85,12 @@ export default function Builder() {
   );
   const [setupComplete, setSetupCompleteState] = useState(getSetupComplete());
   const [chatInput, setChatInput] = useState("");
-  const [grokSpeaks, setGrokSpeaks] = useState(false);
+  const [grokSpeaks, setGrokSpeaks] = useState(() => {
+    try { return localStorage.getItem("kyn_grok_speaks") !== "false"; } catch { return true; }
+  });
+  const [readOnly, setReadOnly] = useState(false);
+  const [rateLimitModalOpen, setRateLimitModalOpen] = useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const grokAudioRef = useRef<HTMLAudioElement | null>(null);
   const codeRef = useRef(code);
@@ -97,7 +104,7 @@ export default function Builder() {
   useEffect(() => {
     const paid = searchParams.get("paid");
     const plan = searchParams.get("plan");
-    if (paid !== "true" || (plan !== "prototype" && plan !== "king_pro")) return;
+    if (paid !== "true" || (plan !== "prototype" && plan !== "king_pro" && plan !== "pro" && plan !== "intro")) return;
     (async () => {
       const userId = await getUserId();
       try {
@@ -113,6 +120,40 @@ export default function Builder() {
     })();
   }, [searchParams, setSearchParams]);
 
+  // Fetch limits to detect read-only (expired Pro)
+  useEffect(() => {
+    let cancelled = false;
+    getSessionToken().then((token) => {
+      if (!token || cancelled) return;
+      const apiBase = getApiBase();
+      if (!apiBase) return;
+      fetch(`${apiBase}/api/users/me/limits`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { isPro?: boolean; paidUntil?: string } | null) => {
+          if (cancelled || !data) return;
+          const expired = data.paidUntil != null && new Date(data.paidUntil) <= new Date();
+          setReadOnly(expired);
+        })
+        .catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Rate limit modal countdown
+  useEffect(() => {
+    if (!rateLimitModalOpen || rateLimitCountdown <= 0) return;
+    const t = setInterval(() => {
+      setRateLimitCountdown((s) => {
+        if (s <= 1) {
+          setRateLimitModalOpen(false);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [rateLimitModalOpen, rateLimitCountdown]);
+
   // Load project when projectId is set
   useEffect(() => {
     if (!projectId) {
@@ -120,9 +161,13 @@ export default function Builder() {
       return;
     }
     let cancelled = false;
-    getUserId().then((userId) => {
+    (async () => {
+      const userId = await getUserId();
+      const token = await getSessionToken();
       if (cancelled) return;
-      fetch(`${getApiBase() || ""}/api/users/${userId}/projects/${projectId}`)
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      fetch(`${getApiBase() || ""}/api/users/${userId}/projects/${projectId}`, { headers })
         .then((r) => {
           if (r.ok) clearBackendUnavailable();
           return r.ok ? r.json() : null;
@@ -155,7 +200,7 @@ export default function Builder() {
           setProjectLoading(false);
         })
         .catch(() => setProjectLoading(false));
-    });
+    })();
     return () => { cancelled = true; };
   }, [projectId]);
 
@@ -175,15 +220,18 @@ export default function Builder() {
   const saveProject = async (updates?: { code?: string; package_json?: string; chat_messages?: { id: string; role: string; content: string; images?: string[] }[] }) => {
     if (!projectId) return;
     const userId = await getUserId();
+    const token = await getSessionToken();
     const body = {
       code: updates?.code ?? codeRef.current,
       package_json: updates?.package_json ?? packageRef.current,
       chat_messages: updates?.chat_messages ?? chatRef.current,
       last_edited: new Date().toISOString(),
     };
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
     await fetch(`${getApiBase()}/api/users/${userId}/projects/${projectId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
   };
@@ -209,40 +257,36 @@ export default function Builder() {
     };
   }, []);
 
-  /** Play Grok reply with Eve voice (xAI TTS). No browser TTS. force = always play (e.g. post-onboarding opener). */
+  /** Play Grok reply with browser TTS (Web Speech API). Prefer en-US voice. */
   const speakWithGrokEve = (text: string, force?: boolean) => {
-    if (typeof window === "undefined" || !text.trim()) return;
-    grokAudioRef.current?.pause();
-    grokAudioRef.current = null;
+    if (typeof window === "undefined" || !text?.trim()) return;
     if (!force && !grokSpeaks) return;
-    const apiBase = getApiBase();
-    const url = apiBase ? `${apiBase}/api/tts` : "/api/tts";
-    fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text.slice(0, 4096), voice_id: "eve" }),
-    })
-      .then((res) => (res.ok ? res.arrayBuffer() : null))
-      .then((buf) => {
-        if (!buf) return;
-        const blob = new Blob([buf], { type: "audio/mpeg" });
-        const objectUrl = URL.createObjectURL(blob);
-        const audio = new Audio(objectUrl);
-        grokAudioRef.current = audio;
-        audio.onended = () => {
-          URL.revokeObjectURL(objectUrl);
-          if (grokAudioRef.current === audio) grokAudioRef.current = null;
-        };
-        audio.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          if (grokAudioRef.current === audio) grokAudioRef.current = null;
-        };
-        audio.play().catch(() => {});
-      })
-      .catch(() => {});
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      setTimeout(() => speakWithGrokEve(text, force), 150);
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text.slice(0, 4096));
+    u.rate = 0.95;
+    u.pitch = 1;
+    const enUS = voices.find((v) => v.lang === "en-US") ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
+    if (enUS) u.voice = enUS;
+    window.speechSynthesis.speak(u);
   };
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      const onVoices = () => window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = onVoices;
+      return () => { window.speechSynthesis.onvoiceschanged = null; };
+    }
+  }, []);
+
   const sendToGrok = async (newUserContent: string) => {
+    const userId = await getUserId();
     const messages = [
       ...chatMessages.map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: newUserContent },
@@ -252,13 +296,50 @@ export default function Builder() {
       const res = await fetch(`${getApiBase()}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, userId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const dataErr = (data as { error?: string })?.error;
         const details = (data as { details?: string })?.details;
         let errMsg: string;
+        if (res.status === 401) {
+          errMsg = "Please sign in again.";
+          addLog(`[Grok]: ${errMsg}`);
+          const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };
+          setChatMessages(prev => [...prev, errAssistant]);
+          saveProject({ chat_messages: [...chatMessages, { id: crypto.randomUUID(), role: 'user', content: newUserContent }, errAssistant] });
+          return;
+        }
+        if (res.status === 403 && dataErr === "read_only_expired") {
+          errMsg = (data as { message?: string })?.message ?? "Subscription expired. You're in read-only mode. Upgrade to continue chatting.";
+          addLog(`[Grok]: ${errMsg}`);
+          setReadOnly(true);
+          const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };
+          setChatMessages(prev => [...prev, errAssistant]);
+          saveProject({ chat_messages: [...chatMessages, { id: crypto.randomUUID(), role: 'user', content: newUserContent }, errAssistant] });
+          setProModalAction("read_only");
+          setProModalOpen(true);
+          return;
+        }
+        if (res.status === 429) {
+          const isIpRateLimit = (data as { error?: string })?.error === "rate_limit_exceeded";
+          errMsg = isIpRateLimit
+            ? ((data as { message?: string })?.message ?? "Too many requests. Please wait a minute and try again.")
+            : ((data as { message?: string })?.message ?? "Free tier: Grok chat limit reached. Upgrade to Pro for unlimited.");
+          addLog(`[Grok]: ${errMsg}`);
+          const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };
+          setChatMessages(prev => [...prev, errAssistant]);
+          saveProject({ chat_messages: [...chatMessages, { id: crypto.randomUUID(), role: 'user', content: newUserContent }, errAssistant] });
+          if (!isIpRateLimit) {
+            setProModalAction("grok_limit");
+            setProModalOpen(true);
+          } else {
+            setRateLimitCountdown(60);
+            setRateLimitModalOpen(true);
+          }
+          return;
+        }
         if (res.status === 405 || res.status === 404) {
           errMsg = "Grok needs your backend. Run the app with `npm run dev` (not just the frontend), set GROK_API_KEY in .env, and use the same origin (see README).";
         } else if (details) {
@@ -291,6 +372,7 @@ export default function Builder() {
   };
 
   const handleSendText = () => {
+    if (readOnly) return;
     const text = chatInput.trim();
     if (!text) return;
     setChatInput("");
@@ -336,6 +418,7 @@ export default function Builder() {
   };
 
   const handleMicToggle = () => {
+    if (readOnly) return;
     if (listening) {
       SpeechRecognition.stopListening();
       if (transcript) {
@@ -473,10 +556,11 @@ export default function Builder() {
 
   const startCheckout = async (plan: 'prototype' | 'king_pro') => {
     try {
+      const userId = await getUserId();
       const res = await fetch(`${getApiBase()}/api/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan: plan === 'king_pro' ? 'pro' : plan, userId }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (data.url) {
@@ -486,6 +570,44 @@ export default function Builder() {
       }
     } catch (e) {
       addLog(`[Checkout]: Network error.`);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!projectId) {
+      addLog("[Export]: Save or open a project first.");
+      return;
+    }
+    if (!paidStatus.paid) {
+      setProModalAction("export");
+      setProModalOpen(true);
+      return;
+    }
+    const token = await getSessionToken();
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      addLog("[Export]: Backend not configured.");
+      return;
+    }
+    try {
+      const headers: Record<string, string> = { Accept: "application/zip" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${apiBase}/api/export/${projectId}`, { headers });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        addLog(`[Export]: ${err.error ?? res.status}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kyn-export-${projectId.slice(0, 8)}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      addLog("[Export]: Download started.");
+    } catch (e) {
+      addLog("[Export]: " + (e instanceof Error ? e.message : "Failed"));
     }
   };
 
@@ -561,6 +683,14 @@ export default function Builder() {
           >
             <Github size={16} />
             Push to GitHub
+          </button>
+          <button
+            onClick={() => handleExport()}
+            className="w-full py-2 px-3 bg-[#2d2d3d] hover:bg-[#3d3d5d] text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
+            title="Download zip: code, mind map, keys"
+          >
+            <Download size={16} />
+            Export zip
           </button>
             </>
           )}
@@ -765,22 +895,47 @@ export default function Builder() {
               <div className="text-sm text-[#9ca3af] italic select-text">{transcript || '...'}</div>
             </div>
           )}
-          {/* Text input + Send */}
+          {/* Text input + Mic + Send. Fallback: no mic if browser doesn't support speech recognition. */}
           <div className="flex-shrink-0 p-2 border-t border-[#3d3d4d] bg-[#252536]" onClick={e => e.stopPropagation()}>
-            <div className="flex gap-2">
+            {listening && (
+              <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
+                <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" aria-hidden />
+                Listening...
+              </div>
+            )}
+            <div className="flex gap-2 items-center">
               <input
                 type="text"
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendText(); } }}
-                placeholder="Type to Grok..."
-                className="flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e2e] border border-[#3d3d4d] text-sm text-white placeholder-[#6b7280] focus:border-[#007acc] focus:outline-none"
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
+                placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e2e] border border-[#3d3d4d] text-sm text-white placeholder-[#6b7280] focus:border-[#007acc] focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                disabled={readOnly}
+                title={readOnly ? "Upgrade for full access" : undefined}
               />
+              <span
+                className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#2d2d3d] text-[#9ca3af] border border-[#3d3d4d] cursor-help"
+                title="Fast reasoning model — unlimited chats on Pro"
+              >
+                Powered by Grok 4.1 Fast
+              </span>
+              {browserSupportsSpeechRecognition !== false && (
+                <button
+                  type="button"
+                  onClick={handleMicToggle}
+                  disabled={readOnly}
+                  className={`p-2 rounded-md transition-colors shrink-0 ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'bg-red-500/20 text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
+                  title={readOnly ? "Upgrade for full access" : (listening ? 'Stop and send' : 'Voice input')}
+                >
+                  {listening ? <MicOff size={18} /> : <Mic size={18} />}
+                </button>
+              )}
               <button
                 onClick={handleSendText}
-                disabled={!chatInput.trim()}
-                className="p-2 rounded-md bg-[#007acc] text-white hover:bg-[#1a8ad4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Send"
+                disabled={!chatInput.trim() || readOnly}
+                className="p-2 rounded-md bg-[#007acc] text-white hover:bg-[#1a8ad4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={18} />
               </button>
@@ -791,18 +946,24 @@ export default function Builder() {
         <div className="flex-shrink-0 flex items-center justify-center gap-1 py-2 px-2 border-t border-[#3d3d4d] bg-[#252536]">
           <button
             onClick={handleMicToggle}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${listening ? 'text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
-            title="Open talk"
+            disabled={readOnly}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
+            title={readOnly ? "Upgrade for full access" : "Open talk"}
           >
             {listening ? <MicOff size={18} /> : <Mic size={18} />}
             <span className="text-xs">{listening ? 'Listening...' : 'Open talk'}</span>
           </button>
           <button
-            onClick={() => setGrokSpeaks(prev => !prev)}
-            className={`p-2 rounded-md transition-colors ${grokSpeaks ? 'text-[#007acc] bg-[#2d2d3d]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
-            title={grokSpeaks ? 'Grok speaks (on)' : 'Grok speaks (off)'}
+            onClick={() => setGrokSpeaks(prev => {
+              const next = !prev;
+              try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
+              return next;
+            })}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${grokSpeaks ? 'text-[#007acc] bg-[#2d2d3d]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
+            title="Grok reads replies aloud (browser TTS)"
           >
             {grokSpeaks ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            <span className="text-xs">Grok speaks</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
@@ -828,7 +989,37 @@ export default function Builder() {
         open={proModalOpen}
         onClose={() => setProModalOpen(false)}
         action={proModalAction}
+        title={proModalAction === "read_only" ? "Your Pro trial expired" : undefined}
+        message={proModalAction === "read_only" ? "Upgrade to keep building?" : undefined}
+        ctaLabel={proModalAction === "read_only" ? "Upgrade" : undefined}
+        ctaToPricing={proModalAction === "read_only"}
       />
+
+      {/* Rate limit modal: 429 too many requests */}
+      {rateLimitModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}>
+          <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-white">Too many requests</span>
+              {rateLimitCountdown <= 0 ? (
+                <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d]">
+                  <X size={16} />
+                </button>
+              ) : null}
+            </div>
+            <p className="text-sm text-[#d4d4d4] mb-3">
+              Wait {rateLimitCountdown > 0 ? rateLimitCountdown : 0} second{rateLimitCountdown !== 1 ? "s" : ""} and try again, or upgrade for unlimited chats.
+            </p>
+            <Link
+              to="/pricing"
+              onClick={() => setRateLimitModalOpen(false)}
+              className="block w-full py-2 px-3 bg-[#6366F1] hover:bg-[#4f46e5] text-white text-sm rounded-lg transition-colors text-center"
+            >
+              Upgrade for unlimited
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Upgrade modal: pick plan → Stripe Checkout (paid flow) */}
       {upgradeModalOpen && (
@@ -845,13 +1036,14 @@ export default function Builder() {
                 Prototype $0.00/mo
               </button>
               <button onClick={() => startCheckout('king_pro')} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
-                King Pro $19.99/mo
+                Pro €19.99/mo
               </button>
             </div>
           </div>
         </div>
       )}
       </div>
+      <UpgradeBubble show={!paidStatus.paid} message="Upgrade to Pro for unlimited" />
     </div>
   );
 }

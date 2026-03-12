@@ -1,15 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileCode, Layout, Settings, Wrench } from "lucide-react";
 import SetupWizard from "../components/SetupWizard";
+
+const KEY_USER_ID = "kyn_user_id";
 
 export default function Setup() {
   const navigate = useNavigate();
   const [chatMessages] = useState<{ id: string; role: "user" | "assistant"; content: string }[]>([]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem(KEY_USER_ID)) {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
+
   const handleSetupComplete = () => {
     navigate("/builder");
   };
+
+  if (typeof window !== "undefined" && !localStorage.getItem(KEY_USER_ID)) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen bg-[#1e1e1e] text-gray-300 overflow-hidden font-sans">

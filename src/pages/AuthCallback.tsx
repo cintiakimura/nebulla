@@ -10,14 +10,15 @@ export default function AuthCallback() {
   useEffect(() => {
     const supabase = getSupabaseAuthClient();
     if (!supabase) {
+      console.error("[kyn auth callback] Supabase client not configured");
       setStatus("error");
       return;
     }
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setStatus("error");
-        return;
-      }
+
+    let cancelled = false;
+
+    const applySession = (session: { user?: { id?: string } } | null) => {
+      if (cancelled) return;
       if (session?.user?.id) {
         setUserIdAfterLogin(session.user.id);
         setStatus("done");
@@ -25,16 +26,33 @@ export default function AuthCallback() {
       } else {
         setStatus("error");
       }
+    };
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (cancelled) return;
+      if (error) {
+        console.error("[kyn auth callback] getSession error:", error.message, error);
+        setStatus("error");
+        return;
+      }
+      applySession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.id) {
-        setUserIdAfterLogin(session.user.id);
-        setStatus("done");
-        navigate("/dashboard", { replace: true });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        applySession(session);
       }
     });
-    return () => subscription.unsubscribe();
+
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setStatus((s) => (s === "loading" ? "error" : s));
+    }, 5000);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      window.clearTimeout(timeout);
+    };
   }, [navigate]);
 
   if (status === "error") {

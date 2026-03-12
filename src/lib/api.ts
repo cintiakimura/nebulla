@@ -1,12 +1,30 @@
 const KEY_BACKEND_UNAVAILABLE = "kyn_backend_unavailable";
 
+/** localStorage key for wizard-pasted backend URL (used when VITE_API_URL is not set). */
+const KEY_API_BASE_FALLBACK = "kyn_api_base_fallback";
+
 /**
  * API base URL for backend calls. Empty = same origin (e.g. dev server or when frontend is served by Express).
  * Set VITE_API_URL in production when the frontend is on a different host (e.g. Vercel) and the backend is elsewhere (e.g. Railway).
+ * If VITE_API_URL is not set, falls back to localStorage (wizard-pasted Railway URL) for progressive enhancement.
  */
 export function getApiBase(): string {
-  const url = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
-  return url ? url.replace(/\/$/, "") : "";
+  const envUrl = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
+  if (envUrl) return envUrl.replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    const fallback = localStorage.getItem(KEY_API_BASE_FALLBACK);
+    if (fallback && typeof fallback === "string") return fallback.replace(/\/$/, "");
+  }
+  return "";
+}
+
+/** Set wizard-pasted backend URL (e.g. after Railway deploy). Used when VITE_API_URL is not set. */
+export function setApiBaseFallback(url: string): void {
+  if (typeof window === "undefined") return;
+  const v = url.trim().replace(/\/$/, "");
+  if (v) localStorage.setItem(KEY_API_BASE_FALLBACK, v);
+  else localStorage.removeItem(KEY_API_BASE_FALLBACK);
+  window.dispatchEvent(new CustomEvent("kyn-api-base-changed"));
 }
 
 /**

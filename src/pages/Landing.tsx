@@ -41,11 +41,11 @@ export default function Landing() {
             </p>
           </div>
 
-          {/* Right: two price options */}
+          {/* Right: Free + Pro */}
           <div className="flex flex-col sm:flex-row gap-6 text-left">
             <div className="flex-1 rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 md:p-8 min-w-[200px]">
               <p className="text-3xl font-light text-white mb-1">Free</p>
-              <p className="text-[15px] text-white mb-4">Free tier</p>
+              <p className="text-[15px] text-white mb-4">Try the builder</p>
               <button
                 onClick={() => navigate("/login")}
                 className="w-full py-3 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-[15px] mb-4"
@@ -53,20 +53,20 @@ export default function Landing() {
                 Sign up now
               </button>
               <p className="text-[15px] text-white leading-relaxed">
-                All the experience and efficiency to see your idea. No credit limit. No project limits.
+                3 projects, 10 Grok chats per day. Full experience—see your idea come to life. Upgrade anytime for unlimited.
               </p>
             </div>
             <div className="flex-1 rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 md:p-8 min-w-[200px]">
-              <p className="text-3xl font-light text-white mb-1">19.99 €</p>
-              <p className="text-[15px] text-white mb-4">per month</p>
+              <p className="text-3xl font-light text-white mb-1">Pro</p>
+              <p className="text-[15px] text-white mb-4">€19.99 per month</p>
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate("/pricing")}
                 className="w-full py-3 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-[15px] mb-4"
               >
                 Get all features
               </button>
               <p className="text-[15px] text-white leading-relaxed">
-                GitHub connection. Back-end functions. All you need from hosting to deploy. No hidden fees and tricks.
+                Unlimited projects and Grok. Export, GitHub, custom domains. One price—no hidden fees.
               </p>
             </div>
           </div>

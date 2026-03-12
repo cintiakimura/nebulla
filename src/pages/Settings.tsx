@@ -1,207 +1,200 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Github,
-  Database,
-  Globe,
-  CreditCard,
-  Copy,
-  Check,
-  Trash2,
-  Plus,
-  ArrowLeft,
-} from "lucide-react";
-import {
-  getConnectedServices,
-  setConnectedService,
-  getSupabaseCreds,
-  setSupabaseCreds,
-  getStripeKey,
-  setStripeKey,
-  getSecrets,
-  setSecret,
-  removeSecret,
-  setDomainVerified,
-} from "../lib/setupStorage";
+import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
+import { getApiBase } from "../lib/api";
 
-const VERCEL_DNS = { A: "76.76.21.21", CNAME: "cname.vercel-dns.com" };
-const SUPABASE_SIGNUP = "https://supabase.com/dashboard";
-const GODADDY = "https://www.godaddy.com/domains";
-const CLOUDFLARE = "https://dash.cloudflare.com";
+const KEY_USER_ID = "kyn_user_id";
+const KEY_SUPABASE_URL = "supabase_url";
+const KEY_SUPABASE_ANON_KEY = "supabase_anon_key";
+const KEY_STRIPE_PRICE_ID = "stripe_price_id";
+
+const VERCEL_ENV_VARS = ["GROK_API_KEY", "BUILDER_PRIVATE_KEY", "STRIPE_PRICE_ID"] as const;
+const VERCEL_DASHBOARD_URL = "https://vercel.com/dashboard";
+
+type Limits = { isPro?: boolean; paidUntil?: string };
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [services, setServices] = useState(getConnectedServices());
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
-  const [stripeKey, setStripeKeyState] = useState("");
-  const [secrets, setSecretsState] = useState<Record<string, string>>({});
-  const [newSecretKey, setNewSecretKey] = useState("");
-  const [newSecretValue, setNewSecretValue] = useState("");
-  const [secretError, setSecretError] = useState("");
-  const [copied, setCopied] = useState<"A" | "CNAME" | null>(null);
+  const [stripePriceId, setStripePriceId] = useState("");
+  const [copiedVar, setCopiedVar] = useState<string | null>(null);
+  const [limits, setLimits] = useState<Limits | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   useEffect(() => {
-    const creds = getSupabaseCreds();
-    if (creds) {
-      setSupabaseUrl(creds.url);
-      setSupabaseAnonKey(creds.anonKey);
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem(KEY_USER_ID)) {
+      navigate("/login", { replace: true });
+      return;
     }
-    setStripeKeyState(getStripeKey());
-    setSecretsState(getSecrets());
+    setSupabaseUrl(localStorage.getItem(KEY_SUPABASE_URL) ?? "");
+    setSupabaseAnonKey(localStorage.getItem(KEY_SUPABASE_ANON_KEY) ?? "");
+    setStripePriceId(localStorage.getItem(KEY_STRIPE_PRICE_ID) ?? "");
+  }, [navigate]);
+
+  useEffect(() => {
+    const apiBase = getApiBase();
+    if (!apiBase) return;
+    getSessionToken().then((token) => {
+      if (!token) return;
+      fetch(`${apiBase}/api/users/me/limits`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: Limits | null) => data && setLimits(data))
+        .catch(() => {});
+    });
   }, []);
 
-  const refreshServices = () => setServices(getConnectedServices());
-
   const saveSupabase = () => {
-    if (supabaseUrl.trim() && supabaseAnonKey.trim()) {
-      setSupabaseCreds(supabaseUrl, supabaseAnonKey);
-      setConnectedService("supabase", true);
-      refreshServices();
+    if (typeof window === "undefined") return;
+    localStorage.setItem(KEY_SUPABASE_URL, supabaseUrl.trim());
+    localStorage.setItem(KEY_SUPABASE_ANON_KEY, supabaseAnonKey.trim());
+  };
+
+  const saveStripePriceId = () => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(KEY_STRIPE_PRICE_ID, stripePriceId.trim());
+  };
+
+  const copyEnvVar = (name: string) => {
+    navigator.clipboard.writeText(name);
+    setCopiedVar(name);
+    setTimeout(() => setCopiedVar(null), 2000);
+  };
+
+  const connectGitHub = () => {
+    const supabase = getSupabaseAuthClient();
+    if (supabase) {
+      supabase.auth.signInWithOAuth({ provider: "github" });
     }
   };
 
-  const saveStripe = () => {
-    setStripeKey(stripeKey);
-    refreshServices();
+  const connectGoogle = () => {
+    const supabase = getSupabaseAuthClient();
+    if (supabase) {
+      supabase.auth.signInWithOAuth({ provider: "google" });
+    }
   };
 
-  const addSecret = () => {
-    const k = newSecretKey.trim();
-    if (!k) {
-      setSecretError("Key is required");
+  const openManageSubscription = async () => {
+    const apiBase = getApiBase();
+    const token = await getSessionToken();
+    if (!apiBase || !token) {
+      alert("Sign in required");
       return;
     }
-    if (Object.prototype.hasOwnProperty.call(secrets, k)) {
-      setSecretError("Key already exists");
-      return;
+    setBillingLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/billing-portal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) window.location.href = data.url;
+      else alert(data.error ?? "Could not open billing");
+    } catch {
+      alert("Could not open billing");
+    } finally {
+      setBillingLoading(false);
     }
-    setSecret(k, newSecretValue.trim());
-    setSecretsState(getSecrets());
-    setNewSecretKey("");
-    setNewSecretValue("");
-    setSecretError("");
   };
 
-  const copyDns = (type: "A" | "CNAME") => {
-    const value = type === "A" ? VERCEL_DNS.A : VERCEL_DNS.CNAME;
-    navigator.clipboard.writeText(value);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
-  };
+  if (typeof window !== "undefined" && !localStorage.getItem(KEY_USER_ID)) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e] text-gray-300 font-sans">
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-        >
-          <ArrowLeft size={18} />
-          Back
-        </button>
+    <div>
+      <div>
+        <h1>Settings</h1>
 
-        <h1 className="text-2xl font-semibold text-white mb-6">Settings</h1>
+        <section>
+          <h2>Supabase setup</h2>
+          <input
+            type="url"
+            placeholder="Supabase URL"
+            value={supabaseUrl}
+            onChange={(e) => setSupabaseUrl(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Anon Key"
+            value={supabaseAnonKey}
+            onChange={(e) => setSupabaseAnonKey(e.target.value)}
+          />
+          <button type="button" onClick={saveSupabase}>
+            Save
+          </button>
+        </section>
 
-        <div className="space-y-4">
-            {/* GitHub */}
-            <div className="bg-[#252526] border border-[#333333] rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Github size={24} className="text-gray-300" />
-                <div>
-                  <div className="text-sm font-medium text-white">GitHub</div>
-                  <div className="text-xs text-gray-500">Repos, deploy hooks</div>
-                </div>
-              </div>
-              {services.github ? (
-                <span className="flex items-center gap-1 text-xs text-green-400"><Check size={14} /> Connected</span>
+        <section>
+          <h2>Vercel setup</h2>
+          <ul>
+            {VERCEL_ENV_VARS.map((name) => (
+              <li key={name}>
+                {name}
+                <button type="button" onClick={() => copyEnvVar(name)}>
+                  {copiedVar === name ? "Copied" : "Copy"}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <a href={VERCEL_DASHBOARD_URL} target="_blank" rel="noopener noreferrer">
+            Go to Vercel to add these
+          </a>
+        </section>
+
+        <section>
+          <h2>Stripe setup</h2>
+          <input
+            type="text"
+            placeholder="Stripe Price ID"
+            value={stripePriceId}
+            onChange={(e) => setStripePriceId(e.target.value)}
+          />
+          <button type="button" onClick={saveStripePriceId}>
+            Save
+          </button>
+        </section>
+
+        <section>
+          <h2>GitHub</h2>
+          <button type="button" onClick={connectGitHub}>
+            Connect GitHub
+          </button>
+        </section>
+
+        <section>
+          <h2>Google</h2>
+          <button type="button" onClick={connectGoogle}>
+            Connect Google
+          </button>
+        </section>
+
+        <section>
+          <h2>Subscription</h2>
+          {limits?.paidUntil != null && (
+            <>
+              {new Date(limits.paidUntil) > new Date() ? (
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Pro active until {new Date(limits.paidUntil).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                </p>
               ) : (
-                <button onClick={() => { setConnectedService("github", true); refreshServices(); }} className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded">Connect</button>
+                <div className="mb-3 p-3 bg-amber-500/15 border border-amber-500/40 rounded-lg text-sm text-amber-200">
+                  Pro expired — upgrade to continue
+                </div>
               )}
-            </div>
-
-            {/* Supabase */}
-            <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Database size={24} className="text-gray-300" />
-                <div>
-                  <div className="text-sm font-medium text-white">Supabase</div>
-                  <div className="text-xs text-gray-500">DB + auth</div>
-                </div>
-              </div>
-              <a href={SUPABASE_SIGNUP} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:underline mb-2 inline-block">Dashboard</a>
-              <div className="space-y-2">
-                <input type="url" placeholder="Project URL" value={supabaseUrl} onChange={(e) => setSupabaseUrl(e.target.value)} className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-                <input type="password" placeholder="Anon key" value={supabaseAnonKey} onChange={(e) => setSupabaseAnonKey(e.target.value)} className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-                <button onClick={saveSupabase} disabled={!supabaseUrl.trim() || !supabaseAnonKey.trim()} className="px-3 py-1.5 bg-[#333] hover:bg-[#444] disabled:opacity-50 text-white text-sm rounded">Save</button>
-              </div>
-            </div>
-
-            {/* Vercel */}
-            <div className="bg-[#252526] border border-[#333333] rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Globe size={24} className="text-gray-300" />
-                <div>
-                  <div className="text-sm font-medium text-white">Vercel</div>
-                  <div className="text-xs text-gray-500">Deploy & hosting</div>
-                </div>
-              </div>
-              {services.vercel ? (
-                <span className="flex items-center gap-1 text-xs text-green-400"><Check size={14} /> Connected</span>
-              ) : (
-                <button onClick={() => { setConnectedService("vercel", true); refreshServices(); }} className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded">Connect</button>
-              )}
-            </div>
-
-            {/* Stripe */}
-            <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <CreditCard size={24} className="text-gray-300" />
-                <div>
-                  <div className="text-sm font-medium text-white">Stripe</div>
-                  <div className="text-xs text-gray-500">Payments, OAuth or secret key</div>
-                </div>
-              </div>
-              <input type="password" placeholder="Secret key (sk_...)" value={stripeKey} onChange={(e) => setStripeKeyState(e.target.value)} className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none mb-2" />
-              <button onClick={saveStripe} className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded">Save</button>
-            </div>
-
-            {/* DNS */}
-            <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
-              <div className="text-sm font-medium text-white mb-2">DNS (Vercel)</div>
-              <div className="text-xs text-gray-500 mb-2">A @ {VERCEL_DNS.A} · CNAME www {VERCEL_DNS.CNAME}</div>
-              <div className="flex gap-2">
-                <button onClick={() => copyDns("A")} className="px-2 py-1.5 bg-[#333] hover:bg-[#444] text-white text-xs rounded flex items-center gap-1">{copied === "A" ? <Check size={12} /> : <Copy size={12} />} Copy A</button>
-                <button onClick={() => copyDns("CNAME")} className="px-2 py-1.5 bg-[#333] hover:bg-[#444] text-white text-xs rounded flex items-center gap-1">{copied === "CNAME" ? <Check size={12} /> : <Copy size={12} />} Copy CNAME</button>
-              </div>
-              <div className="mt-2 flex gap-3 text-xs">
-                <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">GoDaddy</a>
-                <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Cloudflare</a>
-              </div>
-              <button onClick={() => { setDomainVerified(true); refreshServices(); }} className="mt-2 text-xs text-blue-400 hover:underline">Mark verified</button>
-            </div>
-
-            {/* Secrets */}
-            <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
-              <div className="text-sm font-medium text-white mb-2">Secrets</div>
-              <p className="text-xs text-gray-500 mb-3">Key-value pairs. No duplicate keys.</p>
-              <div className="space-y-2 mb-3">
-                {Object.entries(secrets).map(([k, v]) => (
-                  <div key={k} className="flex items-center gap-2">
-                    <span className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-xs text-gray-300 font-mono truncate">{k}</span>
-                    <span className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-xs text-gray-500 truncate">•••</span>
-                    <button onClick={() => { removeSecret(k); setSecretsState(getSecrets()); }} className="p-1.5 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Remove"><Trash2 size={14} /></button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2 flex-wrap items-center">
-                <input type="text" placeholder="Key" value={newSecretKey} onChange={(e) => { setNewSecretKey(e.target.value); setSecretError(""); }} className="w-32 px-2 py-1.5 bg-[#1e1e1e] border border-[#333] rounded text-xs text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-                <input type="password" placeholder="Value" value={newSecretValue} onChange={(e) => setNewSecretValue(e.target.value)} className="w-32 px-2 py-1.5 bg-[#1e1e1e] border border-[#333] rounded text-xs text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-                <button onClick={addSecret} className="p-1.5 rounded bg-[#333] hover:bg-[#444] text-white flex items-center gap-1"><Plus size={14} /> Add</button>
-              </div>
-              {secretError && <p className="text-xs text-red-400 mt-1">{secretError}</p>}
-            </div>
-        </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={openManageSubscription}
+            disabled={billingLoading}
+            className="text-blue-600 hover:underline disabled:opacity-50"
+          >
+            {billingLoading ? "Opening…" : "Manage Subscription"}
+          </button>
+        </section>
       </div>
     </div>
   );

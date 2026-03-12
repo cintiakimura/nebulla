@@ -14,7 +14,7 @@ type Props = {
   action?: string;
   /** Custom title (default: "Upgrade to Pro") */
   title?: string;
-  /** Custom message (default: $29/month — full code view, export, GitHub, and deploy.) */
+  /** Custom message (default: €19.99/mo Pro — unlimited projects, Grok, export, GitHub, custom domains.) */
   message?: string;
   /** Optional CTA label (default: "OK"). Use "Upgrade to Pro" to show link to /pricing */
   ctaLabel?: string;
@@ -26,7 +26,7 @@ export default function UpgradeProModal({
   onClose,
   action,
   title = "Upgrade to Pro",
-  message = "$29/month — full code view, export, GitHub, and deploy.",
+  message = "€19.99/mo — unlimited projects, Grok chats, export, GitHub, custom domains.",
   ctaLabel = "OK",
   ctaToPricing = false,
 }: Props) {

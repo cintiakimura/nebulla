@@ -21,10 +21,16 @@ db.exec(`
     code TEXT NOT NULL DEFAULT '',
     package_json TEXT NOT NULL DEFAULT '{}',
     chat_messages TEXT NOT NULL DEFAULT '[]',
+    specs TEXT NOT NULL DEFAULT '{}',
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
   CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
 `);
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN specs TEXT NOT NULL DEFAULT '{}'");
+} catch (_) {
+  /* column may already exist */
+}
 
 export type ProjectRow = {
   id: string;
@@ -35,13 +41,14 @@ export type ProjectRow = {
   code: string;
   package_json: string;
   chat_messages: string;
+  specs: string;
   created_at: number;
 };
 
-export function listProjects(userId: string): Omit<ProjectRow, "code" | "package_json" | "chat_messages">[] {
+export function listProjects(userId: string): Omit<ProjectRow, "code" | "package_json" | "chat_messages" | "specs">[] {
   const rows = db.prepare(
     "SELECT id, user_id, name, status, last_edited, created_at FROM projects WHERE user_id = ? ORDER BY created_at DESC"
-  ).all(userId) as Omit<ProjectRow, "code" | "package_json" | "chat_messages">[];
+  ).all(userId) as Omit<ProjectRow, "code" | "package_json" | "chat_messages" | "specs">[];
   return rows;
 }
 
@@ -70,8 +77,8 @@ export function createProject(userId: string, name: string): ProjectRow {
   const defaultPackageJson = JSON.stringify({ name: "kyn-app", private: true, version: "0.0.0" }, null, 2);
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO projects (id, user_id, name, status, last_edited, code, package_json, chat_messages, created_at)
-     VALUES (?, ?, ?, 'Draft', ?, ?, ?, '[]', unixepoch())`
+    `INSERT INTO projects (id, user_id, name, status, last_edited, code, package_json, chat_messages, specs, created_at)
+     VALUES (?, ?, ?, 'Draft', ?, ?, ?, '[]', '{}', unixepoch())`
   ).run(id, userId, name, now, defaultCode, defaultPackageJson);
   const row = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow;
   return row;
@@ -87,6 +94,7 @@ export function updateProject(
     code?: string;
     package_json?: string;
     chat_messages?: string;
+    specs?: string;
   }
 ): boolean {
   const project = getProject(userId, projectId);
@@ -97,8 +105,9 @@ export function updateProject(
   const code = updates.code ?? project.code;
   const package_json = updates.package_json ?? project.package_json;
   const chat_messages = updates.chat_messages ?? project.chat_messages;
+  const specs = updates.specs ?? ("specs" in project ? (project as { specs?: string }).specs : undefined) ?? "{}";
   db.prepare(
-    `UPDATE projects SET name = ?, status = ?, last_edited = ?, code = ?, package_json = ?, chat_messages = ? WHERE id = ? AND user_id = ?`
-  ).run(name, status, last_edited, code, package_json, chat_messages, projectId, userId);
+    `UPDATE projects SET name = ?, status = ?, last_edited = ?, code = ?, package_json = ?, chat_messages = ?, specs = ? WHERE id = ? AND user_id = ?`
+  ).run(name, status, last_edited, code, package_json, chat_messages, specs, projectId, userId);
   return true;
 }

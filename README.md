@@ -1,5 +1,7 @@
 # kyn - Developer-First SaaS Starter
 
+**Hosted at [kyn.app](https://kyn.app) — sign up to build. Self-host source for Pro users (export only).** Pro: €19.99/mo for unlimited projects, Grok chats, export, GitHub, custom domains.
+
 One-time setup after login—no repeats. Platform owner fills env once.
 
 ## Known npm warnings (safe to ignore)
@@ -28,6 +30,10 @@ These do not affect build or runtime. The Vite **chunk size** warning is relaxed
 
 The repo builds a **static frontend** (Vite). You must run the **backend** (Express in `server.ts`) for login and projects to work. There is no API on a static host alone.
 
+**Full hosted SaaS checklist (env vars, Vercel + Railway, Stripe, test flow):** see **[docs/DEPLOY_SAAS.md](docs/DEPLOY_SAAS.md)**.
+
+**Monitoring:** Check Railway logs for webhook events and errors; use the Supabase dashboard for usage and `users.is_pro` / `paid_until`.
+
 - **With a backend:** Deploy the Express server (e.g. **Railway**, **Render**, **Fly.io**) and point the frontend to it:
   1. On the backend, set `ALLOWED_ORIGIN` to your frontend URL (e.g. `https://your-app.vercel.app`) for CORS.
   2. In Vercel (or your static host) → Environment variables, add **`VITE_API_URL`** = your backend URL (e.g. `https://your-backend.railway.app`, no trailing slash).
@@ -48,7 +54,9 @@ If you only deploy the static frontend, there is no server to handle `POST /api/
 
 ## Freemium & UI generation
 
-- **Free project limit:** Set `FREE_PROJECT_LIMIT=3` (default) in `.env`. Backend returns 403 `free_project_limit_reached` when a free user tries to create a 4th project. Paid status is read from Supabase `users.paid`.
+- **Free tier:** 3 projects, 10 Grok chats/day. Backend enforces limits; Supabase `users.is_pro` / `users.grok_calls_today` track usage.
+- **Pro (€19.99/mo):** Unlimited projects, Grok, export zip, GitHub, custom domains. Stripe subscription; webhook sets `is_pro`.
+- **Stripe setup:** Create a €19.99/mo recurring price in Stripe Dashboard → Products → Add product → Recurring. Set `STRIPE_PRO_PRICE_ID` (or `STRIPE_KING_PRO_PRICE_ID`) and `STRIPE_SECRET_KEY`. Add webhook endpoint `https://your-backend/api/stripe/webhook` for `checkout.session.completed`, `customer.subscription.deleted`, `customer.subscription.updated`; set `STRIPE_WEBHOOK_SECRET`. Webhook uses raw body for signature verification.
 - **UI code generation:** `POST /api/builder/generate` proxies to Builder.io Visual Copilot (`https://api.builder.io/v1/ai/generate`). Uses `BUILDER_PRIVATE_KEY` (Builder.io dashboard → API keys). Free tier: `BUILDER_GENERATION_FREE_DAILY_LIMIT=10` per user per day; Pro unlimited. Generated React + Tailwind code is applied in the Builder; Grok 4.1 can refine or add logic on follow-up.
 
 ## Features

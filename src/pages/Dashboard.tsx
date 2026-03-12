@@ -15,16 +15,21 @@ import {
   MicOff,
   Copy,
   Link2,
+  Play,
+  Bug,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
-import { getUserId, getPaidStatus } from "../lib/auth";
+import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
 import { getApiBase, isBackendAvailable, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
-import { isFirstLogin, setFirstLoginDone } from "../lib/supabaseAuth";
+import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
+import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
+import { VETR_SYSTEM_PROMPT } from "../lib/vetrPrompt";
 import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 import UpgradeProModal from "../components/UpgradeProModal";
+import UpgradeBubble from "../components/UpgradeBubble";
 
 type ProjectStatus = "Live" | "Preview" | "Draft";
 
@@ -50,13 +55,34 @@ export default function Dashboard() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [showFirstLoginOnboarding, setShowFirstLoginOnboarding] = useState<boolean | null>(null);
   const [projectLimit, setProjectLimit] = useState<number>(3);
+  const [limits, setLimits] = useState<{
+    isPro: boolean;
+    projectCount: number;
+    grokToday: number;
+    grokLimit: number | null;
+    projectLimit: number;
+  } | null>(null);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [testReport, setTestReport] = useState<AuditEntry[] | null>(null);
+  const [testReportOpen, setTestReportOpen] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
+  const [vetrResult, setVetrResult] = useState<string | null>(null);
+  const [vetrLoading, setVetrLoading] = useState(false);
+  const [startBuildingPrompt, setStartBuildingPrompt] = useState("");
+  const [welcomeModalPrompt, setWelcomeModalPrompt] = useState("");
+  const [welcomeModalLoading, setWelcomeModalLoading] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+
+  const KEY_SEEN_WELCOME = "kyn_seen_welcome";
+  const seenWelcome = typeof window !== "undefined" && localStorage.getItem(KEY_SEEN_WELCOME) === "1";
+  const showWelcomeModal = !loading && projects.length === 0 && !seenWelcome && showFirstLoginOnboarding === false;
 
   const { transcript, listening } = useSpeechRecognition();
   const paidStatus = getPaidStatus();
   const projectCount = projects.length;
-  const atProjectLimit = !paidStatus.paid && projectCount >= projectLimit;
+  const atProjectLimit = !paidStatus.paid && projectCount >= (limits?.projectLimit ?? projectLimit);
+  const atGrokLimit = !paidStatus.paid && limits != null && limits.grokLimit != null && limits.grokToday >= limits.grokLimit;
+  const showUpgradeBubble = !paidStatus.paid && (atProjectLimit || atGrokLimit || (limits != null && !limits.isPro && (limits.projectCount > 3 || (limits.grokLimit != null && limits.grokToday >= limits.grokLimit))));
   const setupComplete = getSetupComplete();
 
   useEffect(() => {
@@ -71,31 +97,51 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, []);
 
-  // Fetch free-tier project limit for display
+  // Fetch limits: prefer /api/users/me/limits with Bearer, else /api/users/:userId/limits
   useEffect(() => {
     let cancelled = false;
-    getUserId().then((userId) => {
-      if (cancelled) return;
-      const apiBase = getApiBase();
-      fetch(`${apiBase || ""}/api/users/${userId}/limits`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: { projectLimit?: number } | null) => {
-          if (!cancelled && data?.projectLimit != null) {
-            clearBackendUnavailable();
-            setProjectLimit(data.projectLimit);
-          }
-        })
-        .catch(() => {});
-    });
+    const apiBase = getApiBase();
+    if (!apiBase) return () => {};
+    (async () => {
+      const token = await getSessionToken();
+      const userId = await getUserId();
+      const url = token ? `${apiBase}/api/users/me/limits` : `${apiBase}/api/users/${userId}/limits`;
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      try {
+        const r = await fetch(url, { headers });
+        if (!r.ok || cancelled) return;
+        const data = (await r.json()) as {
+          isPro?: boolean;
+          projectCount?: number;
+          grokToday?: number;
+          grokLimit?: number;
+          projectLimit?: number;
+        };
+        clearBackendUnavailable();
+        if (data.isPro) setPaidFromSuccess("pro");
+        setLimits({
+          isPro: !!data.isPro,
+          projectCount: data.projectCount ?? 0,
+          grokToday: data.grokToday ?? 0,
+          grokLimit: data.grokLimit !== undefined ? data.grokLimit : 10,
+          projectLimit: data.projectLimit ?? 3,
+        });
+        if (data.projectLimit != null) setProjectLimit(data.projectLimit);
+      } catch (_) {}
+    })();
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     const api = getApiBase();
-    getUserId().then((userId) => {
+    (async () => {
+      const [userId, token] = await Promise.all([getUserId(), getSessionToken()]);
       if (cancelled) return;
-      fetch(`${api || ""}/api/users/${userId}/projects`)
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      fetch(`${api || ""}/api/users/${userId}/projects`, { headers })
         .then((r) => {
           if (!r.ok) setBackendUnavailable();
           return r.json();
@@ -118,7 +164,7 @@ export default function Dashboard() {
           setBackendUnavailable();
         })
         .finally(() => setLoading(false));
-    });
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -149,13 +195,26 @@ export default function Dashboard() {
     try {
       const userId = await getUserId();
       const api = getApiBase();
+      const token = await getSessionToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch(`${api}/api/users/${userId}/projects`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ name }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        setCreateError("Please sign in again.");
+        navigate("/login", { replace: true });
+        return;
+      }
       if (res.status === 403 && (data as { error?: string }).error === "free_project_limit_reached") {
+        setUpgradeModalOpen(true);
+        return;
+      }
+      if (res.status === 403 && (data as { error?: string }).error === "read_only_expired") {
+        setCreateError((data as { message?: string }).message ?? "Subscription expired. You're in read-only mode. Upgrade to create new projects.");
         setUpgradeModalOpen(true);
         return;
       }
@@ -169,6 +228,7 @@ export default function Dashboard() {
             ];
             return next;
           });
+          if (typeof window !== "undefined") localStorage.setItem(KEY_SEEN_WELCOME, "1");
           navigate(`/builder/${project.id}`);
         } catch {
           setCreateError("Could not create project. Try again.");
@@ -181,6 +241,13 @@ export default function Dashboard() {
       setBackendUnavailable();
       setCreateError("Could not reach backend. Run the server (npm run dev) and set VITE_API_URL if the frontend is on another host.");
     }
+  };
+
+  const handleWelcomeStart = async () => {
+    const name = welcomeModalPrompt.trim() || "My first app";
+    setWelcomeModalLoading(true);
+    await createAndOpenProject(name);
+    setWelcomeModalLoading(false);
   };
 
   const handleFile = async (file: File) => {
@@ -212,6 +279,69 @@ export default function Dashboard() {
   const handleMicToggle = () => {
     if (listening) SpeechRecognition.stopListening();
     else SpeechRecognition.startListening({ continuous: true });
+  };
+
+  const handleRunQuickTest = async () => {
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      setTestReport([{ name: "Backend", ok: false, detail: "VITE_API_URL not set or backend unreachable" }]);
+      setTestReportOpen(true);
+      return;
+    }
+    setTestLoading(true);
+    setVetrResult(null);
+    try {
+      const results = await runQuickAudit(apiBase);
+      setTestReport(results);
+      setTestReportOpen(true);
+    } catch (e) {
+      setTestReport([{ name: "Audit", ok: false, detail: e instanceof Error ? e.message : String(e) }]);
+      setTestReportOpen(true);
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleRunFinalDebuggingTest = async () => {
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      setTestReport([{ name: "Backend", ok: false, detail: "VITE_API_URL not set or backend unreachable" }]);
+      setTestReportOpen(true);
+      return;
+    }
+    setTestLoading(true);
+    setVetrResult(null);
+    setTestReportOpen(true);
+    try {
+      const results = await runQuickAudit(apiBase);
+      setTestReport(results);
+      const reportText = results.map((r) => `[${r.ok ? "PASS" : "FAIL"}] ${r.name}${r.detail ? " — " + r.detail : ""}`).join("\n");
+      setVetrLoading(true);
+      try {
+        const res = await fetch(`${apiBase}/api/agent/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [
+              { role: "user", content: `${VETR_SYSTEM_PROMPT}\n\n--- AUDIT REPORT ---\n${reportText}\n\nApply the VETR loop to the above. For each FAIL, output phases 2–5. If all PASS, output a short confidence summary.` },
+            ],
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        const content = res.ok && (data as { message?: { content?: string } }).message?.content
+          ? (data as { message: { content: string } }).message.content
+          : res.status === 503
+            ? "Grok API not configured (GROK_API_KEY). Run quick test only."
+            : "Could not run VETR analysis.";
+        setVetrResult(content);
+      } finally {
+        setVetrLoading(false);
+      }
+    } catch (e) {
+      setTestReport([{ name: "Audit", ok: false, detail: e instanceof Error ? e.message : String(e) }]);
+    } finally {
+      setTestLoading(false);
+    }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -246,9 +376,12 @@ export default function Dashboard() {
                 try {
                   const userId = await getUserId();
                   const api = getApiBase();
+                  const token = await getSessionToken();
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (token) headers["Authorization"] = `Bearer ${token}`;
                   const res = await fetch(`${api}/api/users/${userId}/projects`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers,
                     body: JSON.stringify({ name: "My first project" }),
                   });
                   if (res.ok) {
@@ -266,6 +399,41 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* First-load welcome modal: no projects ever, after first-login flow */}
+      <AnimatePresence>
+        {showWelcomeModal && (
+          <div className="fixed inset-0 z-[99] flex items-center justify-center p-4 bg-black/70">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#252526] border border-[#333333] rounded-xl shadow-xl max-w-md w-full p-6"
+            >
+              <h2 className="text-xl font-semibold text-white mb-2">Welcome!</h2>
+              <p className="text-gray-400 text-sm mb-4">What do you want to build today?</p>
+              <input
+                type="text"
+                value={welcomeModalPrompt}
+                onChange={(e) => setWelcomeModalPrompt(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleWelcomeStart()}
+                placeholder="e.g. A todo app, a landing page..."
+                className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333333] rounded-lg text-white placeholder-gray-500 focus:border-[#007acc] outline-none mb-4"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleWelcomeStart}
+                  disabled={welcomeModalLoading || atProjectLimit}
+                  className="flex-1 py-2.5 bg-[#007acc] hover:bg-[#1a8ad4] text-white font-medium rounded-lg disabled:opacity-50"
+                >
+                  {welcomeModalLoading ? "Creating…" : "Start"}
+                </button>
+              </div>
+              {createError && <p className="mt-2 text-xs text-amber-500">{createError}</p>}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {upgradeModalOpen && (
           <UpgradeProModal
@@ -277,6 +445,53 @@ export default function Dashboard() {
             ctaLabel="Upgrade to Pro"
             ctaToPricing
           />
+        )}
+        {testReportOpen && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setTestReportOpen(false)}>
+            <div
+              className="bg-[#252526] border border-[#333333] rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#333333]">
+                <h3 className="text-sm font-semibold text-white">
+                  {vetrLoading ? "Running final debugging test (VETR)…" : testLoading && !testReport ? "Running quick test…" : "Audit report"}
+                </h3>
+                <button onClick={() => setTestReportOpen(false)} className="p-1 rounded hover:bg-[#37373d] text-gray-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto p-4 space-y-4">
+                {testReport === null ? (
+                  <p className="text-sm text-gray-500">Running audit…</p>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      {testReport.map((r, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <span className={r.ok ? "text-green-500 font-medium" : "text-amber-500 font-medium"}>
+                            {r.ok ? "PASS" : "FAIL"}
+                          </span>
+                          <span className="text-gray-300">{r.name}</span>
+                          {r.detail && <span className="text-gray-500 truncate">{r.detail}</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {vetrResult && (
+                      <div className="pt-4 border-t border-[#333333]">
+                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">VETR analysis</h4>
+                        <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans bg-[#1e1e1e] p-3 rounded overflow-auto max-h-64">
+                          {vetrResult}
+                        </pre>
+                      </div>
+                    )}
+                    {vetrLoading && (
+                      <p className="text-sm text-gray-500">Grok is applying the VETR loop (Verify → Explain → Trace → Repair → Validate)…</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -303,7 +518,7 @@ export default function Dashboard() {
           <FolderOpen size={20} strokeWidth={1.5} />
         </button>
         <div className="flex-1" />
-<button
+        <button
           onClick={() => navigate("/settings")}
           className="p-3 rounded-lg text-gray-400 hover:text-white hover:bg-[#37373d] transition-colors"
           title="Settings"
@@ -316,7 +531,26 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar: avatar right only */}
         <div className="h-12 flex items-center justify-between px-4 border-b border-[#333333] bg-[#252526] flex-shrink-0">
-          <div className="flex-1" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRunQuickTest}
+              disabled={testLoading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#37373d] hover:bg-[#444] text-gray-300 text-sm font-medium disabled:opacity-50 transition-colors"
+              title="Run audit and show status of every functionality"
+            >
+              <Play size={14} />
+              Run quick test
+            </button>
+            <button
+              onClick={handleRunFinalDebuggingTest}
+              disabled={testLoading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#37373d] hover:bg-[#444] text-gray-300 text-sm font-medium disabled:opacity-50 transition-colors"
+              title="Run audit then VETR loop (Verify → Explain → Trace → Repair → Validate)"
+            >
+              <Bug size={14} />
+              Run final debugging test
+            </button>
+          </div>
           <div className="relative" ref={avatarRef}>
             <button
               onClick={() => setAvatarOpen((o) => !o)}
@@ -355,6 +589,26 @@ export default function Dashboard() {
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
+              {!paidStatus.paid && (
+                <div className="w-full mb-8 p-4 rounded-xl bg-[#1e1e1e] border border-[#333333] text-left">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">What do you want to build?</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. A todo app, a landing page..."
+                    value={startBuildingPrompt}
+                    onChange={(e) => setStartBuildingPrompt(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
+                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333333] rounded-lg text-white placeholder-gray-500 focus:border-[#007acc] outline-none"
+                  />
+                  <button
+                    onClick={() => (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
+                    disabled={atProjectLimit}
+                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-[#37373d] text-gray-500 cursor-not-allowed" : "bg-[#007acc] hover:bg-[#1a8ad4] text-white"}`}
+                  >
+                    Start building
+                  </button>
+                </div>
+              )}
               <h2 className="text-2xl font-semibold text-white mb-2">Let's build.</h2>
               <p className="text-gray-400 text-sm mb-6">
                 Click the microphone or type in the chat. Explain in your own words what you want to build.
@@ -523,6 +777,7 @@ export default function Dashboard() {
           <Mic size={20} />
         </button>
       )}
+      <UpgradeBubble show={showUpgradeBubble} />
     </div>
   );
 }
