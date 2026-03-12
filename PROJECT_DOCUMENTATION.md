@@ -19,7 +19,7 @@
 
 | Feature | Description |
 |--------|-------------|
-| **Landing (`/`)** | Hero with brand name "kyn", tagline, short copy; two pricing cards (0.00 € "Start prototyping", 19.99 € "Get all features") with subtext; four content cards in a 2×2 grid (Real AI Dev Partner, Visualization First, AI self debug, All-in-One). All text white; buttons with black text. |
+| **Landing (`/`)** | Hero with brand name "kyn", tagline, short copy; two pricing cards (0.00 € "Start prototyping", 19.90 € "Get all features") with subtext; four content cards in a 2×2 grid (Real AI Dev Partner, Visualization First, AI self debug, All-in-One). All text white; buttons with black text. |
 | **Header** | Top-right: Login (text link), Sign up (filled button). |
 | **Pricing (`/pricing`)** | Pricing plans; Stripe-oriented. |
 | **Login (`/login`)** | GitHub OAuth (and optional email); entry into the app. |

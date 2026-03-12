@@ -13,8 +13,7 @@ There is no separate "normal" vs "chat" key in this app; we only use the chat co
 
 - **Secret key** (sk_...) → `STRIPE_SECRET_KEY`
 - **Publishable key** (pk_...) → `STRIPE_PUBLIC_KEY`
-- **Price IDs** for Prototype and King Pro → `STRIPE_PROTOTYPE_PRICE_ID`, `STRIPE_KING_PRO_PRICE_ID`
-- Optional: coupon **30KYN** in Stripe Dashboard (for 30-day trial on Prototype)
+- **Price ID** for Pro €19.90/mo → `STRIPE_PRO_PRICE_ID` or `STRIPE_KING_PRO_PRICE_ID`
 
 All go in `.env`. The app reads them; no extra step to "add publishable" elsewhere.
 

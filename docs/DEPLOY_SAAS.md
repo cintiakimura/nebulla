@@ -14,7 +14,7 @@ Set these on the backend. **Required for full SaaS:**
 | `SUPABASE_ANON_KEY` | Supabase anon key (public) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only; never expose to frontend) |
 | `STRIPE_SECRET_KEY` | Stripe secret key |
-| `STRIPE_PRO_PRICE_ID` | Stripe Price ID for Pro €19.99/mo (or use STRIPE_KING_PRO_PRICE_ID) |
+| `STRIPE_PRO_PRICE_ID` | Stripe Price ID for Pro €19.90/mo (or use STRIPE_KING_PRO_PRICE_ID) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) |
 | `GROK_API_KEY` | xAI API key (console.x.ai) |
 | `ALLOWED_ORIGIN` | Frontend origin, e.g. `https://kyn.app` (for CORS) |
@@ -39,7 +39,7 @@ Optional: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` if you want to pin Supab
 ## 3. Stripe
 
 1. **Create Stripe prices:** In Stripe Dashboard → Products → create one **recurring monthly** price:
-   - **Pro:** €19.99/mo → copy Price ID → `STRIPE_PRO_PRICE_ID` or `STRIPE_KING_PRO_PRICE_ID`.
+   - **Pro:** €19.90/mo → copy Price ID → `STRIPE_PRO_PRICE_ID` or `STRIPE_KING_PRO_PRICE_ID`.
    Note the Price ID (e.g. `price_xxx`) for your .env.
 
 2. **Set webhook:** Developers → Webhooks → Add endpoint.
@@ -51,7 +51,7 @@ Optional: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` if you want to pin Supab
 
 4. **Go live:** When ready, switch Stripe to **live** mode, create live product/price and webhook, then update backend env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID` (or `STRIPE_KING_PRO_PRICE_ID`) with live values.
 
-5. **Monitor:** Check Railway logs for webhook delivery and any errors; use Supabase dashboard for usage and `users.is_pro` / `paid_until`.
+5. **Monitor:** Check Railway logs for webhook delivery and any errors; use Supabase dashboard for usage and `users.is_pro`.
 
 **Monitoring:** Check Railway logs for webhook events; use the Supabase dashboard for usage.
 
@@ -62,7 +62,7 @@ Customer Portal: enable in Stripe Dashboard (Settings → Billing → Customer p
 ## Launch checklist
 
 1. **Test mode** – Use Stripe test keys and test cards; run full signup → limit → upgrade → export flow.
-2. **Full flow test** – Sign up, hit free limit, upgrade to Pro (€19.99/mo), verify unlimited usage, export, Manage Subscription, read-only after expiry.
+2. **Full flow test** – Sign up, hit free limit, upgrade to Pro (€19.90/mo), verify unlimited usage, export, Manage Subscription.
 3. **Switch Stripe live** – Create live product/price and webhook; update backend env with live keys.
 4. **Announce** – Launch on X (Twitter), Product Hunt, or your channels.
 
@@ -106,7 +106,7 @@ Customer Portal: enable in Stripe Dashboard (Settings → Billing → Customer p
 
 - [ ] Env vars set (backend: Supabase service role, Stripe keys + webhook secret, Grok key, ALLOWED_ORIGIN; frontend: VITE_API_URL).
 - [ ] Supabase schema applied; Auth URL/redirects and providers configured.
-- [ ] Stripe: Pro €19.99/mo price created (recurring monthly); webhook URL set; test mode verified, then live keys when going live.
+- [ ] Stripe: Pro €19.90/mo price created (recurring monthly); webhook URL set; test mode verified, then live keys when going live.
 - [ ] Backend deployed (e.g. Railway); health check `/api/health` returns 200.
 - [ ] Frontend deployed (e.g. Vercel); SPA fallback and VITE_API_URL set.
 - [ ] Test flow: sign up → hit free limit → upgrade → unlimited → export → Manage Subscription → read-only after expiry.

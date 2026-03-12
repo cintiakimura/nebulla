@@ -100,27 +100,27 @@ export default function Builder() {
   packageRef.current = packageJsonContent;
   chatRef.current = chatMessages;
 
-  // Stripe success: ?paid=true&plan=... → update Supabase via API, then persist locally and clear URL
+  // Stripe success: ?paid=true&plan=pro → update Supabase via API, then persist locally and clear URL
   useEffect(() => {
     const paid = searchParams.get("paid");
     const plan = searchParams.get("plan");
-    if (paid !== "true" || (plan !== "prototype" && plan !== "king_pro" && plan !== "pro" && plan !== "intro")) return;
+    if (paid !== "true" || (plan !== "pro" && plan !== "king_pro")) return;
     (async () => {
       const userId = await getUserId();
       try {
         await fetch(`${getApiBase()}/api/update-paid-status`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan, userId }),
+          body: JSON.stringify({ plan: "pro", userId }),
         });
       } catch (_) {}
-      setPaidFromSuccess(plan);
-      setPaidStatus({ paid: true, plan });
+      setPaidFromSuccess("pro");
+      setPaidStatus({ paid: true, plan: "pro" });
       setSearchParams({}, { replace: true });
     })();
   }, [searchParams, setSearchParams]);
 
-  // Fetch limits to detect read-only (expired Pro)
+  // Fetch limits (isPro only; no paid_until/expiry)
   useEffect(() => {
     let cancelled = false;
     getSessionToken().then((token) => {
@@ -129,10 +129,9 @@ export default function Builder() {
       if (!apiBase) return;
       fetch(`${apiBase}/api/users/me/limits`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => (r.ok ? r.json() : null))
-        .then((data: { isPro?: boolean; paidUntil?: string } | null) => {
+        .then((data: { isPro?: boolean } | null) => {
           if (cancelled || !data) return;
-          const expired = data.paidUntil != null && new Date(data.paidUntil) <= new Date();
-          setReadOnly(expired);
+          setReadOnly(false);
         })
         .catch(() => {});
     });
@@ -554,13 +553,13 @@ export default function Builder() {
     }
   };
 
-  const startCheckout = async (plan: 'prototype' | 'king_pro') => {
+  const startCheckout = async () => {
     try {
       const userId = await getUserId();
       const res = await fetch(`${getApiBase()}/api/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: plan === 'king_pro' ? 'pro' : plan, userId }),
+        body: JSON.stringify({ plan: 'pro', userId }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (data.url) {
@@ -1032,10 +1031,7 @@ export default function Builder() {
               </button>
             </div>
             <div className="space-y-2">
-              <button onClick={() => startCheckout('prototype')} className="w-full py-2 px-3 bg-[#2d2d3d] hover:bg-[#3d3d5d] text-white text-sm rounded">
-                Prototype $0.00/mo
-              </button>
-              <button onClick={() => startCheckout('king_pro')} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
+              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
                 Pro €19.99/mo
               </button>
             </div>

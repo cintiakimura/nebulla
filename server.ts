@@ -114,11 +114,9 @@ async function startServer() {
   app.get("/api/config", (_req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL?.trim() ?? "";
     const supabaseAnon = process.env.SUPABASE_ANON_KEY?.trim() ?? "";
-    const introPriceId = process.env.STRIPE_INTRO_PRICE_ID?.trim();
     res.json({
       supabaseUrl: supabaseUrl && supabaseUrl !== "PLACEHOLDER" ? supabaseUrl : "",
       supabaseAnonKey: supabaseAnon && supabaseAnon !== "PLACEHOLDER" ? supabaseAnon : "",
-      introPriceAvailable: !!(introPriceId && introPriceId !== "PLACEHOLDER"),
     });
   });
 
@@ -150,7 +148,7 @@ async function startServer() {
   const freeProjectLimit = () => Math.max(0, parseInt(process.env.FREE_PROJECT_LIMIT ?? "3", 10));
   const freeGrokLimit = () => Math.max(0, parseInt(process.env.FREE_GROK_DAILY_LIMIT ?? "10", 10));
 
-  // /api/users/me/limits — auth required (Bearer). Returns { isPro, projectCount, grokToday, grokLimit, paidUntil }.
+  // /api/users/me/limits — auth required (Bearer). Returns { isPro, projectCount, grokToday, grokLimit }.
   app.get("/api/users/me/limits", resolveUserId, requireAuth, async (req, res) => {
     const userId = (req as RequestWithUserId).userId!;
     const projectLimit = freeProjectLimit();
@@ -158,26 +156,21 @@ async function startServer() {
     let isPro = false;
     let projectCount = 0;
     let grokToday = 0;
-    let paidUntil: string | null = null;
     if (isSupabaseConfigured()) {
       const meta = await ensureUserAndGetMetadata(userId);
       isPro = meta?.is_pro ?? meta?.paid ?? false;
-      paidUntil = meta?.paid_until ?? null;
       projectCount = await supabaseCountProjects(userId);
       const usage = await getGrokUsage(userId);
       grokToday = usage.count;
     } else {
       projectCount = db.countProjects(userId);
     }
-    const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-    const hasAccess = !isExpired && (isPro || (paidUntil != null && new Date(paidUntil) > new Date()));
     res.json({
-      isPro: hasAccess,
+      isPro,
       projectCount,
       projectLimit,
       grokToday,
-      grokLimit: hasAccess ? null : grokLimitNum,
-      paidUntil: paidUntil ?? undefined,
+      grokLimit: isPro ? null : grokLimitNum,
     });
   });
 
@@ -188,37 +181,29 @@ async function startServer() {
     let isPro = false;
     let projectCount = 0;
     let grokToday = 0;
-    let paidUntil: string | null = null;
     if (userId && isSupabaseConfigured()) {
       const meta = await ensureUserAndGetMetadata(userId);
       isPro = meta?.is_pro ?? meta?.paid ?? false;
-      paidUntil = meta?.paid_until ?? null;
       projectCount = await supabaseCountProjects(userId);
       const usage = await getGrokUsage(userId);
       grokToday = usage.count;
     } else if (userId) {
       projectCount = db.countProjects(userId);
     }
-    const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-    const hasAccess = !isExpired && (isPro || (paidUntil != null && new Date(paidUntil) > new Date()));
     res.json({
       projectLimit,
-      grokLimit: hasAccess ? null : grokLimitNum,
-      isPro: hasAccess,
+      grokLimit: isPro ? null : grokLimitNum,
+      isPro,
       projectCount,
       grokToday,
-      paidUntil: paidUntil ?? undefined,
     });
   });
 
-  /** True if user has write access (Pro or paid_until in future). Expired (paid_until in the past) returns false even if is_pro is still set. */
+  /** True if user has write access (Pro: is_pro or paid). No paid_until — flat access. */
   async function hasWriteAccess(userId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) return true;
     const meta = await ensureUserAndGetMetadata(userId);
-    const isPro = meta?.is_pro ?? meta?.paid ?? false;
-    const paidUntil = meta?.paid_until ?? null;
-    if (paidUntil != null && new Date(paidUntil) <= new Date()) return false;
-    return isPro || (paidUntil != null && new Date(paidUntil) > new Date());
+    return meta?.is_pro === true || meta?.paid === true;
   }
 
   // Projects: create (enforce free-tier project limit). Auth required; param userId must match token.
@@ -246,10 +231,8 @@ async function startServer() {
           try {
             const { createClient } = await import("@supabase/supabase-js");
             const supabase = createClient(supabaseUrl, supabaseKey);
-            const { data: row } = await supabase.from("users").select("paid, is_pro, paid_until").eq("id", userId).maybeSingle();
-            const paidUntil = row?.paid_until ?? null;
-            const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-            isPaid = !isExpired && (row?.paid === true || row?.is_pro === true || (paidUntil != null && new Date(paidUntil) > new Date()));
+            const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
+            isPaid = row?.paid === true || row?.is_pro === true;
           } catch (_) {}
         }
       }
@@ -396,10 +379,8 @@ async function startServer() {
           try {
             const { createClient } = await import("@supabase/supabase-js");
             const supabase = createClient(supabaseUrl, supabaseKey);
-            const { data: row } = await supabase.from("users").select("paid, is_pro, paid_until").eq("id", userId).maybeSingle();
-            const paidUntil = row?.paid_until ?? null;
-            const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-            isPaid = !isExpired && (row?.paid === true || row?.is_pro === true || (paidUntil != null && new Date(paidUntil) > new Date()));
+            const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
+            isPaid = row?.paid === true || row?.is_pro === true;
           } catch (_) {}
         }
       }
@@ -532,18 +513,8 @@ async function startServer() {
       const userId = authUserId ?? bodyUserId;
       if (userId && isSupabaseConfigured()) {
         const meta = await ensureUserAndGetMetadata(userId);
-        const paidUntil = meta?.paid_until ?? null;
-        const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-        if (isExpired) {
-          res.status(403).json({
-            error: "read_only_expired",
-            message: "Subscription expired. You're in read-only mode. Upgrade to continue chatting.",
-          });
-          return;
-        }
         const isPro = meta?.is_pro ?? meta?.paid ?? false;
-        const hasUnlimitedGrok = isPro || (paidUntil != null && new Date(paidUntil) > new Date());
-        if (!hasUnlimitedGrok) {
+        if (!isPro) {
           const { count } = await getGrokUsage(userId);
           const limit = Math.max(0, parseInt(process.env.FREE_GROK_DAILY_LIMIT ?? "10", 10));
           if (count >= limit) {
@@ -593,11 +564,8 @@ async function startServer() {
       }
       if (userId && isSupabaseConfigured()) {
         const meta = await ensureUserAndGetMetadata(userId);
-        const paidUntil = meta?.paid_until ?? null;
-        const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
         const isPro = meta?.is_pro ?? meta?.paid ?? false;
-        const hasUnlimitedGrok = !isExpired && (isPro || (paidUntil != null && new Date(paidUntil) > new Date()));
-        if (!hasUnlimitedGrok) await incrementGrokCalls(userId);
+        if (!isPro) await incrementGrokCalls(userId);
       }
       const data = JSON.parse(errText) as { choices?: { message?: { content?: string } }[] };
       const content = data.choices?.[0]?.message?.content ?? "";
@@ -699,11 +667,8 @@ async function startServer() {
         try {
           const { createClient } = await import("@supabase/supabase-js");
           const supabase = createClient(supabaseUrl, supabaseKey);
-          const { data: row } = await supabase.from("users").select("paid, is_pro, paid_until").eq("id", uid).maybeSingle();
-          const paidOrPro = row?.paid === true || row?.is_pro === true;
-          const paidUntil = row?.paid_until ?? null;
-          const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-          isPaid = paidOrPro && !isExpired;
+          const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", uid).maybeSingle();
+          isPaid = row?.paid === true || row?.is_pro === true;
         } catch (_) {}
       }
       if (!isPaid && uid) {
@@ -786,22 +751,20 @@ async function startServer() {
   app.post("/api/cancel-subscription", resolveUserId, requireAuth, cancelSubscription);
   app.post("/api/billing-portal", resolveUserId, requireAuth, createBillingPortalSession);
 
-  // After Stripe success: client sends plan + userId → update Supabase user paid=true, is_pro, plan
+  // After Stripe success: client sends plan + userId → update Supabase user paid=true, is_pro (plan "pro" only).
   app.post("/api/update-paid-status", async (req, res) => {
     const { plan, userId } = req.body as { plan?: string; userId?: string };
     if (!userId || typeof userId !== "string") {
       res.status(400).json({ error: "body: { plan, userId } required" });
       return;
     }
-    const planVal = plan === "king_pro" || plan === "pro" ? "pro" : plan === "intro" ? "intro" : plan === "prototype" ? "prototype" : null;
-    if (planVal === null) {
-      res.status(400).json({ error: "plan must be 'pro', 'intro', or 'prototype'" });
+    if (plan !== "pro" && plan !== "king_pro") {
+      res.status(400).json({ error: "plan must be 'pro'" });
       return;
     }
-    const isPro = planVal === "pro" || planVal === "intro";
     if (isSupabaseConfigured()) {
       const { setUserPro } = await import("./src/lib/supabase-multi-tenant.js");
-      const ok = await setUserPro(userId, isPro, undefined, undefined, undefined, isPro ? planVal : undefined);
+      const ok = await setUserPro(userId, true, undefined, undefined, "pro");
       if (!ok) {
         res.status(503).json({ error: "Failed to update user" });
         return;
@@ -820,7 +783,7 @@ async function startServer() {
       const supabase = createClient(supabaseUrl, supabaseKey);
       const { error } = await supabase
         .from("users")
-        .upsert({ id: userId, paid: true, is_pro: isPro, plan: planVal }, { onConflict: "id" });
+        .upsert({ id: userId, paid: true, is_pro: true, plan: "pro" }, { onConflict: "id" });
       if (error) {
         console.error("[update-paid-status]", error);
         res.status(503).json({ error: "Supabase update failed" });

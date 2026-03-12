@@ -240,7 +240,7 @@ export default function Login() {
         ) : (
           <>
             <p className="text-sm text-gray-500 mb-4">
-              Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel (Environment Variables) for email sign-in. Or sign in without Supabase:
+              Backend not reached. Set <strong>VITE_API_URL</strong> to your backend URL (e.g. Railway) in Vercel → Project → Environment Variables, then <strong>redeploy</strong>. Or set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for email sign-in.
             </p>
             {error && <p className="text-xs text-amber-500/90 mb-4">{error}</p>}
             <button

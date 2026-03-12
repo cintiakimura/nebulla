@@ -61,14 +61,7 @@ export async function handleExportProject(req: Request, res: Response): Promise<
 
   const meta = isSupabaseConfigured() ? await getUserMetadata(userId) : null;
   const isPro = meta?.is_pro ?? meta?.paid ?? false;
-  const paidUntil = meta?.paid_until ?? null;
-  const isExpired = paidUntil != null && new Date(paidUntil) <= new Date();
-  const hasExportAccess =
-    !isSupabaseConfigured() ||
-    (meta != null &&
-      !isExpired &&
-      (isPro || (paidUntil != null && new Date(paidUntil) > new Date())));
-  if (!hasExportAccess) {
+  if (isSupabaseConfigured() && !isPro) {
     res.status(403).json({ error: "Export is a Pro feature. Upgrade to export projects." });
     return;
   }

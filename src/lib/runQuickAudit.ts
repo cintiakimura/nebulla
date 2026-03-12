@@ -129,7 +129,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     const checkoutRes = await fetch(`${base}/api/create-checkout-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: "prototype" }),
+      body: JSON.stringify({ plan: "pro" }),
     });
     const checkoutData = await checkoutRes.json().catch(() => ({})) as { url?: string; id?: string };
     if (checkoutRes.ok && (checkoutData?.url || checkoutData?.id)) record("POST /api/create-checkout-session", true, "session");
@@ -139,7 +139,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     const updatePaidRes = await fetch(`${base}/api/update-paid-status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: "prototype", userId: "test-user-123" }),
+      body: JSON.stringify({ plan: "pro", userId: "test-user-123" }),
     });
     if (updatePaidRes.ok) record("POST /api/update-paid-status", true, "ok");
     else if (updatePaidRes.status === 503) record("POST /api/update-paid-status", true, "503 (Supabase not configured)");

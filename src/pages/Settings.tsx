@@ -173,18 +173,13 @@ export default function Settings() {
 
         <section>
           <h2>Subscription</h2>
-          {limits?.paidUntil != null && (
-            <>
-              {new Date(limits.paidUntil) > new Date() ? (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  Pro active until {new Date(limits.paidUntil).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                </p>
-              ) : (
-                <div className="mb-3 p-3 bg-amber-500/15 border border-amber-500/40 rounded-lg text-sm text-amber-200">
-                  Pro expired — upgrade to continue
-                </div>
-              )}
-            </>
+          {limits?.isPro && (
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Pro</p>
+          )}
+          {limits?.paidUntil != null && new Date(limits.paidUntil) <= new Date() && (
+            <div className="mb-3 p-3 bg-amber-500/15 border border-amber-500/40 rounded-lg text-sm text-amber-200">
+              Pro expired — upgrade to continue
+            </div>
           )}
           <button
             type="button"

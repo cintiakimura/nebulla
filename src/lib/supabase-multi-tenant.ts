@@ -258,11 +258,10 @@ export async function getGrokUsage(userId: string): Promise<{ count: number; dat
   return { count: meta.grok_calls_today, date: meta.grok_calls_date };
 }
 
-/** Set is_pro (and paid) for a user (Stripe webhook). Optional paid_until, stripe_customer_id, stripe_subscription_id, plan (e.g. "intro" or "pro"). */
+/** Set is_pro (and paid) for a user (Stripe webhook). No paid_until — flat access by is_pro. */
 export async function setUserPro(
   userId: string,
   isPro: boolean,
-  paidUntil?: string | null,
   stripeCustomerId?: string | null,
   stripeSubscriptionId?: string | null,
   plan?: string | null
@@ -275,9 +274,8 @@ export async function setUserPro(
     paid: isPro,
     plan: isPro ? (plan ?? "pro") : null,
     updated_at: new Date().toISOString(),
+    paid_until: null,
   };
-  if (isPro && paidUntil != null) payload.paid_until = paidUntil;
-  if (!isPro) payload.paid_until = null;
   if (stripeCustomerId != null) payload.stripe_customer_id = stripeCustomerId;
   if (stripeSubscriptionId != null) payload.stripe_subscription_id = stripeSubscriptionId;
   const { error } = await supabase

@@ -14,7 +14,7 @@ Use this when your frontend is on Netlify and login/API don’t work because the
    - **Root directory:** leave default (repo root).
 4. **Variables:** Add the same env vars your backend needs (from your `.env`):
    - `GROK_API_KEY`
-   - `STRIPE_SECRET_KEY`, `STRIPE_PROTOTYPE_PRICE_ID`, `STRIPE_KING_PRO_PRICE_ID`
+   - `STRIPE_SECRET_KEY`, `STRIPE_PRO_PRICE_ID`, `STRIPE_KING_PRO_PRICE_ID`
    - `SUPABASE_URL`, `SUPABASE_ANON_KEY` (if you use paid status)
    - `ALLOWED_ORIGIN` = your Netlify site URL (e.g. `https://your-app.netlify.app`) so the server allows CORS from the frontend.
    - `PORT` is set by Railway automatically; you can leave it unset.
