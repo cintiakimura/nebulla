@@ -10,14 +10,18 @@ const PROMPT_READY =
   "If you're ready—just say \"I'm ready\".";
 const OUTRO_SCRIPT = "Let's go. What's your idea?";
 
-/** Play text using Grok voice (Eve) via backend TTS. No browser TTS. */
+/** Play text using Grok voice (Eve) via backend TTS. No browser TTS. If no backend is configured, skips playback and calls onEnd (avoids 405 on frontend host). */
 function playGrokEve(text: string, onEnd?: () => void): () => void {
   if (typeof window === "undefined") {
     onEnd?.();
     return () => {};
   }
   const apiBase = getApiBase();
-  const url = apiBase ? `${apiBase}/api/tts` : "/api/tts";
+  if (!apiBase) {
+    onEnd?.();
+    return () => {};
+  }
+  const url = `${apiBase}/api/tts`;
   const audio = new Audio();
   let cancelled = false;
 

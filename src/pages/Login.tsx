@@ -36,11 +36,11 @@ export default function Login() {
         navigate("/dashboard", { replace: true });
       } else {
         setBackendUnavailable();
-        setError("Backend not reachable. Run the server (npm run dev) or add VITE_API_URL in Vercel → Project → Settings → Environment Variables.");
+        setError("Backend didn’t respond. Add Backend URL in Settings.");
       }
     } catch (_e) {
       setBackendUnavailable();
-      setError("Backend not reachable. Run the server (npm run dev) or add VITE_API_URL in Vercel.");
+      setError("Backend didn’t respond. Add Backend URL in Settings.");
     } finally {
       setLoading(false);
     }
@@ -50,7 +50,7 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     if (!email.trim()) {
-      setError("Email is required.");
+      setError("Please enter your email.");
       return;
     }
     const supabase = getSupabaseAuthClient();
@@ -240,7 +240,7 @@ export default function Login() {
         ) : (
           <>
             <p className="text-sm text-gray-500 mb-4">
-              Backend not reached. Set <strong>VITE_API_URL</strong> to your backend URL in Vercel → Project → Environment Variables, then <strong>redeploy</strong>. Or set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for email sign-in.
+              Add your <strong>Backend URL</strong> in Settings, then try again. For email sign-in, set Supabase URL and anon key in your env.
             </p>
             {error && <p className="text-xs text-amber-500/90 mb-4">{error}</p>}
             <button
@@ -248,7 +248,7 @@ export default function Login() {
               disabled={loading}
               className="w-full py-3 px-4 bg-white text-black font-medium rounded-lg hover:bg-gray-200 disabled:opacity-60"
             >
-              {loading ? "…" : "Sign in (no backend)"}
+              {loading ? "…" : "Sign in"}
             </button>
             <p className="mt-3 text-center">
               <button

@@ -311,7 +311,7 @@ export default function Builder() {
           return;
         }
         if (res.status === 403 && dataErr === "read_only_expired") {
-          errMsg = (data as { message?: string })?.message ?? "Subscription expired. You're in read-only mode. Upgrade to continue chatting.";
+          errMsg = (data as { message?: string })?.message ?? "Read-only mode. Upgrade to continue chatting.";
           addLog(`[Grok]: ${errMsg}`);
           setReadOnly(true);
           const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };
@@ -340,14 +340,14 @@ export default function Builder() {
           return;
         }
         if (res.status === 405 || res.status === 404) {
-          errMsg = "Grok needs your backend. Run the app with `npm run dev` (not just the frontend), set GROK_API_KEY in .env, and use the same origin (see README).";
+          errMsg = "Grok isn’t available right now. Check Settings → Backend URL and that the backend is running.";
         } else if (details) {
           errMsg = `${dataErr || "Grok error"}: ${details}`;
         } else {
-          errMsg = dataErr || `Request failed (${res.status}). Add GROK_API_KEY to the backend .env (get key at console.x.ai).`;
+          errMsg = dataErr || "Grok request failed. Check your backend is running and Backend URL in Settings.";
         }
         addLog(`[Grok Error]: ${errMsg}`);
-        const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Grok isn’t available right now: ${errMsg}` };
+        const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };
         setChatMessages(prev => [...prev, errAssistant]);
         saveProject({ chat_messages: [...chatMessages, { id: crypto.randomUUID(), role: 'user', content: newUserContent }, errAssistant] });
         return;
@@ -363,7 +363,7 @@ export default function Builder() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
       addLog(`[Grok Error]: ${msg}`);
-      const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Grok request failed: ${msg}` };
+      const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Something went wrong: ${msg}. Check Backend URL in Settings.` };
       setChatMessages(prev => [...prev, errMsg]);
       const newChat = [...chatMessages, { id: crypto.randomUUID(), role: 'user' as const, content: newUserContent }, errMsg];
       saveProject({ chat_messages: newChat });
@@ -988,8 +988,8 @@ export default function Builder() {
         open={proModalOpen}
         onClose={() => setProModalOpen(false)}
         action={proModalAction}
-        title={proModalAction === "read_only" ? "Your Pro trial expired" : undefined}
-        message={proModalAction === "read_only" ? "Upgrade to keep building?" : undefined}
+        title={proModalAction === "read_only" ? "Read-only mode" : undefined}
+        message={proModalAction === "read_only" ? "Upgrade to keep building." : undefined}
         ctaLabel={proModalAction === "read_only" ? "Upgrade" : undefined}
         ctaToPricing={proModalAction === "read_only"}
       />
@@ -1007,7 +1007,7 @@ export default function Builder() {
               ) : null}
             </div>
             <p className="text-sm text-[#d4d4d4] mb-3">
-              Wait {rateLimitCountdown > 0 ? rateLimitCountdown : 0} second{rateLimitCountdown !== 1 ? "s" : ""} and try again, or upgrade for unlimited chats.
+              Wait {rateLimitCountdown > 0 ? rateLimitCountdown : 0} second{rateLimitCountdown !== 1 ? "s" : ""} and try again, or upgrade for unlimited.
             </p>
             <Link
               to="/pricing"

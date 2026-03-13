@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, ArrowLeft, CheckCircle, Download, LayoutTemplate } from "lucide-react";
 import MindMap from "../components/MindMap";
 import { getUserId } from "../lib/auth";
-import { getApiBase, isBackendAvailable, setBackendUnavailable } from "../lib/api";
+import { getApiBase, setBackendUnavailable } from "../lib/api";
 import { getSessionToken } from "../lib/supabaseAuth";
 
 export default function Onboarding() {
@@ -39,13 +39,13 @@ export default function Onboarding() {
   };
 
   const handleOpenInBuilder = async () => {
-    if (!isBackendAvailable()) {
+    const api = getApiBase();
+    if (!api) {
       navigate("/builder");
       return;
     }
     try {
       const userId = await getUserId();
-      const api = getApiBase();
       const token = await getSessionToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;

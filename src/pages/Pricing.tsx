@@ -19,10 +19,10 @@ export default function Pricing() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.error ?? "Checkout failed");
+        alert(data.error ?? "Checkout didn’t complete. Try again.");
       }
     } catch (_) {
-      alert("Checkout failed");
+      alert("Checkout didn’t complete. Try again.");
     }
   };
 

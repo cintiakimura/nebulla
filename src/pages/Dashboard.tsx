@@ -23,7 +23,7 @@ import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognitio
 import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib/auth";
-import { getApiBase, isBackendAvailable, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
+import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
 import { VETR_SYSTEM_PROMPT } from "../lib/vetrPrompt";
@@ -188,13 +188,13 @@ export default function Dashboard() {
       setUpgradeModalOpen(true);
       return;
     }
-    if (!isBackendAvailable()) {
-      setCreateError("Set up your backend to continue. Run the server (npm run dev) and set VITE_API_URL to your backend URL if the frontend is on another host.");
+    const api = getApiBase();
+    if (!api) {
+      setCreateError("Add your backend URL in Settings to create projects.");
       return;
     }
     try {
       const userId = await getUserId();
-      const api = getApiBase();
       const token = await getSessionToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -214,7 +214,7 @@ export default function Dashboard() {
         return;
       }
       if (res.status === 403 && (data as { error?: string }).error === "read_only_expired") {
-        setCreateError((data as { message?: string }).message ?? "Subscription expired. You're in read-only mode. Upgrade to create new projects.");
+        setCreateError((data as { message?: string }).message ?? "Read-only mode. Upgrade to create new projects.");
         setUpgradeModalOpen(true);
         return;
       }
@@ -236,10 +236,10 @@ export default function Dashboard() {
         return;
       }
       setBackendUnavailable();
-      setCreateError("Backend error. Check that the server is running and VITE_API_URL points to it.");
+      setCreateError("Backend didn’t respond. Check Settings → Backend URL.");
     } catch (_err) {
       setBackendUnavailable();
-      setCreateError("Could not reach backend. Run the server (npm run dev) and set VITE_API_URL if the frontend is on another host.");
+      setCreateError("Couldn’t reach the backend. Check Settings → Backend URL.");
     }
   };
 
@@ -284,7 +284,7 @@ export default function Dashboard() {
   const handleRunQuickTest = async () => {
     const apiBase = getApiBase();
     if (!apiBase) {
-      setTestReport([{ name: "Backend", ok: false, detail: "VITE_API_URL not set or backend unreachable" }]);
+      setTestReport([{ name: "Backend", ok: false, detail: "Backend URL not set or unreachable" }]);
       setTestReportOpen(true);
       return;
     }
@@ -305,7 +305,7 @@ export default function Dashboard() {
   const handleRunFinalDebuggingTest = async () => {
     const apiBase = getApiBase();
     if (!apiBase) {
-      setTestReport([{ name: "Backend", ok: false, detail: "VITE_API_URL not set or backend unreachable" }]);
+      setTestReport([{ name: "Backend", ok: false, detail: "Backend URL not set or unreachable" }]);
       setTestReportOpen(true);
       return;
     }
@@ -331,7 +331,7 @@ export default function Dashboard() {
         const content = res.ok && (data as { message?: { content?: string } }).message?.content
           ? (data as { message: { content: string } }).message.content
           : res.status === 503
-            ? "Grok API not configured (GROK_API_KEY). Run quick test only."
+            ? "Grok not available for this test."
             : "Could not run VETR analysis.";
         setVetrResult(content);
       } finally {
@@ -372,10 +372,10 @@ export default function Dashboard() {
             onComplete={async () => {
               setFirstLoginDone();
               setShowFirstLoginOnboarding(false);
-              if (isBackendAvailable()) {
+              const api = getApiBase();
+              if (api) {
                 try {
                   const userId = await getUserId();
-                  const api = getApiBase();
                   const token = await getSessionToken();
                   const headers: Record<string, string> = { "Content-Type": "application/json" };
                   if (token) headers["Authorization"] = `Bearer ${token}`;

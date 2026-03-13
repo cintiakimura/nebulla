@@ -172,7 +172,7 @@ export default function MasterPlanBrainstorming() {
         body: JSON.stringify({ messages: apiMessages }),
       });
       const data = await res.json().catch(() => ({}));
-      const reply = res.ok && data?.message?.content ? data.message.content : res.status === 503 ? "Grok API not configured (add GROK_API_KEY)." : "Sorry, I couldn't reply.";
+      const reply = res.ok && data?.message?.content ? data.message.content : res.status === 503 ? "Grok isn’t available right now." : "Sorry, I couldn’t reply.";
       const withReply = [...nextMessages, { id: crypto.randomUUID(), role: "assistant" as const, content: reply }];
       setMessages(withReply);
       setAwaitingLock(reply.toLowerCase().includes("lock this?"));

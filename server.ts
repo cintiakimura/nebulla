@@ -83,7 +83,6 @@ function requireMatchUserId(req: RequestWithUserId, res: express.Response, next:
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
@@ -768,8 +767,10 @@ async function startServer() {
   app.post("/api/stripe/webhook", (_req, res) => res.status(410).send());
   app.post("/api/stripe/checkout", (_req, res) => res.status(410).json({ error: "Payments removed" }));
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Vite middleware for development; on Vercel we only run API (no static/Vite)
+  if (process.env.VERCEL) {
+    // Serverless: no static or Vite
+  } else if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -779,15 +780,26 @@ async function startServer() {
     app.use(express.static("dist"));
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    const grokKey = process.env.GROK_API_KEY;
-    if (!grokKey || grokKey === "PLACEHOLDER") {
-      console.log("Grok: GROK_API_KEY not set — chat will return 503. Add it to .env (get key at console.x.ai).");
-    } else {
-      console.log("Grok: API key loaded — chat is enabled.");
-    }
-  });
+  return app;
 }
 
-startServer();
+/** Create Express app (used by server.ts when run directly, and by Vercel api/index.ts). */
+export async function createApp(): Promise<express.Express> {
+  return startServer();
+}
+
+// When run directly (not on Vercel), start listening
+if (typeof process.env.VERCEL === "undefined" || process.env.VERCEL !== "1") {
+  const PORT = Number(process.env.PORT) || 3000;
+  createApp().then((app) => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      const grokKey = process.env.GROK_API_KEY;
+      if (!grokKey || grokKey === "PLACEHOLDER") {
+        console.log("Grok: GROK_API_KEY not set — chat will return 503. Add it to .env (get key at console.x.ai).");
+      } else {
+        console.log("Grok: API key loaded — chat is enabled.");
+      }
+    });
+  });
+}

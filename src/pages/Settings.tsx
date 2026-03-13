@@ -99,7 +99,7 @@ export default function Settings() {
     const apiBase = getApiBase();
     const token = await getSessionToken();
     if (!apiBase || !token) {
-      alert("Sign in required");
+      alert("Please sign in first.");
       return;
     }
     setBillingLoading(true);
@@ -110,7 +110,7 @@ export default function Settings() {
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (data.url) window.location.href = data.url;
-      else alert(data.error ?? "Could not open billing");
+      else alert(data.error ?? "Couldn’t open billing. Try again.");
     } catch {
       alert("Could not open billing");
     } finally {
