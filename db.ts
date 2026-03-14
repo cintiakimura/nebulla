@@ -1,13 +1,15 @@
 /**
  * SQLite store for per-user projects and chat.
  * File: kyn.db in project root (create if missing).
+ * On Vercel, uses /tmp so the function can start (data ephemeral; use Supabase for persistence).
  */
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = process.env.KYN_DB_PATH || path.join(__dirname, "kyn.db");
+const defaultPath = process.env.VERCEL ? path.join("/tmp", "kyn.db") : path.join(__dirname, "kyn.db");
+const dbPath = process.env.KYN_DB_PATH || defaultPath;
 
 const db = new Database(dbPath);
 
