@@ -1059,7 +1059,6 @@ export default function Builder() {
               />
             </div>
           )}
-          )}
         </div>
 
         {/* Bottom panel: Terminal, Output, Problems (Cursor-style) */}
