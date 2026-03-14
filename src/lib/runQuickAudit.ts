@@ -2,7 +2,6 @@
  * Full audit of every API functionality. Returns a list of { name, ok, detail } so the
  * report has a status for every single functionality with no blind spots.
  */
-import { getGrokRequestHeaders } from "./storedSecrets";
 
 export type AuditEntry = { name: string; ok: boolean; detail: string };
 
@@ -149,14 +148,14 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const chatRes = await fetch(`${base}/api/agent/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: [{ role: "user", content: "Say: test" }] }),
     });
     const chatData = await chatRes.json().catch(() => ({})) as { message?: { content?: string }; error?: string };
     const chatOk = chatRes.ok && chatData?.message && typeof chatData.message.content === "string";
     const chat503 = chatRes.status === 503;
     if (chatOk) record("POST /api/agent/chat", true, passDetail("reply received"));
-    else if (chat503) record("POST /api/agent/chat", true, "503 — Grok key not set (add in Settings)");
+    else if (chat503) record("POST /api/agent/chat", true, "503 — Service unavailable (contact support)");
     else record("POST /api/agent/chat", false, `status ${chatRes.status}${chatData?.error ? ` — ${chatData.error}` : ""}`);
   } catch (e) {
     record("POST /api/agent/chat", false, e instanceof Error ? e.message : String(e));
@@ -166,13 +165,13 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const tokenRes = await fetch(`${base}/api/realtime/token`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+      headers: { "Content-Type": "application/json" },
     });
     const tokenData = await tokenRes.json().catch(() => ({})) as { client_secret?: string; value?: string };
     const tokenOk = tokenRes.ok && (typeof tokenData?.client_secret === "string" || typeof tokenData?.value === "string");
     const token503 = tokenRes.status === 503;
     if (tokenOk) record("POST /api/realtime/token", true, passDetail("token returned"));
-    else if (token503) record("POST /api/realtime/token", true, "503 — Grok key not set (add in Settings)");
+    else if (token503) record("POST /api/realtime/token", true, "503 — Service unavailable (contact support)");
     else record("POST /api/realtime/token", false, `status ${tokenRes.status}`);
   } catch (e) {
     record("POST /api/realtime/token", false, e instanceof Error ? e.message : String(e));
@@ -182,13 +181,13 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const ttsRes = await fetch(`${base}/api/tts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: "Test.", voice_id: "eve" }),
     });
     const ttsOk = ttsRes.ok && (ttsRes.headers.get("content-type")?.includes("audio") ?? false);
     const tts503 = ttsRes.status === 503;
     if (ttsOk) record("POST /api/tts", true, passDetail("audio returned"));
-    else if (tts503) record("POST /api/tts", true, "503 — Grok key not set (add in Settings)");
+    else if (tts503) record("POST /api/tts", true, "503 — Service unavailable (contact support)");
     else record("POST /api/tts", false, `status ${ttsRes.status}`);
   } catch (e) {
     record("POST /api/tts", false, e instanceof Error ? e.message : String(e));

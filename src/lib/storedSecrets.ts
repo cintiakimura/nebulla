@@ -1,12 +1,11 @@
 /**
  * User-supplied API keys stored in localStorage (override .env when set).
- * Keys are prefixed so we can list and send only when needed.
+ * Grok/XAI key is backend-only (XAI_API_KEY in env); never stored or sent from frontend.
  */
 
 const PREFIX = "kyn_secret_";
 
 export const SECRET_KEYS = [
-  "GROK_API_KEY",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -44,9 +43,7 @@ export function hasStoredSecret(key: string): boolean {
   return v.length > 0 && v !== "PLACEHOLDER";
 }
 
-/** Headers to send with Grok-related API requests (chat, TTS, realtime token). */
+/** No client-side Grok key. Backend uses XAI_API_KEY from env only. Kept for API compatibility; returns {}. */
 export function getGrokRequestHeaders(): Record<string, string> {
-  const key = getStoredSecret("GROK_API_KEY");
-  if (!key || key === "PLACEHOLDER") return {};
-  return { "X-Grok-Api-Key": key };
+  return {};
 }

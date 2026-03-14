@@ -107,35 +107,35 @@ export default function Onboarding() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Objective (What's the app for? Who wins?)</label>
-                  <textarea name="objective" value={formData.objective} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. A SaaS for teachers to manage grades..." />
+                  <textarea name="objective" value={formData.objective} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. A SaaS for teachers to manage grades..." />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Users & Roles (Student/Teacher/Admin)</label>
-                  <textarea name="usersRoles" value={formData.usersRoles} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Admin (full access), Teacher (edit grades), Student (read only)" />
+                  <textarea name="usersRoles" value={formData.usersRoles} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. Admin (full access), Teacher (edit grades), Student (read only)" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Data & Models (Tables, relations)</label>
-                  <textarea name="dataModels" value={formData.dataModels} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Users, Classes, Grades. Users 1:N Grades." />
+                  <textarea name="dataModels" value={formData.dataModels} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. Users, Classes, Grades. Users 1:N Grades." />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Constraints (Budget, GDPR, offline)</label>
-                  <textarea name="constraints" value={formData.constraints} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Must be GDPR compliant, mobile-first." />
+                  <textarea name="constraints" value={formData.constraints} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. Must be GDPR compliant, mobile-first." />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Branding (Colors, fonts, tone)</label>
-                  <textarea name="branding" value={formData.branding} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Dark mode, blue accents, professional tone." />
+                  <textarea name="branding" value={formData.branding} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. Dark mode, blue accents, professional tone." />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Pages & Navigation (Core screens)</label>
-                  <textarea name="pagesNav" value={formData.pagesNav} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. /login, /dashboard, /settings. Sidebar nav." />
+                  <textarea name="pagesNav" value={formData.pagesNav} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. /login, /dashboard, /settings. Sidebar nav." />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Integrations (Stripe, Calendar)</label>
-                  <textarea name="integrations" value={formData.integrations} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Stripe for payments, Google Calendar." />
+                  <textarea name="integrations" value={formData.integrations} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. Stripe for payments, Google Calendar." />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400">Done State (Live URL, zero crashes)</label>
-                  <textarea name="doneState" value={formData.doneState} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Deployed to Vercel, 0 console errors." />
+                  <textarea name="doneState" value={formData.doneState} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#333] rounded-md p-3 text-white focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none resize-none" placeholder="e.g. Deployed to Vercel, 0 console errors." />
                 </div>
               </div>
             </div>
@@ -172,7 +172,7 @@ export default function Onboarding() {
                 </button>
                 <button 
                   onClick={handleOpenInBuilder}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="px-6 py-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-black rounded-lg font-medium hover:scale-105 transition-all flex items-center gap-2"
                 >
                   <LayoutTemplate size={20} />
                   Open in Builder
@@ -195,7 +195,7 @@ export default function Onboarding() {
           {step < 3 && (
             <button 
               onClick={handleNext}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md font-medium transition-colors flex items-center gap-2"
+              className="px-6 py-2 bg-[#00BFFF] hover:bg-[#40d4ff] text-black rounded-md hover:scale-105 font-medium transition-colors flex items-center gap-2"
             >
               Next Step
               <ArrowRight size={18} />

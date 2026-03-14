@@ -1,6 +1,6 @@
 /**
- * Backend agent config — core engine for the builder AI (Grok/Eve).
- * Import this when calling Grok (or your Grok/Eve backend); use as system instructions.
+ * Backend agent config — core engine for the builder AI (Grok 4.2 multi-agent beta).
+ * Used by server with XAI_API_KEY from env only. Import when calling Grok from backend.
  * Layout/UI is fixed: explorer left, preview/tabs center full width, chat right, terminal bottom.
  * Sidebar: eye icon → preview in center, brain icon → mind map / App.tsx in center.
  */

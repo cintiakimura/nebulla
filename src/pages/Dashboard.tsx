@@ -31,7 +31,6 @@ import { speakWithSpeechSynthesisFallback } from "../lib/grokVoiceAgent";
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
-import { getGrokRequestHeaders, hasStoredSecret } from "../lib/storedSecrets";
 import {
   fetchUnbreakableRules,
   getVETRSystemPrompt,
@@ -207,7 +206,7 @@ export default function Dashboard() {
       if (msg.includes("Add your Grok") || msg.includes("Settings")) {
         setSettingsDrawerMessage("Add your Grok API key below to use chat and voice.");
         setSettingsDrawerOpen(true);
-      } else setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or check GROK_API_KEY.` }]);
+      } else setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or contact support.` }]);
     },
   });
 
@@ -308,15 +307,6 @@ export default function Dashboard() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // Auto-open Settings drawer on first load if Grok key not set (once per session)
-  useEffect(() => {
-    if (settingsAutoOpenedRef.current || loading) return;
-    if (!hasStoredSecret("GROK_API_KEY")) {
-      settingsAutoOpenedRef.current = true;
-      setSettingsDrawerMessage("Let's set up your Grok key first.");
-      setSettingsDrawerOpen(true);
-    }
-  }, [loading]);
 
   // When user stops speaking (mic off), send transcript to Grok and play reply via TTS (only when NOT using bidirectional Voice Agent WS)
   const voiceCancelRef = useRef(false);
@@ -338,16 +328,16 @@ export default function Dashboard() {
         const messages = [...history, { role: "user" as const, content: text }];
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages, userId }),
         });
         if (voiceCancelRef.current) return;
         const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
-        if (res.status === 503 && ((data.error || "") + (data.details || "")).toLowerCase().includes("grok")) {
-          setSettingsDrawerMessage("Add your Grok API key below to use chat and voice.");
+        if (res.status === 503) {
+          setSettingsDrawerMessage("Service unavailable—contact support.");
           setSettingsDrawerOpen(true);
         }
-        const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Grok didn’t respond. Check GROK_API_KEY in Settings.");
+        const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service unavailable—contact support.");
 
         const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text };
         const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
@@ -357,11 +347,11 @@ export default function Dashboard() {
           try {
             const ttsRes = await fetch(`${apiBase || ""}/api/tts`, {
               method: "POST",
-              headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text: content.slice(0, 4096), voice_id: "eve" }),
             });
             if (ttsRes.status === 503) {
-              setSettingsDrawerMessage("Add your Grok API key below for voice.");
+              setSettingsDrawerMessage("Service unavailable—contact support.");
               setSettingsDrawerOpen(true);
             }
             if (ttsRes.ok && !voiceCancelRef.current) {
@@ -532,7 +522,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch(`${api}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: [...history, { role: "user", content: MIND_MAP_PROMPT }], userId: await getUserId() }),
       });
       if (res.status === 503) {
@@ -624,13 +614,13 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         setVetrProgress(`Running VETR Iteration ${iteration}/${MAX_ITERATIONS} — calling Grok…`);
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages }),
         });
         if (res.status === 503) {
           setSettingsDrawerMessage("Add your Grok API key below to run the VETR debugging test.");
           setSettingsDrawerOpen(true);
-          setVetrProgress("Grok key required. Add your API key in Settings.");
+          setVetrProgress("Service unavailable—contact support.");
           setVetrResult("Grok not available. Add your API key in Settings.");
           done = true;
           break;
@@ -703,7 +693,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
   });
 
   const statusClass = (s: ProjectStatus) =>
-    s === "Live" ? "bg-green-500/10 text-green-400" : s === "Preview" ? "bg-blue-500/10 text-blue-400" : "bg-gray-500/10 text-gray-400";
+    s === "Live" ? "bg-green-500/10 text-green-400" : s === "Preview" ? "bg-[#00BFFF]/10 text-[#00BFFF]" : "bg-gray-500/10 text-gray-400";
 
   return (
     <div className="flex flex-col h-screen bg-vs-bg text-vs-foreground overflow-hidden font-sans">
@@ -758,13 +748,13 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 onChange={(e) => setWelcomeModalPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleWelcomeStart()}
                 placeholder="e.g. A todo app, a landing page..."
-                className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333333] rounded-lg text-white placeholder-gray-500 focus:border-[#007acc] outline-none mb-4"
+                className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333333] rounded-lg text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none mb-4"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleWelcomeStart}
                   disabled={welcomeModalLoading || atProjectLimit}
-                  className="flex-1 py-2.5 bg-[#007acc] hover:bg-[#1a8ad4] text-white font-medium rounded-lg disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-[#00BFFF] hover:bg-[#40d4ff] text-white font-medium rounded-lg disabled:opacity-50"
                 >
                   {welcomeModalLoading ? "Creating…" : "Start"}
                 </button>
@@ -895,7 +885,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           )}
         </div>
         <button
-          className="p-3 rounded-lg bg-[#37373d] text-white transition-colors"
+          className="p-3 rounded-lg bg-[#1e1e1e] text-white transition-colors"
           title="Projects"
         >
           <FolderOpen size={20} strokeWidth={1.5} />
@@ -950,7 +940,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             <div className="relative" ref={avatarRef}>
             <button
               onClick={() => setAvatarOpen((o) => !o)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#37373d] transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#1e1e1e] transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-vs-accent flex items-center justify-center text-white text-sm font-medium">U</div>
               <ChevronDown size={16} className="text-gray-400" />
@@ -1000,7 +990,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                   <button
                     onClick={() => (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
                     disabled={atProjectLimit}
-                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-[#37373d] text-gray-500 cursor-not-allowed" : "bg-[#007acc] hover:bg-[#1a8ad4] text-white"}`}
+                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-[#1e1e1e] text-gray-500 cursor-not-allowed" : "bg-[#007acc] hover:bg-[#1a8ad4] text-white"}`}
                   >
                     Start building
                   </button>
@@ -1074,7 +1064,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                     <button
                       key={t}
                       onClick={() => setTab(t)}
-                      className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${tab === t ? "bg-[#37373d] text-white" : "text-gray-400 hover:text-white"}`}
+                      className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${tab === t ? "bg-[#1e1e1e] text-white" : "text-gray-400 hover:text-white"}`}
                     >
                       {t === "all" ? "All" : t === "deployed" ? "Deployed" : "Drafts"}
                     </button>
@@ -1135,7 +1125,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           </div>
           <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
             <input {...getInputProps()} />
-            <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "bg-blue-500/10 ring-1 ring-blue-500/50 rounded" : ""}`}>
+            <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "bg-[#00BFFF]/10 ring-1 ring-[#00BFFF]/50 rounded" : ""}`}>
               {chatMessages.length === 0 && (
                 <p className="text-xs text-gray-500">Voice and chat here. Drop files to upload.</p>
               )}

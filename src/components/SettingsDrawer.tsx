@@ -1,21 +1,17 @@
 /**
- * Right-side Settings drawer: API keys (Grok, Supabase, Stripe, Builder) + general toggles.
- * Opens from Dashboard header, sidebar, or status bar. Auto-opens on first load if Grok key missing.
+ * Right-side Settings drawer: API keys (Supabase, Stripe, Builder) + general toggles.
+ * Grok/XAI key is backend-only (XAI_API_KEY in env); no key input here.
  */
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronDown, ChevronRight, HelpCircle } from "lucide-react";
+import { motion } from "motion/react";
+import { X, ChevronDown, ChevronRight } from "lucide-react";
 import {
   getStoredSecret,
   setStoredSecret,
-  hasStoredSecret,
   SECRET_KEYS,
   type SecretKey,
 } from "../lib/storedSecrets";
-import { getApiBase } from "../lib/api";
 
-const GROK_HELPER = "Get your key at https://console.x.ai → API Keys. Stored only in your browser (localStorage).";
-const GROK_LABEL = "Grok API Key (required for voice, chat, mind map, code gen)";
 const KEY_USE_LOCAL_FIRST = "kyn_use_local_keys_first";
 const KEY_DEBUG_MODE = "kyn_debug_mode";
 
@@ -47,60 +43,12 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
 
   useEffect(() => {
     if (!open) return;
-    const has = hasStoredSecret("GROK_API_KEY");
-    setGrokInput(has ? "••••••••" : "");
-    setGrokStatus("idle");
-    setGrokError("");
     const next: Record<string, string> = {};
     SECRET_KEYS.forEach((k) => {
       next[k] = getStoredSecret(k) ? "••••••••" : "";
     });
     setSecretValues(next);
   }, [open]);
-
-  const validateGrokKey = async (key: string): Promise<boolean> => {
-    const base = getApiBase()?.replace(/\/$/, "");
-    if (!base) return false;
-    const res = await fetch(`${base}/api/agent/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Grok-Api-Key": key },
-      body: JSON.stringify({ messages: [{ role: "user", content: "Say: ok" }] }),
-    });
-    return res.ok;
-  };
-
-  const handleSaveGrok = async () => {
-    const raw = grokInput.trim();
-    const toSave = raw === "••••••••" ? getStoredSecret("GROK_API_KEY") : raw;
-    if (!toSave) {
-      setGrokError("Enter a key to save.");
-      setToast("invalid");
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-    setGrokStatus("saving");
-    setGrokError("");
-    const isValid = await validateGrokKey(toSave);
-    if (!isValid) {
-      setGrokStatus("invalid");
-      setGrokError("Key rejected by API. Check it at console.x.ai.");
-      setToast("invalid");
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-    setStoredSecret("GROK_API_KEY", toSave);
-    setGrokInput("••••••••");
-    setGrokStatus("valid");
-    setGrokError("");
-    setToast("saved");
-    setTimeout(() => setToast(null), 3000);
-    if (onRetry) {
-      setTimeout(() => {
-        onRetry();
-        onClose();
-      }, 800);
-    }
-  };
 
   const setSecret = (key: SecretKey, value: string) => {
     setSecretValues((prev) => ({ ...prev, [key]: value }));
@@ -185,7 +133,7 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
                 type="button"
                 onClick={handleSaveGrok}
                 disabled={grokStatus === "saving"}
-                className="px-4 py-2 rounded bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm font-medium disabled:opacity-50 shrink-0"
+                className="px-4 py-2 rounded bg-[#00BFFF] hover:bg-[#40d4ff] text-white text-sm font-medium disabled:opacity-50 shrink-0"
               >
                 {grokStatus === "saving" ? "…" : "Save Key"}
               </button>
@@ -277,30 +225,6 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
             )}
           </section>
         </div>
-
-        {/* Toast */}
-        <AnimatePresence>
-          {toast === "saved" && (
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
-              className="absolute bottom-4 left-4 right-4 px-4 py-3 rounded-lg bg-green-500/20 border border-green-500/40 text-green-200 text-sm"
-            >
-              Key saved! {onRetry ? "Retrying…" : ""}
-            </motion.div>
-          )}
-          {toast === "invalid" && (
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
-              className="absolute bottom-4 left-4 right-4 px-4 py-3 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 text-sm"
-            >
-              Invalid key. Check it at console.x.ai.
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.aside>
       </>
       )}

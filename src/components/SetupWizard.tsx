@@ -153,14 +153,14 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                     placeholder="Project URL"
                     value={supabaseUrl}
                     onChange={(e) => setSupabaseUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
                   />
                   <input
                     type="password"
                     placeholder="Anon key"
                     value={supabaseAnonKey}
                     onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
                   />
                   <button
                     onClick={handleSaveSupabase}
@@ -220,7 +220,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                   placeholder="Secret key (sk_...)"
                   value={stripeKey}
                   onChange={(e) => setStripeKeyState(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
                 />
                 <button
                   onClick={handleSaveStripe}

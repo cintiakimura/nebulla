@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
-/* VS Code Abyss theme — deep navy/black base, purple accent */
+/* Abyss theme — #000 background, #E0E0E0 text, #00BFFF accent, #FF6B6B secondary. No purple. */
 @theme inline {
-  --color-vs-bg: #0c0c0d;
-  --color-vs-editor: #0c0c0d;
-  --color-vs-accent: #9d00ff;
-  --color-vs-foreground: #d4d4d4;
-  --color-vs-muted: #858585;
-  --color-vs-hover: #1a1a1a;
+  --color-vs-bg: #000000;
+  --color-vs-editor: #000000;
+  --color-vs-accent: #00BFFF;
+  --color-vs-foreground: #E0E0E0;
+  --color-vs-muted: #9ca3af;
+  --color-vs-hover: #0a0a0a;
   --color-vs-border: #1e1e1e;
-  --color-vs-status: #0c0c0d;
+  --color-vs-status: #000000;
+  --color-vs-secondary: #FF6B6B;
 }
 
 @layer base {
   :root {
-    /* Abyss workbench / UI */
-    --bg-primary: #0c0c0d;
-    --bg-editor: #0c0c0d;
-    --bg-sidebar: #0c0c0d;
-    --accent: #9d00ff;
-    --accent-hover: #b366ff;
-    --text-primary: #d4d4d4;
-    --text-secondary: #858585;
-    --hover: #1a1a1a;
-    --status-bg: #0c0c0d;
+    --bg-primary: #000000;
+    --bg-editor: #000000;
+    --bg-sidebar: #000000;
+    --accent: #00BFFF;
+    --accent-hover: #40d4ff;
+    --secondary: #FF6B6B;
+    --text-primary: #E0E0E0;
+    --text-secondary: #9ca3af;
+    --hover: #0a0a0a;
+    --status-bg: #000000;
     --border: #1e1e1e;
     --border-subtle: #111111;
-    /* Optional: syntax-inspired for code blocks / chat */
     --syntax-string: #ce9178;
     --syntax-keyword: #569cd6;
     --syntax-function: #dcdcaa;
@@ -36,7 +36,7 @@
   body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    font-family: ui-sans-serif, "Segoe UI", system-ui, "SF Pro Display", sans-serif;
+    font-family: "Inter", ui-sans-serif, "Segoe UI", system-ui, sans-serif;
   }
 
   .font-mono {
@@ -45,7 +45,6 @@
   }
 }
 
-/* Utility: accent buttons and highlights (Abyss purple) */
 @layer components {
   .btn-accent {
     background-color: var(--accent);

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { getApiBase } from "../lib/api";
 import { getUserId } from "../lib/auth";
 import { getSessionToken } from "../lib/supabaseAuth";
-import { getGrokRequestHeaders } from "../lib/storedSecrets";
 
 const TABS = [
   "Objective",
@@ -185,7 +184,7 @@ export default function MasterPlanBrainstorming() {
       ];
       const res = await fetch(`${apiBase || ""}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: apiMessages }),
       });
       const data = await res.json().catch(() => ({}));

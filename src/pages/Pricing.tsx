@@ -27,23 +27,23 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-gray-300 font-sans selection:bg-blue-500/30 p-6">
+    <div className="min-h-screen bg-[#000000] text-[#E0E0E0] font-sans selection:bg-[#00BFFF]/30 p-6">
       <nav className="max-w-6xl mx-auto flex items-center justify-between mb-20">
         <button
           onClick={() => navigate("/")}
-          className="text-gray-500 hover:text-white flex items-center gap-2 transition-colors"
+          className="text-[#9ca3af] hover:text-[#E0E0E0] flex items-center gap-2 transition-colors"
         >
           <ArrowLeft size={20} />
           Back to Home
         </button>
-        <div className="text-2xl font-bold text-white tracking-tighter">kyn.</div>
+        <div className="text-2xl font-bold text-[#E0E0E0] tracking-tighter">kyn.</div>
       </nav>
 
       <main className="max-w-4xl mx-auto text-center">
         <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
           Simple, transparent pricing
         </h1>
-        <p className="text-xl text-gray-400 mb-16">
+        <p className="text-xl text-[#9ca3af] mb-16">
           Start for free, upgrade when you need more power.
         </p>
 
@@ -58,18 +58,18 @@ export default function Pricing() {
               <li className="flex items-center gap-2">✓ 10 Grok chats per day</li>
               <li className="flex items-center gap-2">✓ Community support</li>
             </ul>
-            <button onClick={() => navigate("/login")} className="w-full py-3 bg-[#222] hover:bg-[#333] text-white rounded-lg font-medium transition-colors">
+            <button onClick={() => navigate("/login")} className="w-full py-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-black rounded-lg font-medium hover:scale-105 transition-all">
               Get Started
             </button>
           </div>
 
           {/* Pro */}
-          <div className="p-8 bg-gradient-to-b from-[#1a1a2e] to-[#111] border border-blue-500/30 rounded-2xl relative shadow-2xl shadow-blue-900/20">
-            <div className="absolute top-0 right-8 transform -translate-y-1/2 bg-blue-500 text-white px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider">
+          <div className="p-8 bg-gradient-to-b from-[#1a1a2e] to-[#111] border border-[#00BFFF]/30 rounded-2xl relative shadow-2xl shadow-[#00BFFF]/10">
+            <div className="absolute top-0 right-8 transform -translate-y-1/2 bg-[#00BFFF] text-black px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider">
               Most Popular
             </div>
             <h3 className="text-2xl font-semibold text-white mb-2">Pro</h3>
-            <p className="text-blue-200/70 mb-6">Unlimited everything.</p>
+            <p className="text-[#9ca3af] mb-6">Unlimited everything.</p>
             <div className="text-4xl font-bold text-white mb-8">Pro<span className="text-lg text-gray-500 font-normal"> — contact for pricing</span></div>
             <ul className="space-y-4 mb-8 text-gray-300">
               <li className="flex items-center gap-2">✓ Unlimited projects</li>
@@ -78,7 +78,7 @@ export default function Pricing() {
               <li className="flex items-center gap-2">✓ GitHub export & custom domains</li>
               <li className="flex items-center gap-2">✓ In-app edits & integrations</li>
             </ul>
-            <button onClick={handleSubscribe} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">
+            <button onClick={handleSubscribe} className="w-full py-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-black rounded-lg hover:scale-105 font-medium transition-colors">
               Upgrade to Pro
             </button>
           </div>

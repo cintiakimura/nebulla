@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { Mic } from "lucide-react";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { getApiBase } from "../lib/api";
-import { getGrokRequestHeaders } from "../lib/storedSecrets";
 
 const INTRO_SCRIPT =
   "Hey, I'm Kyn, your dev partner. Most people rush into code and end up with bugs and frustration. We talk first, plan architecture, brainstorm together, get an airtight plan before writing any code.";
@@ -29,7 +28,7 @@ function playGrokEve(text: string, onEnd?: () => void, onGrokKeyMissing?: () => 
 
   fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, voice_id: "eve" }),
   })
     .then((res) => {
@@ -165,7 +164,7 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.3 }}
                 onClick={handleLetsStart}
-                className="px-10 py-4 text-lg font-medium text-white rounded-lg btn-accent shadow-[0_0_32px_rgba(157,0,255,0.3)] hover:shadow-[0_0_40px_rgba(157,0,255,0.4)] transition-all duration-200"
+                className="px-10 py-4 text-lg font-medium text-white rounded-lg btn-accent shadow-[0_0_32px_rgba(0,191,255,0.3)] hover:shadow-[0_0_40px_rgba(0,191,255,0.4)] transition-all duration-200"
               >
                 Let&apos;s start
               </motion.button>

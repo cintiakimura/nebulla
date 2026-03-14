@@ -98,14 +98,14 @@ Exported from kyn (kyn.app).
 
 - Supabase anon key is safe for client-side use (RLS protects data).
 - Never commit service_role key. This export does not include it.
-${isPro ? "- Pro: Add your own GROK_API_KEY to .env for AI features.\n" : ""}
+${isPro ? "- Pro: Set XAI_API_KEY in .env for AI features (backend only).\n" : ""}
 `;
   zip.file("README.md", readme);
 
   const envExample = [
     "SUPABASE_URL=YOUR_SUPABASE_URL",
     "SUPABASE_ANON_KEY=YOUR_ANON_KEY",
-    isPro ? "GROK_API_KEY=your_key" : "",
+    isPro ? "XAI_API_KEY=your_key" : "",
   ]
     .filter(Boolean)
     .join("\n");

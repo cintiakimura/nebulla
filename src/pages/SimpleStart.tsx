@@ -17,7 +17,7 @@ export default function SimpleStart() {
       <button
         type="button"
         onClick={handleStart}
-        className="px-10 py-4 text-lg font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+        className="px-10 py-4 text-lg font-medium rounded-lg bg-[#00BFFF] hover:bg-[#40d4ff] text-black hover:scale-105 transition-colors"
       >
         Start
       </button>

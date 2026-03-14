@@ -61,7 +61,7 @@ export default function AuthCallback() {
         <p className="text-amber-500 mb-4">Sign-in could not be completed.</p>
         <button
           onClick={() => navigate("/login")}
-          className="px-4 py-2 bg-[#333] hover:bg-[#444] text-white rounded-lg"
+          className="px-4 py-2 bg-[#00BFFF] hover:bg-[#40d4ff] text-black hover:scale-105 rounded-lg transition-all"
         >
           Back to login
         </button>
@@ -71,7 +71,7 @@ export default function AuthCallback() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-gray-300 font-sans">
-      <p className="text-gray-400">Completing sign-in…</p>
+      <p className="text-[#9ca3af]">Completing sign-in…</p>
     </div>
   );
 }

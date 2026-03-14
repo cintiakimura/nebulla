@@ -19,7 +19,7 @@ export async function fetchUnbreakableRules(): Promise<string> {
     const res = await fetch(url);
     if (res.ok) {
       cachedUnbreakableRules = await res.text();
-      console.log("Loaded UNBREAKABLE_RULES.md");
+      if (import.meta.env.DEV) console.log("Loaded UNBREAKABLE_RULES.md");
       return cachedUnbreakableRules;
     }
   } catch {

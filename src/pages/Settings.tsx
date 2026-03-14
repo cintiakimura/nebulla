@@ -10,7 +10,7 @@ const KEY_SUPABASE_URL = "supabase_url";
 const KEY_SUPABASE_ANON_KEY = "supabase_anon_key";
 const KEY_STRIPE_PRICE_ID = "stripe_price_id";
 
-const VERCEL_ENV_VARS = ["GROK_API_KEY", "BUILDER_PRIVATE_KEY", "STRIPE_PRICE_ID"] as const;
+const VERCEL_ENV_VARS = ["XAI_API_KEY", "BUILDER_PRIVATE_KEY", "STRIPE_PRICE_ID"] as const;
 const VERCEL_DASHBOARD_URL = "https://vercel.com/dashboard";
 
 type Limits = { isPro?: boolean; paidUntil?: string };
@@ -182,7 +182,7 @@ export default function Settings() {
             onChange={(e) => setBackendUrl(e.target.value)}
             className="w-full max-w-md px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500"
           />
-          <button type="button" onClick={saveBackendUrl} className="ml-2 px-3 py-2 bg-[#007acc] text-white rounded text-sm">
+          <button type="button" onClick={saveBackendUrl} className="ml-2 px-3 py-2 bg-[#00BFFF] text-white rounded text-sm">
             Save
           </button>
         </section>
@@ -198,7 +198,7 @@ export default function Settings() {
                 <label className="text-sm font-medium text-vs-foreground w-56 shrink-0">{key}</label>
                 <input
                   type="password"
-                  placeholder={key === "GROK_API_KEY" ? "xai-…" : "optional"}
+                  placeholder="optional"
                   value={secretValues[key] ?? ""}
                   onChange={(e) => setSecret(key, e.target.value)}
                   className="flex-1 min-w-[200px] px-3 py-2 bg-vs-bg border border-vs-border rounded text-sm text-vs-foreground placeholder-gray-500"
@@ -274,7 +274,7 @@ export default function Settings() {
             type="button"
             onClick={openManageSubscription}
             disabled={billingLoading}
-            className="text-blue-600 hover:underline disabled:opacity-50"
+            className="text-[#00BFFF] hover:underline disabled:opacity-50"
           >
             {billingLoading ? "Opening…" : "Manage Subscription"}
           </button>

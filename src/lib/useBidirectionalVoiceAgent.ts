@@ -116,7 +116,7 @@ export function useBidirectionalVoiceAgent(apiBase: string, options: {
       return;
     }
     if (!token) {
-      onError?.(grokKeyMissing ? "Add your Grok API key in Settings." : "Voice token not available. Check GROK_API_KEY.");
+      onError?.(grokKeyMissing ? "Service unavailable—contact support." : "Voice token not available. Contact support.");
       setStatus("error");
       return;
     }

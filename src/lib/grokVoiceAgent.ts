@@ -4,7 +4,6 @@
  * Fallback to REST TTS or browser SpeechSynthesis when WebSocket fails.
  */
 
-import { getGrokRequestHeaders } from "./storedSecrets";
 
 const REALTIME_URL = "wss://api.x.ai/v1/realtime";
 const SAMPLE_RATE = 24000;
@@ -19,7 +18,7 @@ export async function getRealtimeToken(apiBase: string): Promise<RealtimeTokenRe
   if (!url.startsWith("http") && !url.startsWith("/")) return { token: null };
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+    headers: { "Content-Type": "application/json" },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

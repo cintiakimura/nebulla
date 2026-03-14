@@ -86,6 +86,22 @@ function requireMatchUserId(req: RequestWithUserId, res: express.Response, next:
   next();
 }
 
+const GROK_MODEL_DEFAULT = "grok-4.2-multi-agent-beta-0309";
+let grokFirstCallLogged = false;
+
+/** Backend-only Grok key (XAI_API_KEY or GROK_API_KEY). Logs once on first use. Returns null if missing. */
+function getGrokApiKey(): string | null {
+  const key = (process.env.XAI_API_KEY || process.env.GROK_API_KEY)?.trim();
+  if (!key || key === "PLACEHOLDER") return null;
+  if (!grokFirstCallLogged) {
+    grokFirstCallLogged = true;
+    console.log("Grok 4.2 multi-agent beta active, using env key");
+  }
+  return key;
+}
+
+const SERVICE_UNAVAILABLE_MSG = "Service unavailable—contact support";
+
 async function startServer() {
   const app = express();
 
@@ -116,7 +132,7 @@ async function startServer() {
     app.use((req, res, next) => {
       res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Grok-Api-Key");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
       if (req.method === "OPTIONS") return res.sendStatus(204);
       next();
     });
@@ -584,10 +600,10 @@ async function startServer() {
     standardHeaders: true,
   });
   app.post("/api/agent/chat", agentChatLimiter, resolveUserId, async (req, res) => {
-    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
-    if (!apiKey || apiKey === "PLACEHOLDER") {
-      res.status(503).json({ error: "Grok API key not configured. Add your Grok API key in Settings." });
+    const apiKey = getGrokApiKey();
+    if (!apiKey) {
+      console.error("[Grok] XAI_API_KEY not set — chat will return 503");
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
       return;
     }
     try {
@@ -620,8 +636,7 @@ async function startServer() {
         res.status(400).json({ error: "messages array required" });
         return;
       }
-      // grok-4-1-fast-reasoning for planning/code/review (reasoning mode); override with GROK_MODEL env
-      const model = (process.env.GROK_MODEL || "grok-4-1-fast-reasoning").trim();
+      const model = (process.env.GROK_MODEL || GROK_MODEL_DEFAULT).trim();
       const body = {
         model,
         messages: [
@@ -667,10 +682,10 @@ async function startServer() {
 
   // Grok voice (xAI TTS, voice Eve) — natural speech for onboarding and "Grok speaks" in Builder
   app.post("/api/tts", async (req, res) => {
-    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
-    if (!apiKey || apiKey === "PLACEHOLDER") {
-      res.status(503).json({ error: "Grok API key required for voice. Add your Grok API key in Settings." });
+    const apiKey = getGrokApiKey();
+    if (!apiKey) {
+      console.error("[Grok] XAI_API_KEY not set — TTS will return 503");
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
       return;
     }
     try {
@@ -871,11 +886,11 @@ if (typeof process.env.VERCEL === "undefined" || process.env.VERCEL !== "1") {
   createApp().then((app) => {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      const grokKey = process.env.GROK_API_KEY;
+      const grokKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY;
       if (!grokKey || grokKey === "PLACEHOLDER") {
-        console.log("Grok: GROK_API_KEY not set — chat will return 503. Add it to .env (get key at console.x.ai).");
+        console.error("Grok: XAI_API_KEY not set — chat/TTS/realtime will return 503. Set XAI_API_KEY in .env.");
       } else {
-        console.log("Grok: API key loaded — chat is enabled.");
+        console.log("Grok 4.2 multi-agent beta: env key loaded — chat is enabled.");
       }
     });
   });

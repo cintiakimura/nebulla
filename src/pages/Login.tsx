@@ -126,30 +126,30 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-gray-300 font-sans">
+    <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center p-6 text-[#E0E0E0] font-sans">
       <button
         onClick={() => navigate("/")}
-        className="absolute top-8 left-8 text-gray-500 hover:text-white flex items-center gap-2 transition-colors"
+        className="absolute top-8 left-8 text-[#9ca3af] hover:text-[#E0E0E0] flex items-center gap-2 transition-colors"
       >
         <ArrowLeft size={20} />
         Back
       </button>
 
-      <div className="w-full max-w-md bg-[#111] border border-[#222] rounded-2xl p-8 shadow-2xl">
-        <div className="text-3xl font-bold text-white tracking-tighter mb-2">kyn.</div>
-        <p className="text-gray-400 mb-6">Sign in to your account</p>
+      <div className="w-full max-w-md bg-[#0a0a0a] border border-[#1e1e1e] rounded-2xl p-8 shadow-2xl">
+        <div className="text-3xl font-bold text-[#E0E0E0] tracking-tighter mb-2">kyn.</div>
+        <p className="text-[#9ca3af] mb-6">Sign in to your account</p>
 
         {useSupabase ? (
           showForgotPassword ? (
             <div className="space-y-4">
-              <p className="text-sm text-gray-400">Enter your email and we&apos;ll send a reset link.</p>
+              <p className="text-sm text-[#9ca3af]">Enter your email and we&apos;ll send a reset link.</p>
               <form onSubmit={handleForgotPassword} className="space-y-4">
                 <input
                   type="email"
                   placeholder="you@example.com"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                  className="w-full px-4 py-3 bg-[#000000] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] outline-none"
                   autoComplete="email"
                 />
                 {error && <p className="text-xs text-amber-500/90">{error}</p>}
@@ -164,7 +164,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => { setShowForgotPassword(false); setError(null); setForgotSent(false); setForgotEmail(""); }}
-                  className="w-full text-sm text-gray-500 hover:text-gray-400"
+                  className="w-full text-sm text-[#9ca3af] hover:text-[#E0E0E0]"
                 >
                   Back to sign in
                 </button>
@@ -184,7 +184,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-[#000000] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none"
                   autoComplete="email"
                 />
               </div>
@@ -198,7 +198,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-[#000000] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none"
                   autoComplete={isSignUp ? "new-password" : "current-password"}
                 />
               </div>
@@ -206,7 +206,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => { setShowForgotPassword(true); setError(null); setForgotSent(false); }}
-                  className="text-xs text-gray-500 hover:text-gray-400"
+                  className="text-xs text-[#9ca3af] hover:text-[#E0E0E0]"
                 >
                   Forgot password?
                 </button>
@@ -216,7 +216,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-white text-black font-medium rounded-lg hover:bg-gray-200 disabled:opacity-60 transition-colors"
+              className="w-full py-3 px-4 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 disabled:opacity-60 transition-all"
             >
               {loading ? "…" : isSignUp ? "Create account" : "Sign in"}
             </button>
@@ -224,14 +224,14 @@ export default function Login() {
               type="button"
               onClick={handleGitHubSignIn}
               disabled={loading}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg disabled:opacity-60 transition-colors"
+              className="w-full py-3 px-4 bg-[#00BFFF] hover:bg-[#40d4ff] text-black font-medium rounded-lg hover:scale-105 disabled:opacity-60 transition-all"
             >
               Sign in with GitHub
             </button>
             <button
               type="button"
               onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
-              className="w-full text-sm text-gray-500 hover:text-gray-400"
+              className="w-full text-sm text-[#9ca3af] hover:text-[#E0E0E0]"
             >
               {isSignUp ? "Already have an account? Sign in" : "No account? Create one"}
             </button>
@@ -239,7 +239,7 @@ export default function Login() {
           )
         ) : (
           <>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-[#9ca3af] mb-4">
               Add your <strong>Backend URL</strong> in Settings, then try again. For email sign-in, set Supabase URL and anon key in your env.
             </p>
             {error && <p className="text-xs text-amber-500/90 mb-4">{error}</p>}
@@ -254,7 +254,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => navigate("/settings")}
-                className="text-xs text-gray-500 hover:text-gray-400"
+                className="text-xs text-[#9ca3af] hover:text-[#E0E0E0]"
               >
                 Login with email
               </button>

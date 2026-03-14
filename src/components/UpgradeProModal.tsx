@@ -58,14 +58,14 @@ export default function UpgradeProModal({
           <Link
             to="/pricing"
             onClick={onClose}
-            className="block w-full py-2 px-3 bg-[#6366F1] hover:bg-[#4f46e5] text-white text-sm rounded-lg transition-colors text-center"
+            className="block w-full py-2 px-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-white text-sm rounded-lg transition-colors text-center"
           >
             {ctaLabel}
           </Link>
         ) : (
           <button
             onClick={onClose}
-            className="w-full py-2 px-3 bg-[#6366F1] hover:bg-[#4f46e5] text-white text-sm rounded-lg transition-colors"
+            className="w-full py-2 px-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-white text-sm rounded-lg transition-colors"
           >
             {ctaLabel}
           </button>

@@ -17,7 +17,6 @@ import { getSetupComplete, setSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
 import { getApiBase, clearBackendUnavailable } from "../lib/api";
 import { getSessionToken } from "../lib/supabaseAuth";
-import { getGrokRequestHeaders } from "../lib/storedSecrets";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import SetupWizard from "../components/SetupWizard";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
@@ -296,7 +295,7 @@ export default function Builder() {
     try {
       const res = await fetch(`${getApiBase() || ""}/api/agent/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getGrokRequestHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages, userId }),
       });
       const data = await res.json().catch(() => ({}));
@@ -416,6 +415,10 @@ export default function Builder() {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
                 setChatMessages(prev => [...prev, errMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+              } else {
+                const noCodeMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: "UI generation returned no code. Try again or rephrase your request." };
+                setChatMessages(prev => [...prev, noCodeMsg]);
+                saveProject({ chat_messages: [...chatMessages, userMsg, noCodeMsg] });
               }
         } catch (_) {}
       })();
@@ -468,6 +471,10 @@ export default function Builder() {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
                 setChatMessages(prev => [...prev, errMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+              } else {
+                const noCodeMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: "UI generation returned no code. Try again or rephrase your request." };
+                setChatMessages(prev => [...prev, noCodeMsg]);
+                saveProject({ chat_messages: [...chatMessages, userMsg, noCodeMsg] });
               }
             } catch (_) {}
           })();
@@ -724,7 +731,7 @@ export default function Builder() {
               <div
                 key={tabId}
                 onClick={() => setActiveTabId(tabId)}
-                className={`h-full flex items-center gap-2 px-4 min-w-[100px] border-r border-[#3d3d4d] cursor-pointer flex-shrink-0 ${isActive ? 'bg-[#1e1e2e] border-t-2 border-t-[#007acc] text-white' : 'text-[#9ca3af] hover:bg-[#2a2a3e]'}`}
+                className={`h-full flex items-center gap-2 px-4 min-w-[100px] border-r border-[#3d3d4d] cursor-pointer flex-shrink-0 ${isActive ? 'bg-[#1e1e2e] border-t-2 border-t-[#00BFFF] text-white' : 'text-[#9ca3af] hover:bg-[#2a2a3e]'}`}
               >
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
                 <span className="text-sm truncate">{label}</span>
@@ -856,7 +863,7 @@ export default function Builder() {
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
           <input ref={fileInputRef} type="file" className="hidden" accept="image/*,*" onChange={handleFileSelect} />
-          <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? 'bg-blue-500/10 ring-1 ring-blue-500/50 rounded' : ''}`}>
+          <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? 'bg-[#00BFFF]/10 ring-1 ring-[#00BFFF]/50 rounded' : ''}`}>
             {chatMessages.map((msg) => (
               <div key={msg.id} className="group">
                 <div className="text-xs text-[#9ca3af] mb-0.5">{msg.role === 'user' ? 'You' : 'Assistant'}</div>
@@ -946,7 +953,7 @@ export default function Builder() {
               <button
                 onClick={handleSendText}
                 disabled={!chatInput.trim() || readOnly}
-                className="p-2 rounded-md bg-vs-accent text-white hover:bg-[#1a8ad4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="p-2 rounded-md bg-vs-accent text-white hover:bg-[#40d4ff] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={18} />
@@ -1038,7 +1045,7 @@ export default function Builder() {
             <Link
               to="/pricing"
               onClick={() => setRateLimitModalOpen(false)}
-              className="block w-full py-2 px-3 bg-[#6366F1] hover:bg-[#4f46e5] text-white text-sm rounded-lg transition-colors text-center"
+              className="block w-full py-2 px-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-white text-sm rounded-lg transition-colors text-center"
             >
               Upgrade for unlimited
             </Link>
@@ -1057,7 +1064,7 @@ export default function Builder() {
               </button>
             </div>
             <div className="space-y-2">
-              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-vs-accent hover:bg-[#1a8ad4] text-white text-sm rounded">
+              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-vs-accent hover:bg-[#40d4ff] text-white text-sm rounded">
                 Upgrade to Pro
               </button>
             </div>

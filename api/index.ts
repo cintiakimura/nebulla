@@ -7,6 +7,19 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
 const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
+const GROK_MODEL_DEFAULT = "grok-4.2-multi-agent-beta-0309";
+const SERVICE_UNAVAILABLE_MSG = "Service unavailable—contact support";
+let grokFirstCallLogged = false;
+
+function getGrokApiKey(): string | null {
+  const key = (process.env.XAI_API_KEY || process.env.GROK_API_KEY)?.trim();
+  if (!key || key === "PLACEHOLDER") return null;
+  if (!grokFirstCallLogged) {
+    grokFirstCallLogged = true;
+    console.log("Grok 4.2 multi-agent beta active, using env key");
+  }
+  return key;
+}
 
 const defaultCode = `export default function App() {
   return (
@@ -179,14 +192,11 @@ async function handleGrok(
   res: VercelResponse,
   pathname: string
 ): Promise<boolean> {
-  const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-  const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
-  if (!apiKey || apiKey === "PLACEHOLDER") {
+  const apiKey = getGrokApiKey();
+  if (!apiKey) {
     if (pathname === "/api/agent/chat" || pathname === "/api/tts" || pathname === "/api/realtime/token") {
-      const msg = "Add your Grok API key in Settings.";
-      if (pathname === "/api/tts") res.status(503).json({ error: "Grok API key required for voice. " + msg });
-      else if (pathname === "/api/realtime/token") res.status(503).json({ error: "GROK_API_KEY not set. " + msg });
-      else res.status(503).json({ error: "Grok API key not configured. " + msg });
+      console.error("[Grok] XAI_API_KEY not set — returning 503 for", pathname);
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
       return true;
     }
     return false;
@@ -224,7 +234,7 @@ async function handleGrok(
         return true;
       }
       const { AGENT_SYSTEM_PROMPT } = await import("../src/config/agentConfig");
-      const model = (process.env.GROK_MODEL || "grok-4-1-fast-reasoning").trim();
+      const model = (process.env.GROK_MODEL || GROK_MODEL_DEFAULT).trim();
       const body = {
         model,
         messages: [
