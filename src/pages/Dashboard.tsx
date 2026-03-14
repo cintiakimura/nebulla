@@ -31,12 +31,13 @@ import { speakWithSpeechSynthesisFallback } from "../lib/grokVoiceAgent";
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
-import { getGrokRequestHeaders } from "../lib/storedSecrets";
+import { getGrokRequestHeaders, hasStoredSecret } from "../lib/storedSecrets";
 import { VETR_SYSTEM_PROMPT, buildVETRUserMessage, parseVETROutput, type VETRSection } from "../lib/vetrPrompt";
 import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 import UpgradeProModal from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
 import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
+import SettingsDrawer from "../components/SettingsDrawer";
 
 type ProjectStatus = "Live" | "Preview" | "Draft";
 
@@ -113,8 +114,10 @@ export default function Dashboard() {
   const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
   const [mindMapOpen, setMindMapOpen] = useState(false);
   const [mindMapLoading, setMindMapLoading] = useState(false);
-  const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
+  const [settingsDrawerMessage, setSettingsDrawerMessage] = useState<string | undefined>(undefined);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const settingsAutoOpenedRef = useRef(false);
   const prevListeningRef = useRef(false);
   const planningProjectIdRef = useRef<string | null>(null);
   const apiBase = getApiBase() || "";
@@ -187,8 +190,10 @@ export default function Dashboard() {
       });
     },
     onError(msg) {
-      if (msg.includes("Add your Grok") || msg.includes("Settings")) setShowGrokKeyModal(true);
-      else setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or check GROK_API_KEY.` }]);
+      if (msg.includes("Add your Grok") || msg.includes("Settings")) {
+        setSettingsDrawerMessage("Add your Grok API key below to use chat and voice.");
+        setSettingsDrawerOpen(true);
+      } else setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or check GROK_API_KEY.` }]);
     },
   });
 
@@ -289,6 +294,16 @@ export default function Dashboard() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
+  // Auto-open Settings drawer on first load if Grok key not set (once per session)
+  useEffect(() => {
+    if (settingsAutoOpenedRef.current || loading) return;
+    if (!hasStoredSecret("GROK_API_KEY")) {
+      settingsAutoOpenedRef.current = true;
+      setSettingsDrawerMessage("Let's set up your Grok key first.");
+      setSettingsDrawerOpen(true);
+    }
+  }, [loading]);
+
   // When user stops speaking (mic off), send transcript to Grok and play reply via TTS (only when NOT using bidirectional Voice Agent WS)
   const voiceCancelRef = useRef(false);
   useEffect(() => {
@@ -309,11 +324,15 @@ export default function Dashboard() {
         const messages = [...history, { role: "user" as const, content: text }];
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
           body: JSON.stringify({ messages, userId }),
         });
         if (voiceCancelRef.current) return;
         const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+        if (res.status === 503 && ((data.error || "") + (data.details || "")).toLowerCase().includes("grok")) {
+          setSettingsDrawerMessage("Add your Grok API key below to use chat and voice.");
+          setSettingsDrawerOpen(true);
+        }
         const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Grok didn’t respond. Check GROK_API_KEY in Settings.");
 
         const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text };
@@ -327,7 +346,10 @@ export default function Dashboard() {
               headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
               body: JSON.stringify({ text: content.slice(0, 4096), voice_id: "eve" }),
             });
-            if (ttsRes.status === 503) setShowGrokKeyModal(true);
+            if (ttsRes.status === 503) {
+              setSettingsDrawerMessage("Add your Grok API key below for voice.");
+              setSettingsDrawerOpen(true);
+            }
             if (ttsRes.ok && !voiceCancelRef.current) {
               const blob = await ttsRes.blob();
               const url = URL.createObjectURL(blob);
@@ -496,9 +518,13 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch(`${api}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
         body: JSON.stringify({ messages: [...history, { role: "user", content: MIND_MAP_PROMPT }], userId: await getUserId() }),
       });
+      if (res.status === 503) {
+        setSettingsDrawerMessage("Add your Grok API key below to generate the mind map.");
+        setSettingsDrawerOpen(true);
+      }
       const data = (await res.json().catch(() => ({}))) as { message?: { content?: string } };
       const content = data.message?.content ?? "";
       const jsonMatch = content.match(/\{[\s\S]*"nodes"[\s\S]*"edges"[\s\S]*\}/) || content.match(/\{[\s\S]*\}/);
@@ -571,7 +597,10 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             ],
           }),
         });
-        if (res.status === 503) setShowGrokKeyModal(true);
+        if (res.status === 503) {
+          setSettingsDrawerMessage("Add your Grok API key below to run the VETR debugging test.");
+          setSettingsDrawerOpen(true);
+        }
         const data = await res.json().catch(() => ({}));
         const content = res.ok && (data as { message?: { content?: string } }).message?.content
           ? (data as { message: { content: string } }).message.content
@@ -700,21 +729,6 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             ctaToPricing
           />
         )}
-        {showGrokKeyModal && (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setShowGrokKeyModal(false)}>
-            <div className="bg-vs-editor border border-vs-border rounded-lg shadow-xl max-w-md p-4" onClick={(e) => e.stopPropagation()}>
-              <p className="text-vs-foreground mb-3">Add your Grok API key in Settings to use chat and voice.</p>
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-vs-border text-vs-foreground text-sm">
-                  Close
-                </button>
-                <button type="button" onClick={() => { setShowGrokKeyModal(false); navigate("/settings"); }} className="px-3 py-2 rounded bg-vs-accent text-vs-accent-foreground text-sm">
-                  Open Settings
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
         {testReportOpen && (
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setTestReportOpen(false)}>
             <div
@@ -734,14 +748,31 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                   <p className="text-sm text-gray-500">Running audit…</p>
                 ) : (
                   <>
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-vs-border">
+                      <p className="text-sm font-medium text-vs-foreground">
+                        {testReport.filter((r) => r.ok).length} of {testReport.length} functionalities passed
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = testReport.map((r) => `[${r.ok ? "PASS" : "FAIL"}] ${r.name}${r.detail ? ` — ${r.detail}` : ""}`).join("\n");
+                          navigator.clipboard.writeText(text);
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-vs-hover text-vs-muted hover:text-vs-foreground"
+                      >
+                        Copy report
+                      </button>
+                    </div>
                     <div className="space-y-2">
                       {testReport.map((r, i) => (
                         <div key={i} className="flex items-start gap-2 text-sm">
-                          <span className={r.ok ? "text-green-500 font-medium" : "text-amber-500 font-medium"}>
+                          <span className={r.ok ? "text-green-500 font-medium shrink-0" : "text-amber-500 font-medium shrink-0"}>
                             {r.ok ? "PASS" : "FAIL"}
                           </span>
-                          <span className="text-gray-300">{r.name}</span>
-                          {r.detail && <span className="text-gray-500 truncate">{r.detail}</span>}
+                          <div className="min-w-0 flex-1">
+                            <span className="text-gray-300">{r.name}</span>
+                            {r.detail ? <span className="text-gray-500"> — {r.detail}</span> : null}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -799,9 +830,10 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         </button>
         <div className="flex-1" />
         <button
-          onClick={() => navigate("/settings")}
+          type="button"
+          onClick={() => { setSettingsDrawerMessage(undefined); setSettingsDrawerOpen(true); }}
           className="p-3 rounded-lg text-vs-muted hover:text-vs-foreground hover:bg-vs-hover transition-colors"
-          title="Settings"
+          title="Settings & API Keys"
         >
           <Settings size={20} strokeWidth={1.5} />
         </button>
@@ -833,7 +865,17 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               Final debugging test
             </button>
           </div>
-          <div className="relative" ref={avatarRef}>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { setSettingsDrawerMessage(undefined); setSettingsDrawerOpen(true); }}
+              className="p-2 rounded-md hover:bg-vs-hover text-vs-muted hover:text-vs-foreground transition-colors"
+              title="Settings & API Keys"
+              aria-label="Settings"
+            >
+              <Settings size={18} strokeWidth={1.5} />
+            </button>
+            <div className="relative" ref={avatarRef}>
             <button
               onClick={() => setAvatarOpen((o) => !o)}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#37373d] transition-colors"
@@ -857,6 +899,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 </button>
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -1126,7 +1169,18 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             Final debugging test
           </button>
         </div>
-        <span className="flex-shrink-0">{projects.length} project{projects.length !== 1 ? "s" : ""}</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => { setSettingsDrawerMessage(undefined); setSettingsDrawerOpen(true); }}
+            className="p-1.5 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground"
+            title="Settings & API Keys"
+            aria-label="Settings"
+          >
+            <Settings size={14} />
+          </button>
+          <span>{projects.length} project{projects.length !== 1 ? "s" : ""}</span>
+        </div>
       </div>
       {mindMapOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setMindMapOpen(false)}>
@@ -1175,6 +1229,12 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         </div>
       )}
       <UpgradeBubble show={showUpgradeBubble} />
+
+      <SettingsDrawer
+        open={settingsDrawerOpen}
+        onClose={() => { setSettingsDrawerOpen(false); setSettingsDrawerMessage(undefined); }}
+        initialMessage={settingsDrawerMessage}
+      />
     </div>
   );
 }
