@@ -142,8 +142,8 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
       >
         {showGrokKeyBanner && (
           <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2 rounded-lg bg-amber-500/20 border border-amber-500/40 px-3 py-2 text-sm text-amber-200">
-            <span>Add your Grok API key in Settings to hear voice.</span>
-            <button type="button" onClick={() => { setShowGrokKeyBanner(false); navigate("/settings"); }} className="shrink-0 px-2 py-1 rounded bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 text-xs font-medium">Open Settings</button>
+            <span>Voice is unavailable. Contact support if you need voice.</span>
+            <button type="button" onClick={() => setShowGrokKeyBanner(false)} className="shrink-0 px-2 py-1 rounded bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 text-xs font-medium">Dismiss</button>
           </div>
         )}
         <div className="flex flex-col items-center justify-center gap-10 px-6 max-w-2xl text-center">

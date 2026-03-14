@@ -40,7 +40,7 @@ export default function Pricing() {
       </nav>
 
       <main className="max-w-4xl mx-auto text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
+        <h1 className="text-4xl md:text-5xl font-bold text-[#E0E0E0] tracking-tight mb-6">
           Simple, transparent pricing
         </h1>
         <p className="text-xl text-[#9ca3af] mb-16">
@@ -50,10 +50,10 @@ export default function Pricing() {
         <div className="grid md:grid-cols-2 gap-8 text-left">
           {/* Free */}
           <div className="p-8 bg-[#111] border border-[#222] rounded-2xl">
-            <h3 className="text-2xl font-semibold text-white mb-2">Free</h3>
-            <p className="text-gray-400 mb-6">Perfect for trying kyn.</p>
-            <div className="text-4xl font-bold text-white mb-8">€0<span className="text-lg text-gray-500 font-normal">/mo</span></div>
-            <ul className="space-y-4 mb-8 text-gray-300">
+            <h3 className="text-2xl font-semibold text-[#E0E0E0] mb-2">Free</h3>
+            <p className="text-[#9ca3af] mb-6">Perfect for trying kyn.</p>
+            <div className="text-4xl font-bold text-[#E0E0E0] mb-8">€0<span className="text-lg text-[#9ca3af] font-normal">/mo</span></div>
+            <ul className="space-y-4 mb-8 text-[#E0E0E0]">
               <li className="flex items-center gap-2">✓ 3 projects</li>
               <li className="flex items-center gap-2">✓ 10 Grok chats per day</li>
               <li className="flex items-center gap-2">✓ Community support</li>
@@ -68,10 +68,10 @@ export default function Pricing() {
             <div className="absolute top-0 right-8 transform -translate-y-1/2 bg-[#00BFFF] text-black px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider">
               Most Popular
             </div>
-            <h3 className="text-2xl font-semibold text-white mb-2">Pro</h3>
+            <h3 className="text-2xl font-semibold text-[#E0E0E0] mb-2">Pro</h3>
             <p className="text-[#9ca3af] mb-6">Unlimited everything.</p>
-            <div className="text-4xl font-bold text-white mb-8">Pro<span className="text-lg text-gray-500 font-normal"> — contact for pricing</span></div>
-            <ul className="space-y-4 mb-8 text-gray-300">
+            <div className="text-4xl font-bold text-[#E0E0E0] mb-8">Pro<span className="text-lg text-[#9ca3af] font-normal"> — contact for pricing</span></div>
+            <ul className="space-y-4 mb-8 text-[#E0E0E0]">
               <li className="flex items-center gap-2">✓ Unlimited projects</li>
               <li className="flex items-center gap-2">✓ Unlimited Grok chats</li>
               <li className="flex items-center gap-2">✓ Export zip (code + keys)</li>

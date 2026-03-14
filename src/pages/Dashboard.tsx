@@ -990,7 +990,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                   <button
                     onClick={() => (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
                     disabled={atProjectLimit}
-                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-[#1e1e1e] text-gray-500 cursor-not-allowed" : "bg-[#007acc] hover:bg-[#1a8ad4] text-white"}`}
+                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-[#1e1e1e] text-[#9ca3af] cursor-not-allowed" : "bg-[#00BFFF] hover:bg-[#40d4ff] text-white hover:scale-105"}`}
                   >
                     Start building
                   </button>

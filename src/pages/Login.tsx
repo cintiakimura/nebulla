@@ -157,7 +157,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={loading || !forgotEmail.trim()}
-                  className="w-full py-3 px-4 bg-white text-black font-medium rounded-lg hover:bg-gray-200 disabled:opacity-60"
+                  className="w-full py-3 px-4 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 disabled:opacity-60 transition-all"
                 >
                   {loading ? "…" : "Send reset link"}
                 </button>
@@ -176,7 +176,7 @@ export default function Login() {
               <p className="text-xs text-green-500">Check your email for the sign-in link. If you don&apos;t see it, check spam.</p>
             )}
             <div>
-              <label className="block text-left text-sm text-gray-500 mb-1">Email</label>
+              <label className="block text-left text-sm text-[#9ca3af] mb-1">Email</label>
               <div className="relative">
                 <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
@@ -190,7 +190,7 @@ export default function Login() {
               </div>
             </div>
             <div>
-              <label className="block text-left text-sm text-gray-500 mb-1">Password</label>
+              <label className="block text-left text-sm text-[#9ca3af] mb-1">Password</label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
@@ -246,7 +246,7 @@ export default function Login() {
             <button
               onClick={handleOneClickSignIn}
               disabled={loading}
-              className="w-full py-3 px-4 bg-white text-black font-medium rounded-lg hover:bg-gray-200 disabled:opacity-60"
+              className="w-full py-3 px-4 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 disabled:opacity-60 transition-all"
             >
               {loading ? "…" : "Sign in"}
             </button>
@@ -262,7 +262,7 @@ export default function Login() {
           </>
         )}
 
-        <p className="mt-6 text-xs text-gray-600">
+        <p className="mt-6 text-xs text-[#9ca3af]">
           Email/password uses Supabase Auth — no redirect URLs. Enable Email in Supabase → Authentication → Providers if needed.
         </p>
       </div>

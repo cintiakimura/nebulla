@@ -3,7 +3,7 @@
  * Grok/XAI key is backend-only (XAI_API_KEY in env); no key input here.
  */
 import { useState, useEffect } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { X, ChevronDown, ChevronRight } from "lucide-react";
 import {
   getStoredSecret,

@@ -24,7 +24,7 @@ export default function Landing() {
       <section className="relative flex flex-col justify-center px-6 pt-8 pb-10 overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.015)_1px,transparent_1px)] bg-[size:64px_64px]" />
         <div className="absolute top-1/3 left-1/4 w-96 h-96 rounded-full bg-[#00BFFF]/5 blur-3xl" />
-        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full bg-indigo-500/5 blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full bg-[#FF6B6B]/5 blur-3xl" />
 
         <div className="relative max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-12 md:gap-16">
           {/* Left: name + copy */}
@@ -42,12 +42,12 @@ export default function Landing() {
 
           {/* Right: Free + Pro */}
           <div className="flex flex-col sm:flex-row gap-6 text-left">
-            <div className="flex-1 rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 md:p-8 min-w-[200px]">
+            <div className="flex-1 rounded-2xl bg-white/[0.02] border border-[#1e1e1e] p-6 md:p-8 min-w-[200px]">
               <p className="text-3xl font-light text-[#E0E0E0] mb-1">Free</p>
               <p className="text-[15px] text-[#E0E0E0] mb-4">Try the builder</p>
               <button
                 onClick={() => navigate("/login")}
-                className="w-full py-3 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-[15px] mb-4"
+                className="w-full py-3 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 transition-all text-[15px] mb-4"
               >
                 Sign up now
               </button>

@@ -57,7 +57,7 @@ export default function AuthCallback() {
 
   if (status === "error") {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-gray-300 font-sans">
+      <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center p-6 text-[#E0E0E0] font-sans">
         <p className="text-amber-500 mb-4">Sign-in could not be completed.</p>
         <button
           onClick={() => navigate("/login")}
@@ -70,7 +70,7 @@ export default function AuthCallback() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-gray-300 font-sans">
+    <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center p-6 text-[#E0E0E0] font-sans">
       <p className="text-[#9ca3af]">Completing sign-in…</p>
     </div>
   );

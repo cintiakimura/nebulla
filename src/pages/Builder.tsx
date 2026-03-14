@@ -822,7 +822,7 @@ export default function Builder() {
                 </div>
               ))}
               {listening && transcript && (
-                <div className="text-gray-500 italic mt-2">
+                <div className="text-[#9ca3af] italic mt-2">
                   <span className="mr-2">~</span>
                   {transcript}...
                 </div>
@@ -846,7 +846,7 @@ export default function Builder() {
             <span>Spaces: 2</span>
             <span>UTF-8</span>
             <span>TypeScript React</span>
-            <button onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-white/20 px-1 rounded">
+            <button onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-[#00BFFF]/20 px-1 rounded">
               <TerminalIcon size={12} />
             </button>
           </div>
