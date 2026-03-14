@@ -96,7 +96,8 @@ export default function Login() {
     const supabase = getSupabaseAuthClient();
     if (!supabase) return;
     setError(null);
-    supabase.auth.signInWithOAuth({ provider: "github" });
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
   };
 
   const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
@@ -240,7 +241,7 @@ export default function Login() {
         ) : (
           <>
             <p className="text-sm text-[#9ca3af] mb-4">
-              Add your <strong>Backend URL</strong> in Settings, then try again. For email sign-in, set Supabase URL and anon key in your env.
+              Sign in with GitHub or Google above. If the app can’t reach the backend, try again from the same host.
             </p>
             {error && <p className="text-xs text-amber-500/90 mb-4">{error}</p>}
             <button
@@ -263,7 +264,7 @@ export default function Login() {
         )}
 
         <p className="mt-6 text-xs text-[#9ca3af]">
-          Email/password uses Supabase Auth — no redirect URLs. Enable Email in Supabase → Authentication → Providers if needed.
+          Use GitHub or Google to sign in. Projects are created under your profile.
         </p>
       </div>
     </div>

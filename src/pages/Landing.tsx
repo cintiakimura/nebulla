@@ -103,10 +103,10 @@ export default function Landing() {
                 All-in-One, Zero Hassle
               </h2>
               <p className="text-[15px] text-[#d4d4d4] leading-relaxed mb-4">
-                Setup once—GitHub, Supabase, Vercel, DNS guides. Pre-installed packages. Deploy smooth: one click, live. No more hunting keys, fighting deps. Just create.
+                Setup once—GitHub and domain. One-click deploy. Pre-installed packages. Just create.
               </p>
               <div className="flex flex-wrap gap-2">
-                {["GitHub", "Supabase", "Vercel", "DNS"].map((label) => (
+                {["GitHub", "Domain", "One-click deploy"].map((label) => (
                   <span
                     key={label}
                     className="px-3 py-1.5 rounded-full bg-[#1e3a5f] border border-[#2d3f4f] text-[15px] text-[#9cdcfe]"

@@ -101,6 +101,8 @@ export default function Builder() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [projectLimit, setProjectLimit] = useState(3);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const grokAudioRef = useRef<HTMLAudioElement | null>(null);
   const codeRef = useRef(code);
@@ -345,7 +347,7 @@ export default function Builder() {
         return;
       }
       setBackendUnavailable();
-      setCreateError("Backend didn't respond. Check Settings → Backend URL.");
+      setCreateError("Backend didn't respond. Try again.");
     } catch (_) {
       setBackendUnavailable();
       setCreateError("Could not create project. Try again.");
@@ -448,7 +450,7 @@ export default function Builder() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 503 && ((data as { error?: string })?.error ?? "").toLowerCase().includes("grok")) setShowGrokKeyModal(true);
+        if (res.status === 503) setShowGrokKeyModal(true);
         const dataErr = (data as { error?: string })?.error;
         const details = (data as { details?: string })?.details;
         let errMsg: string;
@@ -490,11 +492,11 @@ export default function Builder() {
           return;
         }
         if (res.status === 405 || res.status === 404) {
-          errMsg = "Grok isn’t available right now. Check Settings → Backend URL and that the backend is running.";
+          errMsg = "Grok isn’t available right now. Make sure the backend is running and has an API key set.";
         } else if (details) {
           errMsg = `${dataErr || "Grok error"}: ${details}`;
         } else {
-          errMsg = dataErr || "Grok request failed. Check your backend is running and Backend URL in Settings.";
+          errMsg = dataErr || "Grok request failed. Check Settings for API key and that the backend is running.";
         }
         addLog(`[Grok Error]: ${errMsg}`);
         const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };
@@ -513,7 +515,7 @@ export default function Builder() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
       addLog(`[Grok Error]: ${msg}`);
-      const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Something went wrong: ${msg}. Check Backend URL in Settings.` };
+      const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `Something went wrong: ${msg}. Check Settings and that the backend is running.` };
       setChatMessages(prev => [...prev, errMsg]);
       const newChat = [...chatMessages, { id: crypto.randomUUID(), role: 'user' as const, content: newUserContent }, errMsg];
       saveProject({ chat_messages: newChat });
@@ -837,7 +839,7 @@ export default function Builder() {
             <div className="flex-1 overflow-auto">
               <button
                 type="button"
-                onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject("New project")}
+                onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : setShowCreateProjectModal(true)}
                 disabled={atProjectLimit}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#d4d4d4] hover:bg-[#2a2d2e] disabled:opacity-50 disabled:cursor-not-allowed border-l-2 border-l-transparent"
               >
@@ -861,7 +863,7 @@ export default function Builder() {
               )}
             </div>
             {!paidStatus.paid && (
-              <div className="p-3 border-t border-[#3c3c3c] text-xs text-[#9ca3af]">
+              <div className="p-3 border-t border-[#2d3f4f] text-xs text-[#9ca3af]">
                 {projects.length}/{projectLimit} projects
               </div>
             )}
@@ -898,7 +900,7 @@ export default function Builder() {
                 <>
                   <button
                     onClick={() => handleExport()}
-                    className="w-full py-2 px-3 bg-[#3c3c3c] hover:bg-[#4d4d4d] text-white text-sm rounded flex items-center justify-center gap-2 transition-colors"
+                    className="w-full py-2 px-3 bg-[#1e3a5f] hover:bg-[#264f78] text-[#9cdcfe] text-sm rounded flex items-center justify-center gap-2 transition-colors"
                     title="Download zip: code, mind map, keys"
                   >
                     <Download size={16} />
@@ -932,27 +934,32 @@ export default function Builder() {
                 <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-300">{createError}</div>
               )}
               <div className="flex flex-col gap-3">
+                <label className="text-sm text-[#9ca3af]">Project name</label>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!atProjectLimit) createAndOpenProject(newProjectName.trim() || "New project");
+                    }
+                  }}
+                  placeholder="e.g. My app, Dashboard, Landing page"
+                  className="w-full px-4 py-3 rounded-lg bg-[#252526] border border-[#2d3f4f] text-[#d4d4d4] placeholder-[#9ca3af] focus:border-[#007acc] focus:outline-none focus:ring-1 focus:ring-[#007acc]"
+                />
                 <button
                   type="button"
-                  onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject("New project")}
+                  onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(newProjectName.trim() || "New project")}
                   disabled={atProjectLimit}
                   className="w-full py-3 px-4 rounded-lg bg-[#007acc] hover:bg-[#1a8ad4] text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Plus size={18} />
-                  New project
-                </button>
-                <button
-                  type="button"
-                  onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject("My app")}
-                  disabled={atProjectLimit}
-                  className="w-full py-3 px-4 rounded-lg bg-[#3c3c3c] hover:bg-[#4d4d4d] text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Mic size={18} />
-                  Start with Grok
+                  Create project
                 </button>
               </div>
               {projects.length > 0 && (
-                <div className="pt-4 border-t border-[#3c3c3c]">
+                <div className="pt-4 border-t border-[#2d3f4f]">
                   <p className="text-xs text-[#9ca3af] uppercase tracking-wider mb-2">Recent projects</p>
                   <div className="space-y-1">
                     {projects.slice(0, 5).map((p) => (
@@ -974,7 +981,7 @@ export default function Builder() {
         ) : (
           <>
         {/* Tab bar - files and preview navigation */}
-        <div className="flex-shrink-0 h-11 bg-[#252526] flex items-center border-b border-[#3c3c3c] overflow-x-auto gap-0">
+        <div className="flex-shrink-0 h-11 bg-[#252526] flex items-center border-b border-[#2d3f4f] overflow-x-auto gap-0">
           {openTabs.map((tabId) => {
             const label = tabId === 'preview' ? 'Live Preview' : tabId === '/App.tsx' ? 'App.tsx' : 'package.json';
             const isActive = activeTabId === tabId;
@@ -987,7 +994,7 @@ export default function Builder() {
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
                 <span className="text-sm truncate">{label}</span>
                 {tabId !== 'preview' && (
-                  <button onClick={(e) => closeTab(tabId, e)} className="ml-auto p-0.5 rounded hover:bg-[#3c3c3c]">
+                  <button onClick={(e) => closeTab(tabId, e)} className="ml-auto p-0.5 rounded hover:bg-[#2d3f4f]">
                     <X size={12} />
                   </button>
                 )}
@@ -1000,7 +1007,7 @@ export default function Builder() {
         <div className="flex-1 min-h-0 relative overflow-hidden bg-[#1e1e1e]">
           {!setupComplete ? (
             <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e] p-8">
-              <div className="max-w-md rounded-lg border border-[#3c3c3c] bg-[#252526] p-6 text-center">
+              <div className="max-w-md rounded-lg border border-[#2d3f4f] bg-[#252526] p-6 text-center">
                 <p className="text-[#d4d4d4] text-sm mb-4">Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
                 <button
                   type="button"
@@ -1021,14 +1028,14 @@ export default function Builder() {
               <MonacoSync code={code} setCode={setCode} />
               {activeTabId === 'preview' && (
                 <div className="absolute inset-0 flex flex-col bg-[#1e1e1e]">
-                  <div className="flex-none h-8 bg-[#252526] border-b border-[#3c3c3c] flex items-center px-4">
+                  <div className="flex-none h-8 bg-[#252526] border-b border-[#2d3f4f] flex items-center px-4">
                     <span className="text-xs text-[#9ca3af] font-medium">Live Preview</span>
                   </div>
                   <div className="absolute top-8 left-0 right-0 bottom-0 w-full bg-[#1e1e1e]">
                     <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: '100%', width: '100%' }} />
                   </div>
                   {!paidStatus.paid && (
-                    <div className="absolute bottom-2 right-2 text-sm text-[#9ca3af] bg-[#252526]/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-[#3c3c3c]">
+                    <div className="absolute bottom-2 right-2 text-sm text-[#9ca3af] bg-[#252526]/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-[#2d3f4f]">
                       Kyn Sandbox – Upgrade for full access
                     </div>
                   )}
@@ -1063,7 +1070,7 @@ export default function Builder() {
 
         {/* Bottom panel: Terminal, Output, Problems (Cursor-style) */}
         {terminalOpen && (
-          <div className="h-48 min-h-[120px] bg-[#1e1e1e] border-t border-[#3c3c3c] flex flex-col flex-shrink-0">
+          <div className="h-48 min-h-[120px] bg-[#1e1e1e] border-t border-[#2d3f4f] flex flex-col flex-shrink-0">
             <div className="h-9 flex items-center border-b border-[#2d3f4f] bg-[#1e2a38]">
               <div className="flex items-center h-full">
                 <button
@@ -1089,7 +1096,7 @@ export default function Builder() {
                 </button>
               </div>
               <div className="ml-auto flex items-center pr-2">
-                <button onClick={() => setTerminalOpen(false)} className="text-[#9ca3af] hover:text-white p-1.5 rounded hover:bg-[#3c3c3c]" title="Close panel">
+                <button onClick={() => setTerminalOpen(false)} className="text-[#9ca3af] hover:text-white p-1.5 rounded hover:bg-[#2d3f4f]" title="Close panel">
                   <X size={14} />
                 </button>
               </div>
@@ -1176,7 +1183,7 @@ export default function Builder() {
                         src={url}
                         alt="Generated UI mockup"
                         loading="lazy"
-                        className="rounded-lg shadow-lg max-w-full border border-[#3c3c3c] bg-[#1e1e1e]"
+                        className="rounded-lg shadow-lg max-w-full border border-[#2d3f4f] bg-[#1e1e1e]"
                       />
                     ))}
                   </div>
@@ -1188,7 +1195,7 @@ export default function Builder() {
                       e.stopPropagation();
                       navigator.clipboard.writeText(msg.content);
                     }}
-                    className="p-1 rounded hover:bg-[#3c3c3c] text-[#9ca3af] hover:text-white"
+                    className="p-1 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
                     title="Copy"
                   >
                     <Copy size={12} />
@@ -1198,7 +1205,7 @@ export default function Builder() {
                       e.stopPropagation();
                       navigator.clipboard.writeText(window.location.href);
                     }}
-                    className="p-1 rounded hover:bg-[#3c3c3c] text-[#9ca3af] hover:text-white"
+                    className="p-1 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
                     title="Copy link"
                   >
                     <Link2 size={12} />
@@ -1209,13 +1216,13 @@ export default function Builder() {
             ))}
           </div>
           {listening && (
-            <div className="px-3 py-2 border-t border-[#3c3c3c] bg-[#1e1e1e]/60">
+            <div className="px-3 py-2 border-t border-[#2d3f4f] bg-[#1e1e1e]/60">
               <div className="text-xs text-[#9ca3af] mb-1">Live transcription</div>
               <div className="text-sm text-[#9ca3af] italic select-text">{transcript || '...'}</div>
             </div>
           )}
           {/* Text input + Mic + Send. Fallback: no mic if browser doesn't support speech recognition. */}
-          <div className="flex-shrink-0 p-2 border-t border-[#3c3c3c] bg-[#252526]" onClick={e => e.stopPropagation()}>
+          <div className="flex-shrink-0 p-2 border-t border-[#2d3f4f] bg-[#252526]" onClick={e => e.stopPropagation()}>
             {listening && (
               <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
                 <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" aria-hidden />
@@ -1229,7 +1236,7 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e1e] border border-[#3c3c3c] text-sm text-white placeholder-[#6b7280] focus:border-[#007acc] focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e1e] border border-[#2d3f4f] text-sm text-white placeholder-[#6b7280] focus:border-[#007acc] focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
               />
@@ -1244,7 +1251,7 @@ export default function Builder() {
                   type="button"
                   onClick={handleMicToggle}
                   disabled={readOnly}
-                  className={`p-1.5 rounded transition-colors shrink-0 ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'bg-red-500/20 text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#3c3c3c]'}`}
+                  className={`p-1.5 rounded transition-colors shrink-0 ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'bg-red-500/20 text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f]'}`}
                   title={readOnly ? "Upgrade for full access" : (listening ? 'Stop and send' : 'Voice input')}
                 >
                   {listening ? <MicOff size={14} /> : <Mic size={14} />}
@@ -1262,11 +1269,11 @@ export default function Builder() {
           </div>
         </div>
         {/* Bottom toolbar: voice (small icon), Grok speaks (icon), paperclip, copy */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-1 py-1.5 px-2 border-t border-[#3c3c3c] bg-[#252526]">
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 py-1.5 px-2 border-t border-[#2d3f4f] bg-[#252526]">
           <button
             onClick={handleMicToggle}
             disabled={readOnly}
-            className={`p-2 rounded transition-colors ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#3c3c3c]'}`}
+            className={`p-2 rounded transition-colors ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f]'}`}
             title={readOnly ? "Upgrade for full access" : (listening ? "Listening…" : "Open talk")}
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -1277,14 +1284,14 @@ export default function Builder() {
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
               return next;
             })}
-            className={`p-2 rounded transition-colors ${grokSpeaks ? 'text-[#4fc3f7] bg-[#094771]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#3c3c3c]'}`}
+            className={`p-2 rounded transition-colors ${grokSpeaks ? 'text-[#4fc3f7] bg-[#094771]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f]'}`}
             title="Grok reads replies aloud (browser TTS)"
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-            className="p-2 rounded text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#3c3c3c] transition-colors"
+            className="p-2 rounded text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f] transition-colors"
             title="Upload file"
           >
             <Paperclip size={16} />
@@ -1292,7 +1299,7 @@ export default function Builder() {
           {paidStatus.paid && (
           <button
             onClick={handleCopyLast}
-            className="p-2 rounded text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#3c3c3c] transition-colors"
+            className="p-2 rounded text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f] transition-colors"
             title="Copy last reply"
           >
             <Copy size={16} />
@@ -1314,11 +1321,11 @@ export default function Builder() {
 
       {/* Grok API key missing: 503 from agent/chat */}
       {showGrokKeyModal && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
-          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm text-[#d4d4d4] mb-3">Service down—try later. Use text chat or type instead.</p>
+        <div className="fixed inset-0 bg-[#1e1e1e]/80 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
+          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+            <p className="text-sm text-[#d4d4d4] mb-3">Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3c3c3c] text-[#d4d4d4] text-sm">Close</button>
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#2d3f4f] text-[#d4d4d4] text-sm">Close</button>
               <Link to="/settings" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded bg-[#007acc] text-white text-sm">Open Settings</Link>
             </div>
           </div>
@@ -1328,11 +1335,11 @@ export default function Builder() {
       {/* Rate limit modal: 429 too many requests */}
       {rateLimitModalOpen && (
         <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}>
-          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">Too many requests</span>
               {rateLimitCountdown <= 0 ? (
-                <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#3c3c3c]">
+                <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d3f4f]">
                   <X size={16} />
                 </button>
               ) : null}
@@ -1354,16 +1361,66 @@ export default function Builder() {
       {/* Upgrade modal: pick plan → Stripe Checkout (paid flow) */}
       {upgradeModalOpen && (
         <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
-          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">Upgrade to deploy</span>
-              <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#3c3c3c]">
+              <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
             </div>
             <div className="space-y-2">
               <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
                 Upgrade to Pro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create project: ask project name (e.g. from sidebar) */}
+      {showCreateProjectModal && (
+        <div className="fixed inset-0 bg-[#1e1e1e]/80 flex items-center justify-center z-50" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }}>
+          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-white">New project</span>
+              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d3f4f]">
+                <X size={16} />
+              </button>
+            </div>
+            <label className="block text-xs text-[#9ca3af] mb-2">Project name</label>
+            <input
+              type="text"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (!atProjectLimit) {
+                    createAndOpenProject(newProjectName.trim() || "New project");
+                    setShowCreateProjectModal(false);
+                    setNewProjectName("");
+                  } else setUpgradeModalOpen(true);
+                }
+              }}
+              placeholder="e.g. My app, Dashboard"
+              className="w-full px-3 py-2 rounded bg-[#1e1e1e] border border-[#2d3f4f] text-[#d4d4d4] placeholder-[#9ca3af] focus:border-[#007acc] focus:outline-none text-sm mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="px-3 py-2 rounded border border-[#2d3f4f] text-[#d4d4d4] text-sm">Cancel</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (atProjectLimit) setUpgradeModalOpen(true);
+                  else {
+                    createAndOpenProject(newProjectName.trim() || "New project");
+                    setShowCreateProjectModal(false);
+                    setNewProjectName("");
+                  }
+                }}
+                className="px-3 py-2 rounded bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm"
+              >
+                Create
               </button>
             </div>
           </div>

@@ -5,10 +5,8 @@
 
 const PREFIX = "kyn_secret_";
 
+/** Keys shown in Settings → API keys & secrets. Supabase/Vercel are backend-only (profile already set). */
 export const SECRET_KEYS = [
-  "SUPABASE_URL",
-  "SUPABASE_ANON_KEY",
-  "SUPABASE_SERVICE_ROLE_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_PUBLIC_KEY",
   "BUILDER_PRIVATE_KEY",

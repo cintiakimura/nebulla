@@ -1,6 +1,6 @@
 /**
- * Right-side Settings drawer: API keys (Supabase, Stripe, Builder) + general toggles.
- * Grok/XAI key is backend-only (XAI_API_KEY in env); no key input here.
+ * Right-side Settings drawer: API keys (Stripe, Builder) + general toggles.
+ * Supabase/Vercel are backend-only (profile set). Grok/XAI key is backend-only (XAI_API_KEY in env).
  */
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";

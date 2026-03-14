@@ -65,7 +65,7 @@ export default function Setup() {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-md text-center">
             <p className="text-[#d4d4d4] text-sm mb-4">
-              Supabase is configured on the backend. Connect GitHub and set your domain in Settings.
+              Projects are created under your profile. Connect GitHub and set your domain in Settings.
             </p>
             <button
               type="button"

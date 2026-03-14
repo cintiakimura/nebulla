@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
 import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
-import { getApiBase, setApiBaseFallback, clearBackendUnavailable } from "../lib/api";
+import { getApiBase } from "../lib/api";
 import { isOpenMode } from "../lib/auth";
 import { SECRET_KEYS, getStoredSecret, setStoredSecret, type SecretKey } from "../lib/storedSecrets";
 import { getConnectedServices, setDomainVerified } from "../lib/setupStorage";
@@ -17,7 +17,6 @@ type Limits = { isPro?: boolean; paidUntil?: string };
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [backendUrl, setBackendUrl] = useState("");
   const [stripePriceId, setStripePriceId] = useState("");
   const [limits, setLimits] = useState<Limits | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
@@ -47,12 +46,6 @@ export default function Settings() {
     setTimeout(() => setSecretSaved(null), 2000);
     setSecretValues((prev) => ({ ...prev, [key]: getStoredSecret(key) ? "••••••••" : "" }));
   };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const base = getApiBase();
-    setBackendUrl(base || "");
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -86,16 +79,6 @@ export default function Settings() {
     localStorage.setItem(KEY_STRIPE_PRICE_ID, stripePriceId.trim());
   };
 
-  const saveBackendUrl = () => {
-    const url = backendUrl.trim().replace(/\/$/, "").replace(/\/api$/i, "");
-    if (url) {
-      setApiBaseFallback(url);
-      clearBackendUnavailable();
-    } else {
-      setApiBaseFallback("");
-    }
-  };
-
   const copyDns = (type: "A" | "CNAME") => {
     const value = type === "A" ? VERCEL_DNS.A : VERCEL_DNS.CNAME;
     navigator.clipboard.writeText(value);
@@ -111,14 +94,16 @@ export default function Settings() {
   const connectGitHub = () => {
     const supabase = getSupabaseAuthClient();
     if (supabase) {
-      supabase.auth.signInWithOAuth({ provider: "github" });
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
     }
   };
 
   const connectGoogle = () => {
     const supabase = getSupabaseAuthClient();
     if (supabase) {
-      supabase.auth.signInWithOAuth({ provider: "google" });
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
     }
   };
 
@@ -156,20 +141,16 @@ export default function Settings() {
         <h1 className="text-2xl font-semibold text-white">Settings</h1>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-medium text-white">Backend URL</h2>
-          <p className="text-sm text-[#9ca3af] mb-2">
-            URL where your <strong>backend</strong> runs (server.ts), e.g. <code className="bg-[#252526] px-1">https://api.yourdomain.com</code> or <code className="bg-[#252526] px-1">https://your-app.onrender.com</code>. Not your frontend site (e.g. www.cintiakimura.eu) — the API must be served by a separate backend. Do not paste API keys here.
-          </p>
-          <input
-            type="url"
-            placeholder="https://your-backend.example.com"
-            value={backendUrl}
-            onChange={(e) => setBackendUrl(e.target.value)}
-            className="w-full max-w-md px-3 py-2 bg-[#1e1e1e] border border-[#2d3f4f] rounded text-sm text-white placeholder-[#9ca3af]"
-          />
-          <button type="button" onClick={saveBackendUrl} className="ml-2 px-3 py-2 bg-[#007acc] text-white rounded text-sm">
-            Save
-          </button>
+          <h2 className="text-lg font-medium text-white">Login</h2>
+          <p className="text-sm text-[#9ca3af] mb-3">Sign in with your account to sync projects and deploy.</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={connectGitHub} className="px-4 py-2 bg-[#264f78] hover:bg-[#1a8ad4] text-white text-sm rounded transition-colors">
+              Connect GitHub
+            </button>
+            <button type="button" onClick={connectGoogle} className="px-4 py-2 bg-[#264f78] hover:bg-[#1a8ad4] text-white text-sm rounded transition-colors">
+              Connect Google
+            </button>
+          </div>
         </section>
 
         <section className="space-y-2">
@@ -196,7 +177,7 @@ export default function Settings() {
                       placeholder="optional"
                       value={secretValues[key] ?? ""}
                       onChange={(e) => setSecret(key, e.target.value)}
-                      className="flex-1 min-w-[200px] px-3 py-2 bg-vs-bg border border-vs-border rounded text-sm text-[#d4d4d4] placeholder-[#9ca3af]"
+                      className="flex-1 min-w-[200px] px-3 py-2 bg-[#1e1e1e] border border-[#2d3f4f] rounded text-sm text-[#d4d4d4] placeholder-[#9ca3af]"
                       autoComplete="off"
                     />
                     <button
@@ -213,64 +194,6 @@ export default function Settings() {
           )}
         </section>
 
-        <section>
-          <h2>Domain / DNS</h2>
-          <p className="text-sm text-[#9ca3af] mb-2">
-            Add these records at your DNS provider to use a custom domain. Backend handles deployment.
-          </p>
-          {domainVerified ? (
-            <p className="text-sm text-green-500 flex items-center gap-1">
-              <Check size={14} /> Verified
-            </p>
-          ) : (
-            <>
-              <div className="space-y-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
-                    A @ {VERCEL_DNS.A}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => copyDns("A")}
-                    className="p-1.5 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
-                    title="Copy"
-                  >
-                    {dnsCopied === "A" ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
-                    CNAME www {VERCEL_DNS.CNAME}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => copyDns("CNAME")}
-                    className="p-1.5 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
-                    title="Copy"
-                  >
-                    {dnsCopied === "CNAME" ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                </div>
-              </div>
-              <div className="flex gap-3 text-xs mb-2">
-                <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                  GoDaddy
-                </a>
-                <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                  Cloudflare
-                </a>
-              </div>
-              <button
-                type="button"
-                onClick={handleVerifyDomain}
-                className="text-xs text-blue-400 hover:underline"
-              >
-                Mark as verified
-              </button>
-            </>
-          )}
-        </section>
-
         <section className="space-y-2">
           <h2 className="text-lg font-medium text-white">Stripe setup</h2>
           <div className="flex flex-wrap items-center gap-2">
@@ -279,7 +202,7 @@ export default function Settings() {
               placeholder="Stripe Price ID"
               value={stripePriceId}
               onChange={(e) => setStripePriceId(e.target.value)}
-              className="px-3 py-2 bg-[#252526] border border-[#3c3c3c] rounded text-sm text-white placeholder-[#6b7280] max-w-xs"
+              className="px-3 py-2 bg-[#252526] border border-[#2d3f4f] rounded text-sm text-white placeholder-[#9ca3af] max-w-xs"
             />
             <button type="button" onClick={saveStripePriceId} className="px-3 py-2 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
               Save
@@ -288,24 +211,9 @@ export default function Settings() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-medium text-white">GitHub</h2>
-          <p className="text-sm text-[#9ca3af]">Connect your GitHub account to link repos and deploy.</p>
-          <button type="button" onClick={connectGitHub} className="px-3 py-2 bg-[#333] hover:bg-[#444] text-white text-sm rounded transition-colors">
-            Connect GitHub
-          </button>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-lg font-medium text-white">Google</h2>
-          <button type="button" onClick={connectGoogle} className="px-3 py-2 bg-[#333] hover:bg-[#444] text-white text-sm rounded transition-colors">
-            Connect Google
-          </button>
-        </section>
-
-        <section className="space-y-2">
           <h2 className="text-lg font-medium text-white">Subscription</h2>
           {limits?.isPro && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Pro</p>
+            <p className="text-sm text-[#9ca3af] mb-2">Pro</p>
           )}
           {limits?.paidUntil != null && new Date(limits.paidUntil) <= new Date() && (
             <div className="mb-3 p-3 bg-amber-500/15 border border-amber-500/40 rounded-lg text-sm text-amber-200">
@@ -320,6 +228,64 @@ export default function Settings() {
           >
             {billingLoading ? "Opening…" : "Manage Subscription"}
           </button>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-lg font-medium text-white">Domain / DNS</h2>
+          <p className="text-sm text-[#9ca3af] mb-2">
+            Add these records at your DNS provider to use a custom domain. Backend handles deployment.
+          </p>
+          {domainVerified ? (
+            <p className="text-sm text-green-500 flex items-center gap-1">
+              <Check size={14} /> Verified
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-[#d4d4d4] text-xs">
+                    A @ {VERCEL_DNS.A}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copyDns("A")}
+                    className="p-1.5 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
+                    title="Copy"
+                  >
+                    {dnsCopied === "A" ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-[#d4d4d4] text-xs">
+                    CNAME www {VERCEL_DNS.CNAME}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copyDns("CNAME")}
+                    className="p-1.5 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
+                    title="Copy"
+                  >
+                    {dnsCopied === "CNAME" ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-3 text-xs mb-2">
+                <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-[#9cdcfe] hover:underline">
+                  GoDaddy
+                </a>
+                <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-[#9cdcfe] hover:underline">
+                  Cloudflare
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={handleVerifyDomain}
+                className="text-xs text-[#9cdcfe] hover:underline"
+              >
+                Mark as verified
+              </button>
+            </>
+          )}
         </section>
       </div>
     </div>
