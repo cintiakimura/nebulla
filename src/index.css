@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+/* VS Code Abyss theme — deep navy/black base, purple accent */
+@theme inline {
+  --color-vs-bg: #0c0c0d;
+  --color-vs-editor: #0c0c0d;
+  --color-vs-accent: #9d00ff;
+  --color-vs-foreground: #d4d4d4;
+  --color-vs-muted: #858585;
+  --color-vs-hover: #1a1a1a;
+  --color-vs-border: #1e1e1e;
+  --color-vs-status: #0c0c0d;
+}
+
+@layer base {
+  :root {
+    /* Abyss workbench / UI */
+    --bg-primary: #0c0c0d;
+    --bg-editor: #0c0c0d;
+    --bg-sidebar: #0c0c0d;
+    --accent: #9d00ff;
+    --accent-hover: #b366ff;
+    --text-primary: #d4d4d4;
+    --text-secondary: #858585;
+    --hover: #1a1a1a;
+    --status-bg: #0c0c0d;
+    --border: #1e1e1e;
+    --border-subtle: #111111;
+    /* Optional: syntax-inspired for code blocks / chat */
+    --syntax-string: #ce9178;
+    --syntax-keyword: #569cd6;
+    --syntax-function: #dcdcaa;
+    --syntax-comment: #6a9955;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: ui-sans-serif, "Segoe UI", system-ui, "SF Pro Display", sans-serif;
+  }
+
+  .font-mono {
+    font-family: ui-monospace, "Cascadia Code", "Source Code Pro", "Consolas", monospace;
+    font-size: 14px;
+  }
+}
+
+/* Utility: accent buttons and highlights (Abyss purple) */
+@layer components {
+  .btn-accent {
+    background-color: var(--accent);
+    color: #ffffff;
+  }
+  .btn-accent:hover {
+    background-color: var(--accent-hover);
+  }
+  .panel-editor {
+    background-color: var(--bg-editor);
+    border-color: var(--border);
+  }
+}

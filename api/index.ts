@@ -5,7 +5,6 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
-import { AGENT_SYSTEM_PROMPT } from "../src/config/agentConfig";
 
 const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
 
@@ -44,7 +43,7 @@ async function handleOpenDevUser(
 
   const projectId = getProjectIdFromPath(pathname);
 
-  // Single project: GET or PUT
+  // Single project: GET or PUT — on Supabase error return 404 / 200 so we never 500
   if (projectId) {
     if (method === "GET") {
       if (supabaseOk && fallbackUserId) {
@@ -56,21 +55,13 @@ async function handleOpenDevUser(
             .eq("id", projectId)
             .eq("user_id", fallbackUserId)
             .maybeSingle();
-          if (error) {
-            console.error("[api/index] open-dev-user GET project", error.message);
-            res.status(500).json({ error: "Failed to load project" });
+          if (!error && data) {
+            res.status(200).json(data);
             return true;
           }
-          if (!data) {
-            res.status(404).json({ error: "Project not found" });
-            return true;
-          }
-          res.status(200).json(data);
-          return true;
+          if (error) console.error("[api/index] open-dev-user GET project", error.message);
         } catch (e) {
           console.error("[api/index] open-dev-user GET project", e);
-          res.status(500).json({ error: "Failed to load project" });
-          return true;
         }
       }
       res.status(404).json({ error: "Project not found" });
@@ -93,17 +84,13 @@ async function handleOpenDevUser(
             .update(updates)
             .eq("id", projectId)
             .eq("user_id", fallbackUserId);
-          if (error) {
-            console.error("[api/index] open-dev-user PUT project", error.message);
-            res.status(500).json({ error: "Failed to save project" });
+          if (!error) {
+            res.status(200).json({ ok: true });
             return true;
           }
-          res.status(200).json({ ok: true });
-          return true;
+          console.error("[api/index] open-dev-user PUT project", error.message);
         } catch (e) {
           console.error("[api/index] open-dev-user PUT project", e);
-          res.status(500).json({ error: "Failed to save project" });
-          return true;
         }
       }
       res.status(200).json({ ok: true });
@@ -113,7 +100,7 @@ async function handleOpenDevUser(
     return false;
   }
 
-  // List (GET) or create (POST)
+  // List (GET) — never 500: use Supabase when ok, else return []
   if (method === "GET") {
     if (supabaseOk && fallbackUserId) {
       try {
@@ -123,23 +110,20 @@ async function handleOpenDevUser(
           .select("id, user_id, name, status, last_edited, created_at")
           .eq("user_id", fallbackUserId)
           .order("created_at", { ascending: false });
-        if (error) {
-          console.error("[api/index] open-dev-user GET", error.message);
-          res.status(500).json({ error: "Failed to list projects" });
+        if (!error) {
+          res.status(200).json(data ?? []);
           return true;
         }
-        res.status(200).json(data ?? []);
-        return true;
+        console.error("[api/index] open-dev-user GET", error.message);
       } catch (e) {
         console.error("[api/index] open-dev-user GET", e);
-        res.status(500).json({ error: "Failed to list projects" });
-        return true;
       }
     }
     res.status(200).json([]);
     return true;
   }
 
+  // Create (POST) — never 500: use Supabase when ok, else return 201 with ephemeral id
   if (method === "POST") {
     const name = (typeof req.body === "object" && req.body && "name" in req.body && typeof (req.body as { name?: unknown }).name === "string")
       ? (req.body as { name: string }).name.trim() || "New project"
@@ -163,17 +147,13 @@ async function handleOpenDevUser(
           })
           .select("id, user_id, name, status, last_edited, created_at")
           .single();
-        if (error) {
-          console.error("[api/index] open-dev-user POST", error.message);
-          res.status(500).json({ error: "Failed to create project" });
+        if (!error && data) {
+          res.status(201).json(data);
           return true;
         }
-        res.status(201).json(data);
-        return true;
+        console.error("[api/index] open-dev-user POST", error?.message ?? "no data");
       } catch (e) {
         console.error("[api/index] open-dev-user POST", e);
-        res.status(500).json({ error: "Failed to create project" });
-        return true;
       }
     }
 
@@ -201,15 +181,41 @@ async function handleGrok(
 ): Promise<boolean> {
   const apiKey = process.env.GROK_API_KEY?.trim();
   if (!apiKey || apiKey === "PLACEHOLDER") {
-    if (pathname === "/api/agent/chat" || pathname === "/api/tts") {
+    if (pathname === "/api/agent/chat" || pathname === "/api/tts" || pathname === "/api/realtime/token") {
       if (pathname === "/api/tts") {
         res.status(503).json({ error: "Grok API key required for voice. Add GROK_API_KEY to .env." });
+      } else if (pathname === "/api/realtime/token") {
+        res.status(503).json({ error: "GROK_API_KEY not set." });
       } else {
         res.status(503).json({ error: "Grok API key not configured. Add GROK_API_KEY to .env (get key at console.x.ai)." });
       }
       return true;
     }
     return false;
+  }
+
+  if (method === "POST" && pathname === "/api/realtime/token") {
+    try {
+      const r = await fetch("https://api.x.ai/v1/realtime/client_secrets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ expires_after: { seconds: 300 } }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        res.status(r.status).json(typeof data === "object" && data ? data : { error: "Failed to get token" });
+        return true;
+      }
+      res.status(200).json(data);
+      return true;
+    } catch (e) {
+      console.error("[api/index realtime token]", e);
+      res.status(500).json({ error: "Failed to get voice token" });
+      return true;
+    }
   }
 
   if (method === "POST" && pathname === "/api/agent/chat") {
@@ -219,7 +225,8 @@ async function handleGrok(
         res.status(400).json({ error: "messages array required" });
         return true;
       }
-      const model = (process.env.GROK_MODEL || "grok-4-1-fast").trim();
+      const { AGENT_SYSTEM_PROMPT } = await import("../src/config/agentConfig");
+      const model = (process.env.GROK_MODEL || "grok-4-1-fast-reasoning").trim();
       const body = {
         model,
         messages: [

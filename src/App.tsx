@@ -29,7 +29,7 @@ export default function App() {
 
   if (!configReady) {
     return (
-      <div className="min-h-screen bg-[#1e1e1e] flex items-center justify-center text-gray-400 font-sans">
+      <div className="min-h-screen flex items-center justify-center font-sans bg-vs-bg text-vs-muted">
         <p>Loading…</p>
       </div>
     );
@@ -37,7 +37,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-[#1e1e1e] text-gray-300 font-sans selection:bg-blue-500/30">
+      <div className="min-h-screen font-sans bg-vs-bg text-vs-foreground selection:bg-vs-accent/30">
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/landing" element={<Landing />} />

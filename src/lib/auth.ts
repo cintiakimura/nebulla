@@ -9,12 +9,12 @@ const KEY_OPEN_MODE_USER_ID = "kyn_open_mode_user_id";
 
 const DASHBOARD_DOMAIN = "cintiakimura.eu";
 
-/** True when app should run in open mode: dashboard on /, no login redirects, no Stripe. */
+/** True when app should run in open mode: localhost (personal dev), cintiakimura.eu, or VITE_OPEN_MODE. */
 export function isOpenMode(): boolean {
   if (import.meta.env.VITE_OPEN_MODE) return true;
   if (typeof window === "undefined") return false;
   const h = window.location.hostname;
-  return h === DASHBOARD_DOMAIN || h === `www.${DASHBOARD_DOMAIN}`;
+  return h === "localhost" || h === "127.0.0.1" || h === DASHBOARD_DOMAIN || h === `www.${DASHBOARD_DOMAIN}`;
 }
 
 async function getOpenModeFallbackUserId(): Promise<string | null> {

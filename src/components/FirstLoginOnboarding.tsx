@@ -5,10 +5,10 @@ import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognitio
 import { getApiBase } from "../lib/api";
 
 const INTRO_SCRIPT =
-  "Hey—I'm Kyn, your dev partner. Most people give vague prompts, jump straight to code, and end up with Frankenstein bugs and frustration. We're different. We work smarter—architecture first, strategic, no rush. I'm here to brainstorm with you, suggest better ideas, challenge you—you challenge me—until we've got an airtight plan. Everything we need. Before one line of code.";
+  "Hey, I'm Kyn, your dev partner. Most people rush into code and end up with bugs and frustration. We talk first, plan architecture, brainstorm together, get an airtight plan before writing any code.";
 const PROMPT_READY =
-  "If you're ready—just say \"I'm ready\".";
-const OUTRO_SCRIPT = "Let's go. What's your idea?";
+  "If you're ready, just say \"I'm ready\" or tap the button.";
+const OUTRO_SCRIPT = "Let's go. What's your idea? Describe what you're building.";
 
 /** Play text using Grok voice (Eve) via backend TTS. No browser TTS. If no backend is configured, skips playback and calls onEnd (avoids 405 on frontend host). */
 function playGrokEve(text: string, onEnd?: () => void): () => void {
@@ -16,12 +16,12 @@ function playGrokEve(text: string, onEnd?: () => void): () => void {
     onEnd?.();
     return () => {};
   }
-  const apiBase = getApiBase();
-  if (!apiBase) {
+  const apiBase = getApiBase() || "";
+  const url = `${apiBase}/api/tts`;
+  if (!url.startsWith("http") && !url.startsWith("/")) {
     onEnd?.();
     return () => {};
   }
-  const url = `${apiBase}/api/tts`;
   const audio = new Audio();
   let cancelled = false;
 
@@ -125,7 +125,7 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.4 }}
         onAnimationComplete={handleFadeComplete}
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0f] text-gray-200 font-sans"
+        className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-vs-bg text-vs-foreground font-sans"
         style={{ pointerEvents: isDone ? "none" : "auto" }}
       >
         <div className="flex flex-col items-center justify-center gap-10 px-6 max-w-2xl text-center">
@@ -134,9 +134,9 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
               <motion.div
                 animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="flex items-center justify-center w-24 h-24 rounded-full bg-[#1a1a24] border border-[#2a2a3a]"
+                className="flex items-center justify-center w-24 h-24 rounded-full bg-vs-hover border border-vs-border"
               >
-                <Mic size={48} className="text-[#6366f1]" strokeWidth={1.5} />
+                <Mic size={48} className="text-vs-accent" strokeWidth={1.5} />
               </motion.div>
               <p className="text-[15px] text-gray-400 leading-relaxed max-w-md">
                 Kyn will introduce herself with Grok&apos;s voice (Eve). You can read along and say &ldquo;I&rsquo;m ready&rdquo; when you are.
@@ -146,7 +146,7 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.3 }}
                 onClick={handleLetsStart}
-                className="px-10 py-4 text-lg font-medium text-white rounded-lg bg-[#6366f1] hover:bg-[#5558e3] shadow-[0_0_32px_rgba(99,102,241,0.4)] hover:shadow-[0_0_40px_rgba(99,102,241,0.5)] transition-all duration-200"
+                className="px-10 py-4 text-lg font-medium text-white rounded-lg btn-accent shadow-[0_0_32px_rgba(157,0,255,0.3)] hover:shadow-[0_0_40px_rgba(157,0,255,0.4)] transition-all duration-200"
               >
                 Let&apos;s start
               </motion.button>
@@ -160,13 +160,13 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
                 transition={{ duration: 1.2, repeat: listening ? Infinity : 0 }}
                 className="flex items-center justify-center w-20 h-20 rounded-full bg-[#1a1a24] border border-[#2a2a3a]"
               >
-                <Mic size={40} className="text-[#6366f1]" strokeWidth={1.5} />
+                <Mic size={40} className="text-vs-accent" strokeWidth={1.5} />
               </motion.div>
               {displayText && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="w-full rounded-xl bg-[#1a1a24] border border-[#2a2a3a] p-6 text-left"
+                  className="w-full rounded-xl bg-vs-hover border border-vs-border p-6 text-left"
                 >
                   <p className="text-[15px] text-gray-300 leading-relaxed whitespace-pre-wrap">
                     {displayText}
@@ -185,7 +185,7 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
                   </p>
                   <button
                     onClick={handleImReady}
-                    className="px-6 py-2.5 text-sm font-medium text-[#6366f1] border border-[#6366f1]/50 rounded-lg hover:bg-[#6366f1]/10 transition-colors"
+                    className="px-6 py-2.5 text-sm font-medium text-vs-accent border border-vs-accent/50 rounded-lg hover:bg-vs-accent/10 transition-colors"
                   >
                     I&apos;m ready
                   </button>

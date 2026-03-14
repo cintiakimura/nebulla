@@ -158,10 +158,16 @@ export async function updateProject(
     package_json?: string;
     chat_messages?: string;
     specs?: string;
+    plan?: Record<string, unknown> | string;
+    code_versions?: unknown[] | string;
+    deployment_status?: string;
+    live_url?: string | null;
   }
 ): Promise<boolean> {
   const supabase = getAdminClient();
   if (!supabase) return false;
+  const planVal = updates.plan === undefined ? undefined : typeof updates.plan === "string" ? updates.plan : JSON.stringify(updates.plan);
+  const codeVersionsVal = updates.code_versions === undefined ? undefined : typeof updates.code_versions === "string" ? updates.code_versions : JSON.stringify(updates.code_versions ?? []);
   const { error } = await supabase
     .from("projects")
     .update({
@@ -172,6 +178,10 @@ export async function updateProject(
       ...(updates.package_json !== undefined && { package_json: updates.package_json }),
       ...(updates.chat_messages !== undefined && { chat_messages: updates.chat_messages }),
       ...(updates.specs !== undefined && { specs: updates.specs }),
+      ...(planVal !== undefined && { plan: planVal }),
+      ...(codeVersionsVal !== undefined && { code_versions: codeVersionsVal }),
+      ...(updates.deployment_status !== undefined && { deployment_status: updates.deployment_status }),
+      ...(updates.live_url !== undefined && { live_url: updates.live_url }),
     })
     .eq("id", projectId)
     .eq("user_id", userId);

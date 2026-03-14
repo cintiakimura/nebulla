@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type DragEvent } from "react";
+import { useState, useRef, useEffect, useCallback, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -7,6 +7,7 @@ import {
   DollarSign,
   User,
   ChevronDown,
+  ChevronRight,
   Search,
   Github,
   Upload,
@@ -17,21 +18,56 @@ import {
   Link2,
   Play,
   Bug,
+  Network,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib/auth";
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
+import { speakWithSpeechSynthesisFallback } from "../lib/grokVoiceAgent";
+import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
-import { VETR_SYSTEM_PROMPT } from "../lib/vetrPrompt";
+import { VETR_SYSTEM_PROMPT, buildVETRUserMessage, parseVETROutput, type VETRSection } from "../lib/vetrPrompt";
 import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 import UpgradeProModal from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
+import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
 
 type ProjectStatus = "Live" | "Preview" | "Draft";
+
+function VETRCollapsibleSections({ sections }: { sections: VETRSection[] }) {
+  const [open, setOpen] = useState<Set<number>>(() => new Set(sections.map((_, i) => i)));
+  const toggle = (i: number) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    return next;
+  });
+  return (
+    <div className="space-y-1 max-h-96 overflow-auto">
+      {sections.map((s, i) => (
+        <div key={i} className="rounded border border-vs-border bg-vs-bg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => toggle(i)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-medium text-vs-foreground hover:bg-vs-hover"
+          >
+            {open.has(i) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {s.title}
+          </button>
+          {open.has(i) && (
+            <pre className="text-xs text-vs-foreground whitespace-pre-wrap font-sans p-3 border-t border-vs-border max-h-48 overflow-auto">
+              {s.body}
+            </pre>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type Project = {
   id: string;
@@ -72,8 +108,14 @@ export default function Dashboard() {
   const [welcomeModalPrompt, setWelcomeModalPrompt] = useState("");
   const [welcomeModalLoading, setWelcomeModalLoading] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
+  const [useVoiceAgentWs, setUseVoiceAgentWs] = useState(true);
+  const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
+  const [mindMapOpen, setMindMapOpen] = useState(false);
+  const [mindMapLoading, setMindMapLoading] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
   const prevListeningRef = useRef(false);
+  const planningProjectIdRef = useRef<string | null>(null);
+  const apiBase = getApiBase() || "";
 
   const KEY_SEEN_WELCOME = "kyn_seen_welcome";
   const KEY_MIC_TOOLTIP = "kyn_mic_tooltip_dismissed";
@@ -82,11 +124,73 @@ export default function Dashboard() {
   );
   const seenWelcome = typeof window !== "undefined" && localStorage.getItem(KEY_SEEN_WELCOME) === "1";
   const showWelcomeModal = !loading && projects.length === 0 && !seenWelcome && showFirstLoginOnboarding === false;
-
-  const { transcript, listening, resetTranscript } = useSpeechRecognition();
   const paidStatus = getPaidStatus();
   const projectCount = projects.length;
   const atProjectLimit = !paidStatus.paid && projectCount >= (limits?.projectLimit ?? projectLimit);
+
+  const savePlanToProject = useCallback(
+    async (projectId: string, messages: { role: string; content: string }[]) => {
+      try {
+        const userId = await getUserId();
+        const token = await getSessionToken();
+        await fetch(`${apiBase}/api/users/${userId}/projects/${projectId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ plan: { chat_history: messages } }),
+        });
+      } catch (_) {}
+    },
+    [apiBase]
+  );
+
+  const createPlanningProjectDraft = useCallback(async () => {
+    if (planningProjectIdRef.current || atProjectLimit) return;
+    const api = getApiBase();
+    if (!api) return;
+    try {
+      const userId = await getUserId();
+      const token = await getSessionToken();
+      const res = await fetch(`${api}/api/users/${userId}/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ name: "Planning" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.id) {
+        planningProjectIdRef.current = data.id;
+        setProjects((prev) => [
+          ...prev,
+          { id: data.id, name: data.name || "Planning", status: "Draft" as ProjectStatus, lastEdited: "Just now", thumbnail: null, url: null },
+        ]);
+      }
+    } catch (_) {}
+  }, [atProjectLimit]);
+
+  const { start: startVoiceAgent, stop: stopVoiceAgent, status: voiceAgentStatus } = useBidirectionalVoiceAgent(apiBase, {
+    onUserTranscript(text) {
+      const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text };
+      setChatMessages((prev) => {
+        const next = [...prev, userMsg];
+        if (prev.length === 0) createPlanningProjectDraft();
+        return next;
+      });
+    },
+    onAssistantTranscript(text) {
+      const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: text };
+      setChatMessages((prev) => {
+        const next = [...prev, assistantMsg];
+        const pid = planningProjectIdRef.current;
+        if (pid) savePlanToProject(pid, next.map((m) => ({ role: m.role, content: m.content })));
+        return next;
+      });
+    },
+    onError(msg) {
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or check GROK_API_KEY.` }]);
+    },
+  });
+
+  const { transcript, listening, resetTranscript } = useSpeechRecognition();
+  useEffect(() => () => { stopVoiceAgent(); }, [stopVoiceAgent]);
   const atGrokLimit = !paidStatus.paid && limits != null && limits.grokLimit != null && limits.grokToday >= limits.grokLimit;
   const showUpgradeBubble = !paidStatus.paid && (atProjectLimit || atGrokLimit || (limits != null && !limits.isPro && (limits.projectCount > 3 || (limits.grokLimit != null && limits.grokToday >= limits.grokLimit))));
   const setupComplete = getSetupComplete();
@@ -182,9 +286,10 @@ export default function Dashboard() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // When user stops speaking (mic off), send transcript to Grok and play reply via TTS
+  // When user stops speaking (mic off), send transcript to Grok and play reply via TTS (only when NOT using bidirectional Voice Agent WS)
   const voiceCancelRef = useRef(false);
   useEffect(() => {
+    if (useVoiceAgentWs) return;
     const wasListening = prevListeningRef.current;
     prevListeningRef.current = listening;
     if (!wasListening || listening) return;
@@ -226,7 +331,9 @@ export default function Dashboard() {
               audio.onended = () => URL.revokeObjectURL(url);
               audio.play().catch(() => {});
             }
-          } catch (_) {}
+          } catch (_) {
+            speakWithSpeechSynthesisFallback(content.slice(0, 4096));
+          }
         }
       } catch (e) {
         if (!voiceCancelRef.current) {
@@ -300,6 +407,15 @@ export default function Dashboard() {
             return next;
           });
           if (typeof window !== "undefined") localStorage.setItem(KEY_SEEN_WELCOME, "1");
+          if (chatMessages.length > 0) {
+            try {
+              await fetch(`${api || ""}/api/users/${userId}/projects/${project.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ plan: { chat_history: chatMessages } }),
+              });
+            } catch (_) {}
+          }
           navigate(`/builder/${project.id}`);
         } catch {
           setCreateError("Could not create project. Try again.");
@@ -348,8 +464,52 @@ export default function Dashboard() {
   };
 
   const handleMicToggle = () => {
+    if (useVoiceAgentWs) {
+      if (voiceAgentStatus === "listening" || voiceAgentStatus === "connecting" || voiceAgentStatus === "speaking") stopVoiceAgent();
+      else startVoiceAgent();
+      return;
+    }
     if (listening) SpeechRecognition.stopListening();
     else SpeechRecognition.startListening({ continuous: true });
+  };
+
+  const isVoiceActive = useVoiceAgentWs ? (voiceAgentStatus === "listening" || voiceAgentStatus === "connecting" || voiceAgentStatus === "speaking") : listening;
+
+  const MIND_MAP_PROMPT = `Based on our planning conversation above, output a mind map as a single JSON object with this exact shape (no other text):
+{"nodes":[{"id":"1","label":"App Idea","type":"central"},{"id":"2","label":"Objective","type":"branch"},{"id":"3","label":"Users","type":"branch"}],"edges":[{"source":"1","target":"2"},{"source":"1","target":"3"}]}
+Use one central node "App Idea" and branch nodes for each planning theme we covered (objective, users, data, constraints, branding, pages, etc). Label branches with short titles. Output only the JSON.`;
+
+  const handleShowMindMap = async () => {
+    const api = getApiBase();
+    if (!api || chatMessages.length === 0) {
+      setMindMapData(null);
+      setMindMapOpen(true);
+      return;
+    }
+    setMindMapLoading(true);
+    setMindMapOpen(true);
+    try {
+      const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+      const res = await fetch(`${api}/api/agent/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [...history, { role: "user", content: MIND_MAP_PROMPT }], userId: await getUserId() }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: { content?: string } };
+      const content = data.message?.content ?? "";
+      const jsonMatch = content.match(/\{[\s\S]*"nodes"[\s\S]*"edges"[\s\S]*\}/) || content.match(/\{[\s\S]*\}/);
+      const raw = jsonMatch ? jsonMatch[0] : content;
+      let parsed: MindMapData | null = null;
+      try {
+        parsed = JSON.parse(raw) as MindMapData;
+        if (!Array.isArray(parsed?.nodes) || !Array.isArray(parsed?.edges)) parsed = null;
+      } catch (_) {}
+      setMindMapData(parsed);
+    } catch (_) {
+      setMindMapData(null);
+    } finally {
+      setMindMapLoading(false);
+    }
   };
 
   const handleRunQuickTest = async () => {
@@ -359,15 +519,20 @@ export default function Dashboard() {
       setTestReportOpen(true);
       return;
     }
+    console.log("[Run test] Starting audit…");
     setTestLoading(true);
     setVetrResult(null);
     try {
       const results = await runQuickAudit(apiBase);
       setTestReport(results);
       setTestReportOpen(true);
+      const pass = results.filter((r) => r.ok).length;
+      const fail = results.filter((r) => !r.ok).length;
+      console.log("[Run test] Audit complete:", { total: results.length, pass, fail });
     } catch (e) {
       setTestReport([{ name: "Audit", ok: false, detail: e instanceof Error ? e.message : String(e) }]);
       setTestReportOpen(true);
+      console.log("[Run test] Error:", e);
     } finally {
       setTestLoading(false);
     }
@@ -380,6 +545,7 @@ export default function Dashboard() {
       setTestReportOpen(true);
       return;
     }
+    console.log("[VETR] Phase 0: Starting audit…");
     setTestLoading(true);
     setVetrResult(null);
     setTestReportOpen(true);
@@ -387,14 +553,17 @@ export default function Dashboard() {
       const results = await runQuickAudit(apiBase);
       setTestReport(results);
       const reportText = results.map((r) => `[${r.ok ? "PASS" : "FAIL"}] ${r.name}${r.detail ? " — " + r.detail : ""}`).join("\n");
+      const failCount = results.filter((r) => !r.ok).length;
+      console.log("[VETR] Phase 0 done. Failures:", failCount);
       setVetrLoading(true);
       try {
+        console.log("[VETR] Phase 1–7: Requesting Grok self-debug…");
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: [
-              { role: "user", content: `${VETR_SYSTEM_PROMPT}\n\n--- AUDIT REPORT ---\n${reportText}\n\nApply the VETR loop to the above. For each FAIL, output phases 2–5. If all PASS, output a short confidence summary.` },
+              { role: "user", content: `${VETR_SYSTEM_PROMPT}\n\n${buildVETRUserMessage(reportText)}` },
             ],
           }),
         });
@@ -405,11 +574,20 @@ export default function Dashboard() {
             ? "Grok not available for this test."
             : "Could not run VETR analysis.";
         setVetrResult(content);
+        const len = content?.length ?? 0;
+        const hasPhase2 = /Phase 2|Bug Hypothesis|Most Likely Root Cause|Wrong Code Explanation|Variable.*Trace|Proposed Fix Strategy/i.test(content);
+        const hasPhase3 = /Phase 3|minimal diff|replaced blocks|line numbers/i.test(content);
+        const hasFreshStart = /Strategic Fresh Start|fresh start|reset context/i.test(content);
+        const confidenceMatch = content.match(/confidence[:\s]*(\d+)/i);
+        const confidence = confidenceMatch ? confidenceMatch[1] : null;
+        console.log("[VETR] Response received:", { length: len, hasPhase2, hasPhase3, hasFreshStart, confidence: confidence ?? "n/a" });
+        if (confidence) console.log("[VETR] Final confidence:", confidence);
       } finally {
         setVetrLoading(false);
       }
     } catch (e) {
       setTestReport([{ name: "Audit", ok: false, detail: e instanceof Error ? e.message : String(e) }]);
+      console.log("[VETR] Error:", e);
     } finally {
       setTestLoading(false);
     }
@@ -436,7 +614,7 @@ export default function Dashboard() {
     s === "Live" ? "bg-green-500/10 text-green-400" : s === "Preview" ? "bg-blue-500/10 text-blue-400" : "bg-gray-500/10 text-gray-400";
 
   return (
-    <div className="flex h-screen bg-[#1e1e1e] text-gray-300 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-vs-bg text-vs-foreground overflow-hidden font-sans">
       {showFirstLoginOnboarding === true && (
         <div className="fixed inset-0 z-[100]">
           <FirstLoginOnboarding
@@ -478,7 +656,7 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#252526] border border-[#333333] rounded-xl shadow-xl max-w-md w-full p-6"
+              className="bg-vs-editor border border-vs-border rounded-xl shadow-xl max-w-md w-full p-6"
             >
               <h2 className="text-xl font-semibold text-white mb-2">Welcome!</h2>
               <p className="text-gray-400 text-sm mb-4">What do you want to build today?</p>
@@ -520,14 +698,14 @@ export default function Dashboard() {
         {testReportOpen && (
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setTestReportOpen(false)}>
             <div
-              className="bg-[#252526] border border-[#333333] rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+              className="bg-vs-editor border border-vs-border rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#333333]">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-vs-border">
                 <h3 className="text-sm font-semibold text-white">
-                  {vetrLoading ? "Running final debugging test (VETR)…" : testLoading && !testReport ? "Running quick test…" : "Audit report"}
+                  {vetrLoading ? "Applying VETR loop…" : testLoading && !testReport ? "Running test…" : "Audit report"}
                 </h3>
-                <button onClick={() => setTestReportOpen(false)} className="p-1 rounded hover:bg-[#37373d] text-gray-400 hover:text-white">
+                <button onClick={() => setTestReportOpen(false)} className="p-1 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground">
                   <X size={18} />
                 </button>
               </div>
@@ -547,16 +725,26 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    {vetrResult && (
-                      <div className="pt-4 border-t border-[#333333]">
-                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">VETR analysis</h4>
-                        <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans bg-[#1e1e1e] p-3 rounded overflow-auto max-h-64">
-                          {vetrResult}
-                        </pre>
-                      </div>
-                    )}
+                    {vetrResult && (() => {
+                      const { iteration, sections } = parseVETROutput(vetrResult);
+                      return (
+                        <div className="pt-4 border-t border-vs-border">
+                          <h4 className="text-xs font-semibold text-vs-muted uppercase tracking-wider mb-2">VETR analysis (Verify → Explain → Trace → Repair → Validate)</h4>
+                          {iteration && (
+                            <p className="text-xs text-vs-accent font-medium mb-2">{iteration}</p>
+                          )}
+                          {sections.length > 1 ? (
+                            <VETRCollapsibleSections sections={sections} />
+                          ) : (
+                            <pre className="text-xs text-vs-foreground whitespace-pre-wrap font-sans bg-vs-bg p-3 rounded overflow-auto max-h-64">
+                              {vetrResult}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {vetrLoading && (
-                      <p className="text-sm text-gray-500">Grok is applying the VETR loop (Verify → Explain → Trace → Repair → Validate)…</p>
+                      <p className="text-sm text-gray-500">Grok is applying the VETR loop: structured self-reflection (hypotheses, root cause, wrong-code explanation, variable trace, fix strategy), minimal repair, then validate.</p>
                     )}
                   </>
                 )}
@@ -566,12 +754,13 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      <div className="flex flex-1 min-h-0 min-w-0">
       {/* Left sidebar - explorer style */}
-      <div className="w-14 flex flex-col items-center py-4 bg-[#252526] border-r border-[#333333] flex-shrink-0">
+      <div className="w-14 flex flex-col items-center py-4 bg-vs-editor border-r border-vs-border flex-shrink-0">
         <div className="flex flex-col items-center gap-1 mb-4">
           <button
             onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject("New project")}
-            className={`p-3 rounded-lg transition-colors ${atProjectLimit ? "bg-[#37373d] text-gray-500 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
+            className={`p-3 rounded-lg transition-colors ${atProjectLimit ? "bg-vs-hover text-vs-muted cursor-not-allowed" : "btn-accent text-white"}`}
             title={atProjectLimit ? "Upgrade for more projects" : "New Project"}
           >
             <Plus size={22} strokeWidth={2} />
@@ -591,35 +780,37 @@ export default function Dashboard() {
         <div className="flex-1" />
         <button
           onClick={() => navigate("/settings")}
-          className="p-3 rounded-lg text-gray-400 hover:text-white hover:bg-[#37373d] transition-colors"
+          className="p-3 rounded-lg text-vs-muted hover:text-vs-foreground hover:bg-vs-hover transition-colors"
           title="Settings"
         >
           <Settings size={20} strokeWidth={1.5} />
         </button>
       </div>
 
+      <Group orientation="horizontal" className="flex-1 min-w-0" defaultLayout={{ main: 55, chat: 30 }}>
+        <Panel id="main" defaultSize={55} minSize={30} className="flex flex-col min-w-0 overflow-hidden">
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar: avatar right only */}
-        <div className="h-12 flex items-center justify-between px-4 border-b border-[#333333] bg-[#252526] flex-shrink-0">
+        <div className="h-12 flex items-center justify-between px-4 border-b border-vs-border bg-vs-editor flex-shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={handleRunQuickTest}
               disabled={testLoading}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#37373d] hover:bg-[#444] text-gray-300 text-sm font-medium disabled:opacity-50 transition-colors"
-              title="Run audit and show status of every functionality"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-vs-hover hover:bg-[#222] text-vs-foreground text-sm font-medium disabled:opacity-50 transition-colors"
+              title="Run audit test and output report with status of every single functionality"
             >
               <Play size={14} />
-              Run quick test
+              Run test
             </button>
             <button
               onClick={handleRunFinalDebuggingTest}
               disabled={testLoading}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#37373d] hover:bg-[#444] text-gray-300 text-sm font-medium disabled:opacity-50 transition-colors"
-              title="Run audit then VETR loop (Verify → Explain → Trace → Repair → Validate)"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-vs-hover hover:bg-[#222] text-vs-foreground text-sm font-medium disabled:opacity-50 transition-colors"
+              title="Run audit then apply VETR loop: Verify → Explain → Trace → Repair → Validate (self-debug with hypotheses, root cause, fix strategy)"
             >
               <Bug size={14} />
-              Run final debugging test
+              Final debugging test
             </button>
           </div>
           <div className="relative" ref={avatarRef}>
@@ -627,21 +818,21 @@ export default function Dashboard() {
               onClick={() => setAvatarOpen((o) => !o)}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#37373d] transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-[#007acc] flex items-center justify-center text-white text-sm font-medium">U</div>
+              <div className="w-8 h-8 rounded-full bg-vs-accent flex items-center justify-center text-white text-sm font-medium">U</div>
               <ChevronDown size={16} className="text-gray-400" />
             </button>
             {avatarOpen && (
-              <div className="absolute right-0 mt-1 py-1 w-48 bg-[#252526] border border-[#333333] rounded-md shadow-lg z-50">
-                <button onClick={() => { setAvatarOpen(false); navigate("/settings"); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#37373d] flex items-center gap-2">
+              <div className="absolute right-0 mt-1 py-1 w-48 bg-vs-editor border border-vs-border rounded-md shadow-lg z-50">
+                <button onClick={() => { setAvatarOpen(false); navigate("/settings"); }} className="w-full px-4 py-2 text-left text-sm text-vs-foreground hover:bg-vs-hover flex items-center gap-2">
                   <Settings size={14} /> Settings
                 </button>
-                <button onClick={() => { setAvatarOpen(false); navigate("/pricing"); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#37373d] flex items-center gap-2">
+                <button onClick={() => { setAvatarOpen(false); navigate("/pricing"); }} className="w-full px-4 py-2 text-left text-sm text-vs-foreground hover:bg-vs-hover flex items-center gap-2">
                   <DollarSign size={14} /> Billing
                 </button>
-                <button onClick={() => { setAvatarOpen(false); navigate("/settings"); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#37373d] flex items-center gap-2">
+                <button onClick={() => { setAvatarOpen(false); navigate("/settings"); }} className="w-full px-4 py-2 text-left text-sm text-vs-foreground hover:bg-vs-hover flex items-center gap-2">
                   <User size={14} /> Account
                 </button>
-                <button onClick={() => setAvatarOpen(false)} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#37373d] flex items-center gap-2">
+                <button onClick={() => setAvatarOpen(false)} className="w-full px-4 py-2 text-left text-sm text-vs-foreground hover:bg-vs-hover flex items-center gap-2">
                   Logout
                 </button>
               </div>
@@ -655,13 +846,13 @@ export default function Dashboard() {
             <div className="flex items-center justify-center min-h-[40vh] text-gray-500">Loading projects...</div>
           ) : projects.length === 0 ? (
             <div
-              className={`max-w-md mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center rounded-2xl border border-[#333333] bg-[#252526]/50 p-10 transition-colors ${dragOver ? "border-blue-500 bg-blue-500/5" : ""}`}
+              className={`max-w-md mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center rounded-2xl border border-vs-border bg-vs-editor/80 p-10 transition-colors ${dragOver ? "border-vs-accent bg-vs-accent/10" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
               {!paidStatus.paid && (
-                <div className="w-full mb-8 p-4 rounded-xl bg-[#1e1e1e] border border-[#333333] text-left">
+                <div className="w-full mb-8 p-4 rounded-xl bg-vs-bg border border-vs-border text-left">
                   <label className="block text-sm font-medium text-gray-300 mb-2">What do you want to build?</label>
                   <input
                     type="text"
@@ -669,7 +860,7 @@ export default function Dashboard() {
                     value={startBuildingPrompt}
                     onChange={(e) => setStartBuildingPrompt(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
-                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333333] rounded-lg text-white placeholder-gray-500 focus:border-[#007acc] outline-none"
+                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-vs-border rounded-lg text-white placeholder-vs-muted focus:border-vs-accent outline-none"
                   />
                   <button
                     onClick={() => (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
@@ -687,7 +878,7 @@ export default function Dashboard() {
               <button
                 onClick={() => (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject("New project"))}
                 disabled={atProjectLimit}
-                className={`flex items-center gap-2 px-6 py-3 font-medium rounded-lg transition-colors mb-2 ${atProjectLimit ? "bg-[#37373d] text-gray-500 cursor-not-allowed" : "bg-[#007acc] hover:bg-[#1a8ad4] text-white"}`}
+                className={`flex items-center gap-2 px-6 py-3 font-medium rounded-lg transition-colors mb-2 ${atProjectLimit ? "bg-vs-hover text-vs-muted cursor-not-allowed" : "btn-accent text-white"}`}
               >
                 <Mic size={18} />
                 Start with Grok
@@ -723,7 +914,7 @@ export default function Dashboard() {
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 {!paidStatus.paid && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 bg-[#252526] border border-[#333333] px-2 py-1 rounded">
+                    <span className="text-xs text-vs-muted bg-vs-editor border border-vs-border px-2 py-1 rounded">
                       Projects: {projectCount}/{projectLimit}
                     </span>
                     {atProjectLimit && (
@@ -743,7 +934,7 @@ export default function Dashboard() {
                     className="w-full pl-9 pr-3 py-2 bg-[#252526] border border-[#333333] rounded-md text-sm text-white placeholder-gray-500 focus:border-[#555] outline-none"
                   />
                 </div>
-                <div className="flex gap-1 p-1 bg-[#252526] rounded-lg border border-[#333333] w-fit">
+                <div className="flex gap-1 p-1 bg-vs-editor rounded-lg border border-vs-border w-fit">
                   {(["all", "deployed", "drafts"] as const).map((t) => (
                     <button
                       key={t}
@@ -760,7 +951,7 @@ export default function Dashboard() {
                   <button
                     key={project.id}
                     onClick={() => navigate(`/builder/${project.id}`)}
-                    className="bg-[#252526] border border-[#333333] rounded-lg overflow-hidden text-left hover:border-[#444] transition-colors group"
+                    className="bg-vs-editor border border-vs-border rounded-lg overflow-hidden text-left hover:border-vs-hover transition-colors group"
                   >
                     <div className="aspect-video bg-[#1e1e1e] flex items-center justify-center border-b border-[#333333]">
                       {project.thumbnail ? (
@@ -785,15 +976,27 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-
+        </Panel>
+        <Separator id="resize-chat" className="w-2 bg-vs-border hover:bg-vs-accent data-[resize-handle-active]:bg-vs-accent transition-colors" />
+        <Panel id="chat" defaultSize={30} minSize={15} className="flex flex-col min-w-0 overflow-hidden">
       {/* Optional chat panel - mic/upload/copy like Grok */}
-      {chatOpen && (
-        <div className="w-64 bg-[#252526] border-l border-[#333333] flex flex-col flex-shrink-0">
-          <div className="p-3 flex items-center justify-between border-b border-[#333333]">
+      {chatOpen ? (
+        <div className="flex-1 flex flex-col min-w-0 bg-vs-editor border-l border-vs-border">
+          <div className="p-3 flex items-center justify-between border-b border-vs-border">
             <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">Chat</span>
-            <button onClick={() => setChatOpen(false)} className="p-1 rounded hover:bg-[#37373d] text-gray-400 hover:text-white">
-              <X size={14} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleShowMindMap}
+                disabled={mindMapLoading}
+                className="p-1.5 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground disabled:opacity-50"
+                title="Show mind map from conversation"
+              >
+                <Network size={14} />
+              </button>
+              <button onClick={() => setChatOpen(false)} className="p-1 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground">
+                <X size={14} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
             <input {...getInputProps()} />
@@ -808,14 +1011,14 @@ export default function Dashboard() {
                   <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(m.content); }}
-                      className="p-1 rounded hover:bg-[#37373d] text-gray-400 hover:text-white"
+                      className="p-1 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground"
                       title="Copy"
                     >
                       <Copy size={12} />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(window.location.href); }}
-                      className="p-1 rounded hover:bg-[#37373d] text-gray-400 hover:text-white"
+                      className="p-1 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground"
                       title="Copy link"
                     >
                       <Link2 size={12} />
@@ -825,9 +1028,9 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="p-3 border-t border-[#333333] relative">
+          <div className="p-3 border-t border-vs-border relative">
             {showMicTooltip && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 px-3 py-2 rounded-lg bg-[#252526] border border-[#333] text-sm text-gray-200 shadow-lg flex items-center justify-between gap-2">
+              <div className="absolute bottom-full left-0 right-0 mb-2 px-3 py-2 rounded-lg bg-vs-editor border border-vs-border text-sm text-vs-foreground shadow-lg flex items-center justify-between gap-2">
                 <span>Click the microphone and say hi.</span>
                 <button
                   type="button"
@@ -844,22 +1047,90 @@ export default function Dashboard() {
             )}
             <button
               onClick={handleMicToggle}
-              disabled={voiceLoading}
-              className={`w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm transition-colors ${listening ? "bg-red-500/20 text-red-400" : voiceLoading ? "bg-[#333] text-gray-500" : "bg-[#333] text-gray-300 hover:bg-[#444]"}`}
+              disabled={voiceLoading && !useVoiceAgentWs}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm transition-colors ${isVoiceActive ? "bg-red-500/20 text-red-400" : voiceLoading && !useVoiceAgentWs ? "bg-[#333] text-gray-500" : "bg-[#333] text-gray-300 hover:bg-[#444]"}`}
             >
-              {listening ? <MicOff size={16} /> : <Mic size={16} />}
-              {listening ? "Listening..." : voiceLoading ? "Grok…" : "Voice"}
+              {isVoiceActive ? <MicOff size={16} /> : <Mic size={16} />}
+              {useVoiceAgentWs
+                ? voiceAgentStatus === "connecting"
+                  ? "Connecting…"
+                  : voiceAgentStatus === "listening"
+                    ? "Listening…"
+                    : voiceAgentStatus === "speaking"
+                      ? "Speaking…"
+                      : "Voice (Grok)"
+                : listening
+                  ? "Listening..."
+                  : voiceLoading
+                    ? "Grok…"
+                    : "Voice"}
             </button>
-            {listening && transcript && (
+            {listening && !useVoiceAgentWs && transcript && (
               <div className="mt-2 text-xs text-gray-500 italic truncate" title={transcript}>{transcript}</div>
             )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center bg-vs-editor border-l border-vs-border">
+          <button onClick={() => setChatOpen(true)} className="p-3 rounded-lg bg-vs-hover text-vs-muted hover:text-vs-foreground transition-colors" title="Open chat">
+            <Mic size={24} />
+          </button>
+        </div>
+      )}
+        </Panel>
+      </Group>
+      </div>
+
+      {/* Status bar: Run test + Final debugging test always visible */}
+      <div className="h-8 flex-shrink-0 flex items-center justify-between px-3 bg-vs-status text-vs-foreground text-xs font-medium border-t border-vs-border gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex-shrink-0">Kyn</span>
+          <button
+            type="button"
+            onClick={handleRunQuickTest}
+            disabled={testLoading}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-vs-hover hover:bg-vs-accent/20 text-vs-foreground disabled:opacity-50"
+            title="Run audit test — status of every functionality"
+          >
+            <Play size={12} />
+            Run test
+          </button>
+          <button
+            type="button"
+            onClick={handleRunFinalDebuggingTest}
+            disabled={testLoading}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-vs-hover hover:bg-vs-accent/20 text-vs-foreground disabled:opacity-50"
+            title="Final debugging test — VETR loop"
+          >
+            <Bug size={12} />
+            Final debugging test
+          </button>
+        </div>
+        <span className="flex-shrink-0">{projects.length} project{projects.length !== 1 ? "s" : ""}</span>
+      </div>
+      {mindMapOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setMindMapOpen(false)}>
+          <div className="w-full max-w-4xl h-[80vh] bg-vs-editor border border-vs-border rounded-lg shadow-xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-3 border-b border-vs-border">
+              <span className="text-sm font-medium text-gray-300">Mind map</span>
+              <button onClick={() => setMindMapOpen(false)} className="p-1.5 rounded hover:bg-vs-hover text-vs-muted hover:text-vs-foreground">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              {mindMapLoading ? (
+                <div className="flex items-center justify-center h-full text-gray-500">Generating mind map…</div>
+              ) : (
+                <MindMapFromPlan data={mindMapData} className="h-full w-full" />
+              )}
+            </div>
           </div>
         </div>
       )}
       {!chatOpen && (
         <div className="fixed right-4 bottom-4 flex flex-col items-end gap-2">
           {showMicTooltip && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#252526] border border-[#333] text-sm text-gray-200 shadow-lg">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-vs-editor border border-vs-border text-sm text-vs-foreground shadow-lg">
               <span>Click the microphone and say hi.</span>
               <button
                 type="button"
@@ -876,7 +1147,7 @@ export default function Dashboard() {
           )}
           <button
             onClick={() => setChatOpen(true)}
-            className="p-2 bg-[#252526] border border-[#333333] rounded-lg text-gray-400 hover:text-white hover:bg-[#37373d] transition-colors"
+            className="p-2 bg-vs-editor border border-vs-border rounded-lg text-vs-muted hover:text-vs-foreground hover:bg-vs-hover transition-colors"
             title="Open chat"
           >
             <Mic size={20} />

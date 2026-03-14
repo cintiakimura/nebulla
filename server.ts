@@ -19,11 +19,18 @@ import {
 
 type RequestWithUserId = express.Request & { userId?: string };
 
-/** True when request Origin or Referer matches OPEN_MODE_ORIGIN (e.g. https://cintiakimura.eu or cintiakimura.eu). */
+/** True when request is from localhost or matches OPEN_MODE_ORIGIN (e.g. cintiakimura.eu). */
 function requestFromOpenModeOrigin(req: express.Request): boolean {
+  const o = req.get("origin") ?? req.get("referer") ?? "";
+  if (o) {
+    try {
+      const url = new URL(o);
+      const host = url.hostname.toLowerCase();
+      if (host === "localhost" || host === "127.0.0.1") return true;
+    } catch (_) {}
+  }
   const origin = process.env.OPEN_MODE_ORIGIN?.trim();
   if (!origin) return false;
-  const o = req.get("origin") ?? req.get("referer") ?? "";
   if (!o) return false;
   try {
     const url = new URL(o);
@@ -53,12 +60,10 @@ async function resolveUserId(req: RequestWithUserId, res: express.Response, next
       } catch (_) {}
     }
   }
-  // Open mode: when no token, use fallback user so anyone can use the app without login.
-  // When OPEN_MODE_ORIGIN is set (e.g. https://cintiakimura.eu), only use fallback for requests from that origin.
+  // Open mode / localhost: when no token, use fallback so app works without login (localhost or OPEN_MODE_ORIGIN).
   const openModeFallback = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
-  const openModeOrigin = process.env.OPEN_MODE_ORIGIN?.trim();
-  if (!req.userId && openModeFallback && (!openModeOrigin || requestFromOpenModeOrigin(req))) {
-    req.userId = openModeFallback;
+  if (!req.userId && requestFromOpenModeOrigin(req)) {
+    req.userId = openModeFallback || "open-dev-user";
   }
   next();
 }
@@ -127,6 +132,34 @@ async function startServer() {
       supabaseAnonKey: supabaseAnon && supabaseAnon !== "PLACEHOLDER" ? supabaseAnon : "",
       openModeFallbackUserId,
     });
+  });
+
+  // Ephemeral token for Grok Voice Agent WebSocket (client uses this to connect to wss://api.x.ai/v1/realtime)
+  app.post("/api/realtime/token", async (_req, res) => {
+    const apiKey = process.env.GROK_API_KEY?.trim();
+    if (!apiKey || apiKey === "PLACEHOLDER") {
+      res.status(503).json({ error: "GROK_API_KEY not set." });
+      return;
+    }
+    try {
+      const r = await fetch("https://api.x.ai/v1/realtime/client_secrets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ expires_after: { seconds: 300 } }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        res.status(r.status).json(data || { error: "Failed to get token" });
+        return;
+      }
+      res.json(data);
+    } catch (e) {
+      console.error("[realtime token]", e);
+      res.status(500).json({ error: "Failed to get voice token" });
+    }
   });
 
   // Session: return or create a userId (mock auth; client stores it)
@@ -333,12 +366,12 @@ async function startServer() {
     }
   });
 
-  // Projects: update (code, packageJson, chatMessages, name, status, last_edited, specs). Auth required; param userId must match token.
+  // Projects: update (code, packageJson, chatMessages, name, status, last_edited, specs, plan, code_versions, deployment_status, live_url). Auth required.
   app.put("/api/users/:userId/projects/:projectId", resolveUserId, requireAuth, requireMatchUserId, async (req, res) => {
     try {
       const userId = (req as RequestWithUserId).userId!;
       const { projectId } = req.params;
-      const { code, package_json, chat_messages, name, status, last_edited, specs } = req.body as {
+      const { code, package_json, chat_messages, name, status, last_edited, specs, plan, code_versions, deployment_status, live_url } = req.body as {
         code?: string;
         package_json?: string;
         chat_messages?: string;
@@ -346,9 +379,13 @@ async function startServer() {
         status?: string;
         last_edited?: string;
         specs?: string | Record<string, string>;
+        plan?: Record<string, unknown> | string;
+        code_versions?: unknown[] | string;
+        deployment_status?: string;
+        live_url?: string | null;
       };
       const specsStr = specs === undefined ? undefined : typeof specs === "string" ? specs : JSON.stringify(specs);
-      const updates = {
+      const baseUpdates = {
         code,
         package_json,
         chat_messages: typeof chat_messages === "string" ? chat_messages : JSON.stringify(chat_messages ?? []),
@@ -358,7 +395,12 @@ async function startServer() {
         specs: specsStr,
       };
       if (isSupabaseConfigured()) {
-        const ok = await supabaseUpdateProject(userId, projectId, updates);
+        const supabaseUpdates = { ...baseUpdates } as Parameters<typeof supabaseUpdateProject>[2];
+        if (plan !== undefined) supabaseUpdates.plan = typeof plan === "string" ? plan : JSON.stringify(plan ?? {});
+        if (code_versions !== undefined) supabaseUpdates.code_versions = typeof code_versions === "string" ? code_versions : JSON.stringify(code_versions ?? []);
+        if (deployment_status !== undefined) supabaseUpdates.deployment_status = deployment_status;
+        if (live_url !== undefined) supabaseUpdates.live_url = live_url;
+        const ok = await supabaseUpdateProject(userId, projectId, supabaseUpdates);
         if (!ok) {
           res.status(404).json({ error: "Project not found" });
           return;
@@ -366,7 +408,7 @@ async function startServer() {
         res.json({ ok: true });
         return;
       }
-      const ok = db.updateProject(userId, projectId, updates);
+      const ok = db.updateProject(userId, projectId, baseUpdates);
       if (!ok) {
         res.status(404).json({ error: "Project not found" });
         return;
@@ -555,11 +597,11 @@ async function startServer() {
       }
       const userId = authUserId ?? bodyUserId;
       const fallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
-      if (userId && isSupabaseConfigured()) {
+      const isOpenModeUser = userId === "open-dev-user" || (!!fallbackUserId && userId === fallbackUserId);
+      if (userId && isSupabaseConfigured() && !isOpenModeUser) {
         const meta = await ensureUserAndGetMetadata(userId);
         const isPro = meta?.is_pro ?? meta?.paid ?? false;
-        const isOpenModeUser = !!fallbackUserId && userId === fallbackUserId;
-        if (!isPro && !isOpenModeUser) {
+        if (!isPro) {
           const { count } = await getGrokUsage(userId);
           const limit = Math.max(0, parseInt(process.env.FREE_GROK_DAILY_LIMIT ?? "10", 10));
           if (count >= limit) {
@@ -576,8 +618,8 @@ async function startServer() {
         res.status(400).json({ error: "messages array required" });
         return;
       }
-      // Grok 4.1 Fast (xAI primary model name; override with GROK_MODEL env)
-      const model = (process.env.GROK_MODEL || "grok-4-1-fast").trim();
+      // grok-4-1-fast-reasoning for planning/code/review (reasoning mode); override with GROK_MODEL env
+      const model = (process.env.GROK_MODEL || "grok-4-1-fast-reasoning").trim();
       const body = {
         model,
         messages: [
@@ -607,7 +649,7 @@ async function startServer() {
         res.status(response.status).json({ error: "Grok API error", details });
         return;
       }
-      if (userId && isSupabaseConfigured()) {
+      if (userId && isSupabaseConfigured() && userId !== "open-dev-user") {
         const meta = await ensureUserAndGetMetadata(userId);
         const isPro = meta?.is_pro ?? meta?.paid ?? false;
         if (!isPro) await incrementGrokCalls(userId);

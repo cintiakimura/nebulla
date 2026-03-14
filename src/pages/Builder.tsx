@@ -541,7 +541,7 @@ export default function Builder() {
     }
     addLog(`[Deploy]: Initiating deployment...`);
     try {
-      const res = await fetch(`${getApiBase()}/api/deploy`, { method: 'POST' });
+      const res = await fetch(`${getApiBase() || ""}/api/deploy`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         addLog(`[Deploy Success]: ${data.message}`);
@@ -615,14 +615,14 @@ export default function Builder() {
       <div className="flex flex-1 min-h-0">
       <div className="w-12 bg-[#252536] flex flex-col items-center py-4 border-r border-[#3d3d4d] z-10">
         <button
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-[#2d2d3d] border-l-[#007acc]' : 'text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d] border-l-transparent'}`}
+          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-[#2d2d3d] border-l-vs-accent' : 'text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d] border-l-transparent'}`}
           title="Explorer"
         >
           <FileCode size={24} strokeWidth={1.5} />
         </button>
         <button
           onClick={() => openTab('preview')}
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-[#2d2d3d] border-l-[#007acc]' : 'text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d] border-l-transparent'}`}
+          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-[#2d2d3d] border-l-vs-accent' : 'text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d] border-l-transparent'}`}
           title="Live Preview"
         >
           <Eye size={24} strokeWidth={1.5} />
@@ -812,7 +812,7 @@ export default function Builder() {
         )}
 
         {/* Status Bar: same layout; free users see git label without click-to-upgrade if preferred, or keep as is */}
-        <div className="h-6 bg-[#007acc] text-white text-xs flex items-center px-3 justify-between">
+        <div className="h-6 bg-vs-accent text-white text-xs flex items-center px-3 justify-between">
           <div className="flex items-center gap-4">
             {paidStatus.paid ? (
               <span className="flex items-center gap-1"><Github size={12} /> main*</span>
@@ -909,7 +909,7 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e2e] border border-[#3d3d4d] text-sm text-white placeholder-[#6b7280] focus:border-[#007acc] focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e2e] border border-[#3d3d4d] text-sm text-white placeholder-[#6b7280] focus:border-vs-accent focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
               />
@@ -933,7 +933,7 @@ export default function Builder() {
               <button
                 onClick={handleSendText}
                 disabled={!chatInput.trim() || readOnly}
-                className="p-2 rounded-md bg-[#007acc] text-white hover:bg-[#1a8ad4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="p-2 rounded-md bg-vs-accent text-white hover:bg-[#1a8ad4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={18} />
@@ -958,7 +958,7 @@ export default function Builder() {
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
               return next;
             })}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${grokSpeaks ? 'text-[#007acc] bg-[#2d2d3d]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${grokSpeaks ? 'text-vs-accent bg-[#2d2d3d]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d2d3d]'}`}
             title="Grok reads replies aloud (browser TTS)"
           >
             {grokSpeaks ? <Volume2 size={18} /> : <VolumeX size={18} />}
@@ -1031,7 +1031,7 @@ export default function Builder() {
               </button>
             </div>
             <div className="space-y-2">
-              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
+              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-vs-accent hover:bg-[#1a8ad4] text-white text-sm rounded">
                 Upgrade to Pro
               </button>
             </div>
