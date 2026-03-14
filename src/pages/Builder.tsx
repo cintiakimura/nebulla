@@ -772,28 +772,28 @@ export default function Builder() {
   return (
     <div className="flex h-screen bg-[#1e1e1e] text-[#d4d4d4] overflow-hidden font-sans flex-col">
       <div className="flex flex-1 min-h-0">
-      {/* Activity bar - VS Code style dark gray */}
-      <div className="w-12 bg-[#333333] flex flex-col items-center py-4 border-r border-[#3c3c3c] z-10">
+      {/* Activity bar - blue-accented IDE style */}
+      <div className="w-12 bg-[#1e2a38] flex flex-col items-center py-4 border-r border-[#2d3f4f] z-10">
         <button
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-[#252526] border-l-[#007acc]' : 'text-[#9ca3af] hover:text-white hover:bg-[#252526] border-l-transparent'}`}
+          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-[#007acc]/15 border-l-[#007acc]' : 'text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 border-l-transparent'}`}
           title="Explorer"
         >
           <FileCode size={24} strokeWidth={1.5} />
         </button>
         <button
           onClick={() => openTab('preview')}
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-[#252526] border-l-[#007acc]' : 'text-[#9ca3af] hover:text-white hover:bg-[#252526] border-l-transparent'}`}
+          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-[#007acc]/15 border-l-[#007acc]' : 'text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 border-l-transparent'}`}
           title="Live Preview"
         >
           <Eye size={24} strokeWidth={1.5} />
         </button>
-        <button className="p-2 text-[#9ca3af] hover:text-white hover:bg-[#252526] rounded-md mb-4 border-l-2 border-l-transparent" title="Projects" onClick={() => navigate("/builder")}>
+        <button className="p-2 text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 rounded-md mb-4 border-l-2 border-l-transparent" title="Projects" onClick={() => navigate("/builder")}>
           <Layout size={24} strokeWidth={1.5} />
         </button>
         <div className="mt-auto flex flex-col gap-4">
           <button
             onClick={() => navigate("/settings")}
-            className="p-2 text-[#9ca3af] hover:text-white hover:bg-[#252526] rounded-md border-l-2 border-l-transparent"
+            className="p-2 text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 rounded-md border-l-2 border-l-transparent"
             title="Settings"
           >
             <Settings size={24} strokeWidth={1.5} />
@@ -802,13 +802,13 @@ export default function Builder() {
       </div>
 
       {/* Sidebar: Projects (when no project) or Explorer + Deploy (when project) */}
-      <div className="w-64 bg-[#252526] border-r border-[#3c3c3c] flex flex-col">
+      <div className="w-64 bg-[#252526] border-r border-[#2d3f4f] flex flex-col">
         {projectId && (
-          <div className="flex items-center gap-1 p-2 border-b border-[#3c3c3c]">
+          <div className="flex items-center gap-1 p-2 border-b border-[#2d3f4f]">
             <button
               type="button"
               onClick={() => { addLog("[Git]: Stage"); }}
-              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#3c3c3c] text-[#d4d4d4] hover:bg-[#4d4d4d] transition-colors"
+              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#1e3a5f] text-[#9cdcfe] hover:bg-[#264f78] transition-colors"
               title="Stage changes"
             >
               Stage
@@ -816,7 +816,7 @@ export default function Builder() {
             <button
               type="button"
               onClick={() => { addLog("[Git]: Commit"); }}
-              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#3c3c3c] text-[#d4d4d4] hover:bg-[#4d4d4d] transition-colors"
+              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#1e3a5f] text-[#9cdcfe] hover:bg-[#264f78] transition-colors"
               title="Commit"
             >
               Commit
@@ -824,7 +824,7 @@ export default function Builder() {
             <button
               type="button"
               onClick={() => { addLog("[Git]: Push"); if (paidStatus.paid) handleDeploy(); else { setProModalAction("deploy"); setProModalOpen(true); } }}
-              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#0e639c] text-white hover:bg-[#1177bb] transition-colors"
+              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#007acc] text-white hover:bg-[#1a8ad4] transition-colors"
               title="Push to GitHub"
             >
               Push
@@ -833,7 +833,7 @@ export default function Builder() {
         )}
         {!projectId ? (
           <>
-            <div className="p-3 text-xs font-semibold tracking-wider text-[#cccccc] uppercase">Projects</div>
+            <div className="p-3 text-xs font-semibold tracking-wider text-[#007acc] uppercase">Projects</div>
             <div className="flex-1 overflow-auto">
               <button
                 type="button"
@@ -868,25 +868,25 @@ export default function Builder() {
           </>
         ) : (
           <>
-            <div className="p-3 text-xs font-semibold tracking-wider text-[#cccccc] uppercase">Explorer</div>
+            <div className="p-3 text-xs font-semibold tracking-wider text-[#007acc] uppercase">Explorer</div>
             <div className="flex-1 overflow-auto">
               <div
                 onClick={() => openTab('/App.tsx')}
-                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/App.tsx' ? 'bg-[#094771] border-l-[#007acc] text-white' : 'border-l-transparent text-[#9ca3af] hover:bg-[#2a2d2e]'}`}
+                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/App.tsx' ? 'bg-[#264f78] border-l-[#007acc] text-white' : 'border-l-transparent text-[#9ca3af] hover:bg-[#1e3a5f] hover:text-[#d4d4d4]'}`}
               >
                 <FileCode size={14} className="text-[#569cd6]" />
                 App.tsx
               </div>
               <div
                 onClick={() => openTab('/package.json')}
-                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/package.json' ? 'bg-[#094771] border-l-[#007acc] text-white' : 'border-l-transparent text-[#9ca3af] hover:bg-[#2a2d2e]'}`}
+                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/package.json' ? 'bg-[#264f78] border-l-[#007acc] text-white' : 'border-l-transparent text-[#9ca3af] hover:bg-[#1e3a5f] hover:text-[#d4d4d4]'}`}
               >
                 <FileCode size={14} className="text-[#ce9178]" />
                 package.json
               </div>
             </div>
-            <div className="p-4 border-t border-[#3c3c3c] space-y-3">
-              <div className="text-xs font-semibold tracking-wider text-[#cccccc] uppercase mb-2">Deploy</div>
+            <div className="p-4 border-t border-[#2d3f4f] space-y-3">
+              <div className="text-xs font-semibold tracking-wider text-[#007acc] uppercase mb-2">Deploy</div>
               {!paidStatus.paid ? (
                 <button
                   onClick={() => { setProModalAction('deploy'); setProModalOpen(true); }}
@@ -982,7 +982,7 @@ export default function Builder() {
               <div
                 key={tabId}
                 onClick={() => setActiveTabId(tabId)}
-                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r border-[#3c3c3c] cursor-pointer flex-shrink-0 ${isActive ? 'bg-[#1e1e1e] border-t-2 border-t-[#007acc] text-white' : 'text-[#9ca3af] hover:bg-[#2a2d2e]'}`}
+                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r border-[#2d3f4f] cursor-pointer flex-shrink-0 ${isActive ? 'bg-[#1e1e1e] border-t-2 border-t-[#007acc] text-white' : 'text-[#9ca3af] hover:bg-[#1e3a5f] hover:text-[#d4d4d4]'}`}
               >
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
                 <span className="text-sm truncate">{label}</span>
@@ -1064,25 +1064,25 @@ export default function Builder() {
         {/* Bottom panel: Terminal, Output, Problems (Cursor-style) */}
         {terminalOpen && (
           <div className="h-48 min-h-[120px] bg-[#1e1e1e] border-t border-[#3c3c3c] flex flex-col flex-shrink-0">
-            <div className="h-9 flex items-center border-b border-[#3c3c3c] bg-[#252526]">
+            <div className="h-9 flex items-center border-b border-[#2d3f4f] bg-[#1e2a38]">
               <div className="flex items-center h-full">
                 <button
                   onClick={() => setBottomPanelTab('terminal')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'terminal' ? 'border-[#007acc] text-white bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2a2d2e]'}`}
+                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'terminal' ? 'border-[#007acc] text-[#9cdcfe] bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#9cdcfe] hover:bg-[#1e3a5f]'}`}
                 >
                   <TerminalIcon size={14} />
                   <span className="text-xs uppercase tracking-wider">Terminal</span>
                 </button>
                 <button
                   onClick={() => setBottomPanelTab('output')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'output' ? 'border-[#007acc] text-white bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2a2d2e]'}`}
+                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'output' ? 'border-[#007acc] text-[#9cdcfe] bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#9cdcfe] hover:bg-[#1e3a5f]'}`}
                 >
                   <FileCode size={14} />
                   <span className="text-xs uppercase tracking-wider">Output</span>
                 </button>
                 <button
                   onClick={() => setBottomPanelTab('problems')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'problems' ? 'border-[#007acc] text-white bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2a2d2e]'}`}
+                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'problems' ? 'border-[#007acc] text-[#9cdcfe] bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#9cdcfe] hover:bg-[#1e3a5f]'}`}
                 >
                   <AlertCircle size={14} />
                   <span className="text-xs uppercase tracking-wider">Problems</span>
@@ -1158,8 +1158,8 @@ export default function Builder() {
       </div>
 
       {/* Chat Panel - same width as Explorer */}
-      <div className="w-64 bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0">
-        <div className="p-3 text-xs font-semibold tracking-wider text-[#cccccc] uppercase border-b border-[#3c3c3c]">Chat</div>
+      <div className="w-64 bg-[#252526] border-l border-[#2d3f4f] flex flex-col flex-shrink-0">
+        <div className="p-3 text-xs font-semibold tracking-wider text-[#007acc] uppercase border-b border-[#2d3f4f]">Chat</div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
           <input ref={fileInputRef} type="file" className="hidden" accept="image/*,*" onChange={handleFileSelect} />
@@ -1234,7 +1234,7 @@ export default function Builder() {
                 title={readOnly ? "Upgrade for full access" : undefined}
               />
               <span
-                className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#3c3c3c] text-[#9ca3af] border border-[#3c3c3c] cursor-help"
+                className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#1e3a5f] text-[#9cdcfe] border border-[#2d3f4f] cursor-help"
                 title="Fast reasoning model — unlimited chats on Pro"
               >
                 Powered by Grok 4.1 Fast

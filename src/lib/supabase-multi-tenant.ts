@@ -53,7 +53,7 @@ export async function listProjects(userId: string): Promise<Omit<ProjectRow, "co
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("projects")
-    .select("id, user_id, name, status, last_edited, created_at")
+    .select("id, user_id, name, status, last_edited, plan, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (error) {
@@ -66,6 +66,7 @@ export async function listProjects(userId: string): Promise<Omit<ProjectRow, "co
     name: r.name,
     status: r.status,
     last_edited: r.last_edited ?? "",
+    plan: r.plan ?? null,
     created_at: r.created_at,
   }));
 }

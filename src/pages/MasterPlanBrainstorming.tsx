@@ -342,7 +342,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             width: 180,
             flexShrink: 0,
             background: "#252526",
-            borderRight: "1px solid #3c3c3c",
+            borderRight: "1px solid #2d3f4f",
             overflow: "auto",
             padding: "12px 0",
             display: "flex",
@@ -396,7 +396,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             width: 28,
             flexShrink: 0,
             background: "#252526",
-            borderRight: "1px solid #3c3c3c",
+            borderRight: "1px solid #2d3f4f",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -426,7 +426,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             height: 48,
             padding: "0 16px",
             background: "#252526",
-            borderBottom: "1px solid #3c3c3c",
+            borderBottom: "1px solid #2d3f4f",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -441,8 +441,8 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               onClick={() => setSectionsOpen((o) => !o)}
               style={{
                 padding: "4px 8px",
-                background: sectionsOpen ? "#3c3c3c" : "transparent",
-                border: "1px solid #3c3c3c",
+                background: sectionsOpen ? "#2d3f4f" : "transparent",
+                border: "1px solid #2d3f4f",
                 borderRadius: 4,
                 color: "#9ca3af",
                 cursor: "pointer",
@@ -461,8 +461,8 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               onClick={() => setChatOpen((o) => !o)}
               style={{
                 padding: "4px 8px",
-                background: chatOpen ? "#3c3c3c" : "transparent",
-                border: "1px solid #3c3c3c",
+                background: chatOpen ? "#2d3f4f" : "transparent",
+                border: "1px solid #2d3f4f",
                 borderRadius: 4,
                 color: "#9ca3af",
                 cursor: "pointer",
@@ -486,7 +486,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               alignItems: "center",
               gap: 6,
               padding: "6px 12px",
-              background: messages.length > 0 ? "#007acc" : "#3c3c3c",
+              background: messages.length > 0 ? "#007acc" : "#2d3f4f",
               color: "#fff",
               border: "none",
               borderRadius: 4,
@@ -528,7 +528,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 color: "#e8e8e8",
                 marginBottom: 24,
                 fontFamily: "Georgia, 'Times New Roman', serif",
-                borderBottom: "1px solid #3c3c3c",
+                borderBottom: "1px solid #2d3f4f",
                 paddingBottom: 12,
               }}
             >
@@ -575,12 +575,12 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             minWidth: 320,
             flexShrink: 0,
             background: "#252526",
-            borderLeft: "1px solid #3c3c3c",
+            borderLeft: "1px solid #2d3f4f",
             display: "flex",
             flexDirection: "column",
           }}
         >
-          <div style={{ flexShrink: 0, padding: "8px 12px", borderBottom: "1px solid #3c3c3c", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ flexShrink: 0, padding: "8px 12px", borderBottom: "1px solid #2d3f4f", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chat</span>
             <button
               type="button"
@@ -603,22 +603,22 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             <div ref={chatEndRef} />
           </div>
           {awaitingLock && (
-            <div style={{ padding: 8, borderTop: "1px solid #3c3c3c", background: "#252526" }}>
+            <div style={{ padding: 8, borderTop: "1px solid #2d3f4f", background: "#252526" }}>
               <button type="button" onClick={() => handleLock("yes")} style={{ marginRight: 8, padding: "6px 12px", background: "#007ACC", color: "#fff", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Lock
               </button>
-              <button type="button" onClick={() => handleLock("no")} style={{ marginRight: 8, padding: "6px 12px", background: "#3c3c3c", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+              <button type="button" onClick={() => handleLock("no")} style={{ marginRight: 8, padding: "6px 12px", background: "#2d3f4f", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Edit
               </button>
-              <button type="button" onClick={() => handleLock("skip")} style={{ marginRight: 8, padding: "6px 12px", background: "#3c3c3c", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+              <button type="button" onClick={() => handleLock("skip")} style={{ marginRight: 8, padding: "6px 12px", background: "#2d3f4f", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Skip
               </button>
-              <button type="button" onClick={() => handleLock("generate")} style={{ padding: "6px 12px", background: "#3c3c3c", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+              <button type="button" onClick={() => handleLock("generate")} style={{ padding: "6px 12px", background: "#2d3f4f", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Generate
               </button>
             </div>
           )}
-          <div style={{ padding: 8, borderTop: "1px solid #3c3c3c", background: "#252526" }}>
+          <div style={{ padding: 8, borderTop: "1px solid #2d3f4f", background: "#252526" }}>
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -630,7 +630,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 marginBottom: 8,
                 background: "#1E1E1E",
                 color: "#D4D4D4",
-                border: "1px solid #3c3c3c",
+                border: "1px solid #2d3f4f",
                 borderRadius: 4,
               }}
             />
@@ -652,7 +652,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             width: 28,
             flexShrink: 0,
             background: "#252526",
-            borderLeft: "1px solid #3c3c3c",
+            borderLeft: "1px solid #2d3f4f",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -688,7 +688,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               height: "80vh",
               background: "#1e1e1e",
               borderRadius: 8,
-              border: "1px solid #3c3c3c",
+              border: "1px solid #2d3f4f",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -699,7 +699,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               style={{
                 flexShrink: 0,
                 padding: "12px 16px",
-                borderBottom: "1px solid #3c3c3c",
+                borderBottom: "1px solid #2d3f4f",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -736,11 +736,11 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       )}
 
       {showGrokKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80" onClick={() => setShowGrokKeyModal(false)}>
-          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1e1e1e]/80" onClick={() => setShowGrokKeyModal(false)}>
+          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3c3c3c] text-[#d4d4d4] text-sm">Close</button>
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#2d3f4f] text-[#d4d4d4] text-sm">Close</button>
               <button type="button" onClick={() => { setShowGrokKeyModal(false); navigate("/settings"); }} className="px-3 py-2 rounded bg-[#007ACC] text-white text-sm">Open Settings</button>
             </div>
           </div>

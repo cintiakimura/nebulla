@@ -126,17 +126,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-text font-sans">
+    <div className="min-h-screen bg-[#1e1e1e] flex flex-col items-center justify-center p-6 text-[#d4d4d4] font-sans">
       <button
         onClick={() => navigate("/")}
-        className="absolute top-8 left-8 text-gray-400 hover:text-text flex items-center gap-2 transition-colors"
+        className="absolute top-8 left-8 text-[#9ca3af] hover:text-[#9cdcfe] flex items-center gap-2 transition-colors"
       >
         <ArrowLeft size={20} />
         Back
       </button>
 
-      <div className="w-full max-w-md bg-[#0a0a0a] border border-[#1e1e1e] rounded-2xl p-8 shadow-2xl">
-        <div className="text-3xl font-bold text-[#E0E0E0] tracking-tighter mb-2">kyn.</div>
+      <div className="w-full max-w-md bg-[#252526] border border-[#2d3f4f] rounded-2xl p-8 shadow-2xl">
+        <div className="text-3xl font-bold text-[#9cdcfe] tracking-tighter mb-2">kyn.</div>
         <p className="text-[#9ca3af] mb-6">Sign in to your account</p>
 
         {useSupabase ? (
@@ -157,14 +157,14 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={loading || !forgotEmail.trim()}
-                  className="w-full py-3 px-4 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 disabled:opacity-60 transition-all"
+                  className="w-full py-3 px-4 bg-[#007acc] text-white font-medium rounded-lg hover:bg-[#1a8ad4] disabled:opacity-60 transition-all"
                 >
                   {loading ? "…" : "Send reset link"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowForgotPassword(false); setError(null); setForgotSent(false); setForgotEmail(""); }}
-                  className="w-full text-sm text-[#9ca3af] hover:text-[#E0E0E0]"
+                  className="w-full text-sm text-[#9ca3af] hover:text-[#9cdcfe]"
                 >
                   Back to sign in
                 </button>
@@ -206,7 +206,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => { setShowForgotPassword(true); setError(null); setForgotSent(false); }}
-                  className="text-xs text-[#9ca3af] hover:text-[#E0E0E0]"
+                  className="text-xs text-[#9ca3af] hover:text-[#9cdcfe]"
                 >
                   Forgot password?
                 </button>
@@ -216,7 +216,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 disabled:opacity-60 transition-all"
+              className="w-full py-3 px-4 bg-[#007acc] text-white font-medium rounded-lg hover:bg-[#1a8ad4] disabled:opacity-60 transition-all"
             >
               {loading ? "…" : isSignUp ? "Create account" : "Sign in"}
             </button>
@@ -224,14 +224,14 @@ export default function Login() {
               type="button"
               onClick={handleGitHubSignIn}
               disabled={loading}
-              className="w-full py-3 px-4 bg-[#00BFFF] hover:bg-[#40d4ff] text-black font-medium rounded-lg hover:scale-105 disabled:opacity-60 transition-all"
+              className="w-full py-3 px-4 bg-[#264f78] hover:bg-[#1a8ad4] text-white font-medium rounded-lg disabled:opacity-60 transition-all"
             >
               Sign in with GitHub
             </button>
             <button
               type="button"
               onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
-              className="w-full text-sm text-[#9ca3af] hover:text-[#E0E0E0]"
+              className="w-full text-sm text-[#9ca3af] hover:text-[#9cdcfe]"
             >
               {isSignUp ? "Already have an account? Sign in" : "No account? Create one"}
             </button>
@@ -246,7 +246,7 @@ export default function Login() {
             <button
               onClick={handleOneClickSignIn}
               disabled={loading}
-              className="w-full py-3 px-4 bg-[#00BFFF] text-black font-medium rounded-lg hover:bg-[#40d4ff] hover:scale-105 disabled:opacity-60 transition-all"
+              className="w-full py-3 px-4 bg-[#007acc] text-white font-medium rounded-lg hover:bg-[#1a8ad4] disabled:opacity-60 transition-all"
             >
               {loading ? "…" : "Sign in"}
             </button>
@@ -254,7 +254,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => navigate("/settings")}
-                className="text-xs text-[#9ca3af] hover:text-[#E0E0E0]"
+                className="text-xs text-[#9ca3af] hover:text-[#9cdcfe]"
               >
                 Login with email
               </button>
