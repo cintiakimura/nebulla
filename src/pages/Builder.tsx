@@ -450,9 +450,11 @@ export default function Builder() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 503) setShowGrokKeyModal(true);
         const dataErr = (data as { error?: string })?.error;
         const details = (data as { details?: string })?.details;
+        const message = (data as { message?: string })?.message;
+        const grokRelated = res.status === 503 && [dataErr, details, message].some(s => typeof s === "string" && s.toLowerCase().includes("grok"));
+        if (grokRelated) setShowGrokKeyModal(true);
         let errMsg: string;
         if (res.status === 401) {
           errMsg = "Please sign in again.";
@@ -772,30 +774,30 @@ export default function Builder() {
   };
 
   return (
-    <div className="flex h-screen bg-[#1e1e1e] text-[#d4d4d4] overflow-hidden font-sans flex-col">
+    <div className="flex h-screen bg-background text-white overflow-hidden font-sans flex-col">
       <div className="flex flex-1 min-h-0">
       {/* Activity bar - blue-accented IDE style */}
-      <div className="w-12 bg-[#1e2a38] flex flex-col items-center py-4 border-r border-[#2d3f4f] z-10">
+      <div className="w-12 bg-[#1e2a38] flex flex-col items-center py-4 border-r border-border z-10">
         <button
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-[#007acc]/15 border-l-[#007acc]' : 'text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 border-l-transparent'}`}
+          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
           title="Explorer"
         >
           <FileCode size={24} strokeWidth={1.5} />
         </button>
         <button
           onClick={() => openTab('preview')}
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-[#007acc]/15 border-l-[#007acc]' : 'text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 border-l-transparent'}`}
+          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
           title="Live Preview"
         >
           <Eye size={24} strokeWidth={1.5} />
         </button>
-        <button className="p-2 text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 rounded-md mb-4 border-l-2 border-l-transparent" title="Projects" onClick={() => navigate("/builder")}>
+        <button className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md mb-4 border-l-2 border-l-transparent" title="Projects" onClick={() => navigate("/builder")}>
           <Layout size={24} strokeWidth={1.5} />
         </button>
         <div className="mt-auto flex flex-col gap-4">
           <button
             onClick={() => navigate("/settings")}
-            className="p-2 text-[#9ca3af] hover:text-[#007acc] hover:bg-[#007acc]/10 rounded-md border-l-2 border-l-transparent"
+            className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md border-l-2 border-l-transparent"
             title="Settings"
           >
             <Settings size={24} strokeWidth={1.5} />
@@ -804,13 +806,13 @@ export default function Builder() {
       </div>
 
       {/* Sidebar: Projects (when no project) or Explorer + Deploy (when project) */}
-      <div className="w-64 bg-[#252526] border-r border-[#2d3f4f] flex flex-col">
+      <div className="w-64 bg-sidebar-bg border-r border-border flex flex-col">
         {projectId && (
-          <div className="flex items-center gap-1 p-2 border-b border-[#2d3f4f]">
+          <div className="flex items-center gap-1 p-2 border-b border-border">
             <button
               type="button"
               onClick={() => { addLog("[Git]: Stage"); }}
-              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#1e3a5f] text-[#9cdcfe] hover:bg-[#264f78] transition-colors"
+              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#1e3a5f] text-primary hover:bg-[#264f78] transition-colors"
               title="Stage changes"
             >
               Stage
@@ -818,7 +820,7 @@ export default function Builder() {
             <button
               type="button"
               onClick={() => { addLog("[Git]: Commit"); }}
-              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#1e3a5f] text-[#9cdcfe] hover:bg-[#264f78] transition-colors"
+              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#1e3a5f] text-primary hover:bg-[#264f78] transition-colors"
               title="Commit"
             >
               Commit
@@ -826,7 +828,7 @@ export default function Builder() {
             <button
               type="button"
               onClick={() => { addLog("[Git]: Push"); if (paidStatus.paid) handleDeploy(); else { setProModalAction("deploy"); setProModalOpen(true); } }}
-              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-[#007acc] text-white hover:bg-[#1a8ad4] transition-colors"
+              className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-primary text-white hover:bg-primary/90 transition-colors"
               title="Push to GitHub"
             >
               Push
@@ -835,26 +837,26 @@ export default function Builder() {
         )}
         {!projectId ? (
           <>
-            <div className="p-3 text-xs font-semibold tracking-wider text-[#007acc] uppercase">Projects</div>
+            <div className="p-3 text-xs font-semibold tracking-wider text-primary uppercase">Projects</div>
             <div className="flex-1 overflow-auto">
               <button
                 type="button"
                 onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : setShowCreateProjectModal(true)}
                 disabled={atProjectLimit}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#d4d4d4] hover:bg-[#2a2d2e] disabled:opacity-50 disabled:cursor-not-allowed border-l-2 border-l-transparent"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[#2a2d2e] disabled:opacity-50 disabled:cursor-not-allowed border-l-2 border-l-transparent"
               >
                 <Plus size={16} />
                 New project
               </button>
               {projectsLoading ? (
-                <div className="px-3 py-2 text-xs text-[#9ca3af]">Loading…</div>
+                <div className="px-3 py-2 text-xs text-muted">Loading…</div>
               ) : (
                 projects.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => navigate(`/builder/${p.id}`)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[#9ca3af] hover:bg-[#2a2d2e] hover:text-white border-l-2 border-l-transparent"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-muted hover:bg-[#2a2d2e] hover:text-white border-l-2 border-l-transparent"
                   >
                     <FolderOpen size={14} />
                     <span className="truncate">{p.name}</span>
@@ -863,32 +865,32 @@ export default function Builder() {
               )}
             </div>
             {!paidStatus.paid && (
-              <div className="p-3 border-t border-[#2d3f4f] text-xs text-[#9ca3af]">
+              <div className="p-3 border-t border-border text-xs text-muted">
                 {projects.length}/{projectLimit} projects
               </div>
             )}
           </>
         ) : (
           <>
-            <div className="p-3 text-xs font-semibold tracking-wider text-[#007acc] uppercase">Explorer</div>
+            <div className="p-3 text-xs font-semibold tracking-wider text-primary uppercase">Explorer</div>
             <div className="flex-1 overflow-auto">
               <div
                 onClick={() => openTab('/App.tsx')}
-                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/App.tsx' ? 'bg-[#264f78] border-l-[#007acc] text-white' : 'border-l-transparent text-[#9ca3af] hover:bg-[#1e3a5f] hover:text-[#d4d4d4]'}`}
+                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/App.tsx' ? 'bg-[#264f78] border-l-primary text-white' : 'border-l-transparent text-muted hover:bg-[#1e3a5f] hover:text-white'}`}
               >
                 <FileCode size={14} className="text-[#569cd6]" />
                 App.tsx
               </div>
               <div
                 onClick={() => openTab('/package.json')}
-                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/package.json' ? 'bg-[#264f78] border-l-[#007acc] text-white' : 'border-l-transparent text-[#9ca3af] hover:bg-[#1e3a5f] hover:text-[#d4d4d4]'}`}
+                className={`px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2 border-l-2 ${activeTabId === '/package.json' ? 'bg-[#264f78] border-l-primary text-white' : 'border-l-transparent text-muted hover:bg-[#1e3a5f] hover:text-white'}`}
               >
                 <FileCode size={14} className="text-[#ce9178]" />
                 package.json
               </div>
             </div>
-            <div className="p-4 border-t border-[#2d3f4f] space-y-3">
-              <div className="text-xs font-semibold tracking-wider text-[#007acc] uppercase mb-2">Deploy</div>
+            <div className="p-4 border-t border-border space-y-3">
+              <div className="text-xs font-semibold tracking-wider text-primary uppercase mb-2">Deploy</div>
               {!paidStatus.paid ? (
                 <button
                   onClick={() => { setProModalAction('deploy'); setProModalOpen(true); }}
@@ -900,7 +902,7 @@ export default function Builder() {
                 <>
                   <button
                     onClick={() => handleExport()}
-                    className="w-full py-2 px-3 bg-[#1e3a5f] hover:bg-[#264f78] text-[#9cdcfe] text-sm rounded flex items-center justify-center gap-2 transition-colors"
+                    className="w-full py-2 px-3 bg-[#1e3a5f] hover:bg-[#264f78] text-primary text-sm rounded flex items-center justify-center gap-2 transition-colors"
                     title="Download zip: code, mind map, keys"
                   >
                     <Download size={16} />
@@ -921,20 +923,20 @@ export default function Builder() {
       </div>
 
       {/* Main area - project list (no project) or editor + preview (with project) */}
-      <div className="flex-1 flex flex-col min-w-0 w-full min-h-0 overflow-hidden bg-[#1e1e1e]">
+      <div className="flex-1 flex flex-col min-w-0 w-full min-h-0 overflow-hidden bg-editor-bg">
         {projectLoading ? (
-          <div className="flex-1 flex items-center justify-center bg-[#1e1e1e] text-[#9ca3af]">Loading project...</div>
+          <div className="flex-1 flex items-center justify-center bg-editor-bg text-muted">Loading project...</div>
         ) : !projectId ? (
           /* Project list / welcome - no project selected */
           <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center">
             <div className="max-w-lg w-full space-y-6">
-              <h1 className="text-xl font-medium text-[#e8e8e8] text-center">Build with Grok</h1>
-              <p className="text-sm text-[#9ca3af] text-center">Create a project and start coding. Chat with Grok on the right to plan or generate code.</p>
+              <h1 className="text-xl font-medium text-white text-center">Build with Grok</h1>
+              <p className="text-sm text-muted text-center">Create a project and start coding. Chat with Grok on the right to plan or generate code.</p>
               {createError && (
                 <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-300">{createError}</div>
               )}
               <div className="flex flex-col gap-3">
-                <label className="text-sm text-[#9ca3af]">Project name</label>
+                <label className="text-sm text-muted">Project name</label>
                 <input
                   type="text"
                   value={newProjectName}
@@ -942,34 +944,35 @@ export default function Builder() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      if (!atProjectLimit) createAndOpenProject(newProjectName.trim() || "New project");
+                      if (atProjectLimit) setUpgradeModalOpen(true);
+                      else createAndOpenProject(newProjectName.trim() || "New project");
                     }
                   }}
                   placeholder="e.g. My app, Dashboard, Landing page"
-                  className="w-full px-4 py-3 rounded-lg bg-[#252526] border border-[#2d3f4f] text-[#d4d4d4] placeholder-[#9ca3af] focus:border-[#007acc] focus:outline-none focus:ring-1 focus:ring-[#007acc]"
+                  className="w-full px-4 py-3 rounded-lg bg-sidebar-bg border border-border text-white placeholder-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <button
                   type="button"
                   onClick={() => atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(newProjectName.trim() || "New project")}
                   disabled={atProjectLimit}
-                  className="w-full py-3 px-4 rounded-lg bg-[#007acc] hover:bg-[#1a8ad4] text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full py-3 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Plus size={18} />
                   Create project
                 </button>
               </div>
               {projects.length > 0 && (
-                <div className="pt-4 border-t border-[#2d3f4f]">
-                  <p className="text-xs text-[#9ca3af] uppercase tracking-wider mb-2">Recent projects</p>
+                <div className="pt-4 border-t border-border">
+                  <p className="text-xs text-muted uppercase tracking-wider mb-2">Recent projects</p>
                   <div className="space-y-1">
                     {projects.slice(0, 5).map((p) => (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => navigate(`/builder/${p.id}`)}
-                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm text-[#d4d4d4] hover:bg-[#2a2d2e]"
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm text-white hover:bg-[#2a2d2e]"
                       >
-                        <FolderOpen size={14} className="text-[#9ca3af]" />
+                        <FolderOpen size={14} className="text-muted" />
                         {p.name}
                       </button>
                     ))}
@@ -981,7 +984,7 @@ export default function Builder() {
         ) : (
           <>
         {/* Tab bar - files and preview navigation */}
-        <div className="flex-shrink-0 h-11 bg-[#252526] flex items-center border-b border-[#2d3f4f] overflow-x-auto gap-0">
+        <div className="flex-shrink-0 h-11 bg-sidebar-bg flex items-center border-b border-border overflow-x-auto gap-0">
           {openTabs.map((tabId) => {
             const label = tabId === 'preview' ? 'Live Preview' : tabId === '/App.tsx' ? 'App.tsx' : 'package.json';
             const isActive = activeTabId === tabId;
@@ -989,7 +992,7 @@ export default function Builder() {
               <div
                 key={tabId}
                 onClick={() => setActiveTabId(tabId)}
-                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r border-[#2d3f4f] cursor-pointer flex-shrink-0 ${isActive ? 'bg-[#1e1e1e] border-t-2 border-t-[#007acc] text-white' : 'text-[#9ca3af] hover:bg-[#1e3a5f] hover:text-[#d4d4d4]'}`}
+                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r border-border cursor-pointer flex-shrink-0 ${isActive ? 'bg-editor-bg border-t-2 border-t-primary text-white' : 'text-muted hover:bg-[#1e3a5f] hover:text-white'}`}
               >
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
                 <span className="text-sm truncate">{label}</span>
@@ -1004,15 +1007,15 @@ export default function Builder() {
         </div>
 
         {/* Center content - preview/editor pane (dark blue #1e1e1e) */}
-        <div className="flex-1 min-h-0 relative overflow-hidden bg-[#1e1e1e]">
+        <div className="flex-1 min-h-0 relative overflow-hidden bg-editor-bg">
           {!setupComplete ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e] p-8">
-              <div className="max-w-md rounded-lg border border-[#2d3f4f] bg-[#252526] p-6 text-center">
-                <p className="text-[#d4d4d4] text-sm mb-4">Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
+            <div className="absolute inset-0 flex items-center justify-center bg-editor-bg p-8">
+              <div className="max-w-md rounded-lg border border-border bg-sidebar-bg p-6 text-center">
+                <p className="text-white text-sm mb-4">Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
                 <button
                   type="button"
                   onClick={() => navigate("/settings")}
-                  className="px-4 py-2 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded transition-colors"
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm rounded transition-colors"
                 >
                   Go to Settings
                 </button>
@@ -1027,22 +1030,22 @@ export default function Builder() {
             >
               <MonacoSync code={code} setCode={setCode} />
               {activeTabId === 'preview' && (
-                <div className="absolute inset-0 flex flex-col bg-[#1e1e1e]">
-                  <div className="flex-none h-8 bg-[#252526] border-b border-[#2d3f4f] flex items-center px-4">
-                    <span className="text-xs text-[#9ca3af] font-medium">Live Preview</span>
+                <div className="absolute inset-0 flex flex-col bg-editor-bg">
+                  <div className="flex-none h-8 bg-sidebar-bg border-b border-border flex items-center px-4">
+                    <span className="text-xs text-muted font-medium">Live Preview</span>
                   </div>
-                  <div className="absolute top-8 left-0 right-0 bottom-0 w-full bg-[#1e1e1e]">
+                  <div className="absolute top-8 left-0 right-0 bottom-0 w-full bg-editor-bg">
                     <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: '100%', width: '100%' }} />
                   </div>
                   {!paidStatus.paid && (
-                    <div className="absolute bottom-2 right-2 text-sm text-[#9ca3af] bg-[#252526]/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-[#2d3f4f]">
+                    <div className="absolute bottom-2 right-2 text-sm text-muted bg-sidebar-bg/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-border">
                       Kyn Sandbox – Upgrade for full access
                     </div>
                   )}
                 </div>
               )}
               {activeTabId === '/App.tsx' && (
-                <div className="absolute inset-0 w-full bg-[#1e1e1e]">
+                <div className="absolute inset-0 w-full bg-editor-bg">
                   <Editor
                     height="100%"
                     defaultLanguage="typescript"
@@ -1055,7 +1058,7 @@ export default function Builder() {
               )}
             </SandpackProvider>
           ) : (
-            <div className="absolute inset-0 w-full bg-[#1e1e1e]">
+            <div className="absolute inset-0 w-full bg-editor-bg">
               <Editor
                 height="100%"
                 defaultLanguage="json"
@@ -1070,38 +1073,38 @@ export default function Builder() {
 
         {/* Bottom panel: Terminal, Output, Problems (Cursor-style) */}
         {terminalOpen && (
-          <div className="h-48 min-h-[120px] bg-[#1e1e1e] border-t border-[#2d3f4f] flex flex-col flex-shrink-0">
-            <div className="h-9 flex items-center border-b border-[#2d3f4f] bg-[#1e2a38]">
+          <div className="h-48 min-h-[120px] bg-editor-bg border-t border-border flex flex-col flex-shrink-0">
+            <div className="h-9 flex items-center border-b border-border bg-[#1e2a38]">
               <div className="flex items-center h-full">
                 <button
                   onClick={() => setBottomPanelTab('terminal')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'terminal' ? 'border-[#007acc] text-[#9cdcfe] bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#9cdcfe] hover:bg-[#1e3a5f]'}`}
+                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'terminal' ? 'border-primary text-primary bg-editor-bg' : 'border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]'}`}
                 >
                   <TerminalIcon size={14} />
                   <span className="text-xs uppercase tracking-wider">Terminal</span>
                 </button>
                 <button
                   onClick={() => setBottomPanelTab('output')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'output' ? 'border-[#007acc] text-[#9cdcfe] bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#9cdcfe] hover:bg-[#1e3a5f]'}`}
+                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'output' ? 'border-primary text-primary bg-editor-bg' : 'border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]'}`}
                 >
                   <FileCode size={14} />
                   <span className="text-xs uppercase tracking-wider">Output</span>
                 </button>
                 <button
                   onClick={() => setBottomPanelTab('problems')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'problems' ? 'border-[#007acc] text-[#9cdcfe] bg-[#1e1e1e]' : 'border-transparent text-[#9ca3af] hover:text-[#9cdcfe] hover:bg-[#1e3a5f]'}`}
+                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'problems' ? 'border-primary text-primary bg-editor-bg' : 'border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]'}`}
                 >
                   <AlertCircle size={14} />
                   <span className="text-xs uppercase tracking-wider">Problems</span>
                 </button>
               </div>
               <div className="ml-auto flex items-center pr-2">
-                <button onClick={() => setTerminalOpen(false)} className="text-[#9ca3af] hover:text-white p-1.5 rounded hover:bg-[#2d3f4f]" title="Close panel">
+                <button onClick={() => setTerminalOpen(false)} className="text-muted hover:text-white p-1.5 rounded hover:bg-[#2d3f4f]" title="Close panel">
                   <X size={14} />
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-auto font-mono text-sm text-[#d4d4d4] min-h-0">
+            <div className="flex-1 overflow-auto font-mono text-sm text-white min-h-0">
               {bottomPanelTab === 'terminal' && (
                 <div className="p-4">
                   {logs.map((log, i) => (
@@ -1111,7 +1114,7 @@ export default function Builder() {
                     </div>
                   ))}
                   {listening && transcript && (
-                    <div className="text-[#9ca3af] italic mt-2">
+                    <div className="text-muted italic mt-2">
                       <span className="mr-2">~</span>
                       {transcript}...
                     </div>
@@ -1132,7 +1135,7 @@ export default function Builder() {
                 </div>
               )}
               {bottomPanelTab === 'problems' && (
-                <div className="p-4 text-[#9ca3af]">
+                <div className="p-4 text-muted">
                   <div className="text-xs text-[#6b7280] mb-2">No problems have been detected in the workspace.</div>
                 </div>
               )}
@@ -1141,7 +1144,7 @@ export default function Builder() {
         )}
 
         {/* Status Bar: same layout; free users see git label without click-to-upgrade if preferred, or keep as is */}
-        <div className="h-6 bg-[#007acc] text-white text-xs flex items-center px-3 justify-between">
+        <div className="h-6 bg-primary text-white text-xs flex items-center px-3 justify-between">
           <div className="flex items-center gap-4">
             {paidStatus.paid ? (
               <span className="flex items-center gap-1"><Github size={12} /> main*</span>
@@ -1155,7 +1158,7 @@ export default function Builder() {
             <span>Spaces: 2</span>
             <span>UTF-8</span>
             <span>TypeScript React</span>
-            <button onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-[#007acc]/20 px-1 rounded">
+            <button onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-primary/20 px-1 rounded">
               <TerminalIcon size={12} />
             </button>
           </div>
@@ -1165,16 +1168,16 @@ export default function Builder() {
       </div>
 
       {/* Chat Panel - same width as Explorer */}
-      <div className="w-64 bg-[#252526] border-l border-[#2d3f4f] flex flex-col flex-shrink-0">
-        <div className="p-3 text-xs font-semibold tracking-wider text-[#007acc] uppercase border-b border-[#2d3f4f]">Chat</div>
+      <div className="w-64 bg-sidebar-bg border-l border-border flex flex-col flex-shrink-0">
+        <div className="p-3 text-xs font-semibold tracking-wider text-primary uppercase border-b border-border">Chat</div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
           <input ref={fileInputRef} type="file" className="hidden" accept="image/*,*" onChange={handleFileSelect} />
-          <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? 'bg-[#007acc]/10 ring-1 ring-[#007acc]/50 rounded' : ''}`}>
+          <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? 'bg-primary/10 ring-1 ring-primary/50 rounded' : ''}`}>
             {chatMessages.map((msg) => (
               <div key={msg.id} className="group">
-                <div className="text-xs text-[#9ca3af] mb-0.5">{msg.role === 'user' ? 'You' : 'Assistant'}</div>
-                <div className="text-sm text-[#d4d4d4] select-text break-words pr-8">{msg.content}</div>
+                <div className="text-xs text-muted mb-0.5">{msg.role === 'user' ? 'You' : 'Assistant'}</div>
+                <div className="text-sm text-white select-text break-words pr-8">{msg.content}</div>
                 {msg.images && msg.images.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2">
                     {msg.images.map((url, i) => (
@@ -1183,7 +1186,7 @@ export default function Builder() {
                         src={url}
                         alt="Generated UI mockup"
                         loading="lazy"
-                        className="rounded-lg shadow-lg max-w-full border border-[#2d3f4f] bg-[#1e1e1e]"
+                        className="rounded-lg shadow-lg max-w-full border border-border bg-editor-bg"
                       />
                     ))}
                   </div>
@@ -1195,7 +1198,7 @@ export default function Builder() {
                       e.stopPropagation();
                       navigator.clipboard.writeText(msg.content);
                     }}
-                    className="p-1 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
+                    className="p-1 rounded hover:bg-[#2d3f4f] text-muted hover:text-white"
                     title="Copy"
                   >
                     <Copy size={12} />
@@ -1205,7 +1208,7 @@ export default function Builder() {
                       e.stopPropagation();
                       navigator.clipboard.writeText(window.location.href);
                     }}
-                    className="p-1 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
+                    className="p-1 rounded hover:bg-[#2d3f4f] text-muted hover:text-white"
                     title="Copy link"
                   >
                     <Link2 size={12} />
@@ -1216,13 +1219,13 @@ export default function Builder() {
             ))}
           </div>
           {listening && (
-            <div className="px-3 py-2 border-t border-[#2d3f4f] bg-[#1e1e1e]/60">
-              <div className="text-xs text-[#9ca3af] mb-1">Live transcription</div>
-              <div className="text-sm text-[#9ca3af] italic select-text">{transcript || '...'}</div>
+            <div className="px-3 py-2 border-t border-border bg-editor-bg/60">
+              <div className="text-xs text-muted mb-1">Live transcription</div>
+              <div className="text-sm text-muted italic select-text">{transcript || '...'}</div>
             </div>
           )}
           {/* Text input + Mic + Send. Fallback: no mic if browser doesn't support speech recognition. */}
-          <div className="flex-shrink-0 p-2 border-t border-[#2d3f4f] bg-[#252526]" onClick={e => e.stopPropagation()}>
+          <div className="flex-shrink-0 p-2 border-t border-border bg-sidebar-bg" onClick={e => e.stopPropagation()}>
             {listening && (
               <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
                 <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" aria-hidden />
@@ -1236,12 +1239,12 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-[#1e1e1e] border border-[#2d3f4f] text-sm text-white placeholder-[#6b7280] focus:border-[#007acc] focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg border border-border text-sm text-white placeholder-[#6b7280] focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
               />
               <span
-                className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#1e3a5f] text-[#9cdcfe] border border-[#2d3f4f] cursor-help"
+                className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#1e3a5f] text-primary border border-border cursor-help"
                 title="Fast reasoning model — unlimited chats on Pro"
               >
                 Powered by Grok 4.1 Fast
@@ -1251,7 +1254,7 @@ export default function Builder() {
                   type="button"
                   onClick={handleMicToggle}
                   disabled={readOnly}
-                  className={`p-1.5 rounded transition-colors shrink-0 ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'bg-red-500/20 text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f]'}`}
+                  className={`p-1.5 rounded transition-colors shrink-0 ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'bg-red-500/20 text-red-400' : 'text-muted hover:text-white hover:bg-[#2d3f4f]'}`}
                   title={readOnly ? "Upgrade for full access" : (listening ? 'Stop and send' : 'Voice input')}
                 >
                   {listening ? <MicOff size={14} /> : <Mic size={14} />}
@@ -1260,7 +1263,7 @@ export default function Builder() {
               <button
                 onClick={handleSendText}
                 disabled={!chatInput.trim() || readOnly}
-                className="p-1.5 rounded bg-[#007acc] text-white hover:bg-[#1a8ad4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="p-1.5 rounded bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={14} />
@@ -1269,11 +1272,11 @@ export default function Builder() {
           </div>
         </div>
         {/* Bottom toolbar: voice (small icon), Grok speaks (icon), paperclip, copy */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-1 py-1.5 px-2 border-t border-[#2d3f4f] bg-[#252526]">
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 py-1.5 px-2 border-t border-border bg-sidebar-bg">
           <button
             onClick={handleMicToggle}
             disabled={readOnly}
-            className={`p-2 rounded transition-colors ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'text-red-400' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f]'}`}
+            className={`p-2 rounded transition-colors ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'text-red-400' : 'text-muted hover:text-white hover:bg-[#2d3f4f]'}`}
             title={readOnly ? "Upgrade for full access" : (listening ? "Listening…" : "Open talk")}
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -1284,14 +1287,14 @@ export default function Builder() {
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
               return next;
             })}
-            className={`p-2 rounded transition-colors ${grokSpeaks ? 'text-[#4fc3f7] bg-[#094771]' : 'text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f]'}`}
+            className={`p-2 rounded transition-colors ${grokSpeaks ? 'text-[#4fc3f7] bg-[#094771]' : 'text-muted hover:text-white hover:bg-[#2d3f4f]'}`}
             title="Grok reads replies aloud (browser TTS)"
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-            className="p-2 rounded text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f] transition-colors"
+            className="p-2 rounded text-muted hover:text-white hover:bg-[#2d3f4f] transition-colors"
             title="Upload file"
           >
             <Paperclip size={16} />
@@ -1299,7 +1302,7 @@ export default function Builder() {
           {paidStatus.paid && (
           <button
             onClick={handleCopyLast}
-            className="p-2 rounded text-[#9ca3af] hover:text-[#d4d4d4] hover:bg-[#2d3f4f] transition-colors"
+            className="p-2 rounded text-muted hover:text-white hover:bg-[#2d3f4f] transition-colors"
             title="Copy last reply"
           >
             <Copy size={16} />
@@ -1321,12 +1324,12 @@ export default function Builder() {
 
       {/* Grok API key missing: 503 from agent/chat */}
       {showGrokKeyModal && (
-        <div className="fixed inset-0 bg-[#1e1e1e]/80 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
-          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm text-[#d4d4d4] mb-3">Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
+        <div className="fixed inset-0 bg-editor-bg/80 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+            <p className="text-sm text-white mb-3">Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#2d3f4f] text-[#d4d4d4] text-sm">Close</button>
-              <Link to="/settings" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded bg-[#007acc] text-white text-sm">Open Settings</Link>
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-border text-white text-sm">Close</button>
+              <Link to="/settings" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded bg-primary text-white text-sm">Open Settings</Link>
             </div>
           </div>
         </div>
@@ -1335,22 +1338,22 @@ export default function Builder() {
       {/* Rate limit modal: 429 too many requests */}
       {rateLimitModalOpen && (
         <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}>
-          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">Too many requests</span>
               {rateLimitCountdown <= 0 ? (
-                <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d3f4f]">
+                <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                   <X size={16} />
                 </button>
               ) : null}
             </div>
-            <p className="text-sm text-[#d4d4d4] mb-3">
+            <p className="text-sm text-white mb-3">
               Wait {rateLimitCountdown > 0 ? rateLimitCountdown : 0} second{rateLimitCountdown !== 1 ? "s" : ""} and try again, or upgrade for unlimited.
             </p>
             <Link
               to="/pricing"
               onClick={() => setRateLimitModalOpen(false)}
-              className="block w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded-lg transition-colors text-center"
+              className="block w-full py-2 px-3 bg-primary hover:bg-primary/90 text-white text-sm rounded-lg transition-colors text-center"
             >
               Upgrade for unlimited
             </Link>
@@ -1361,15 +1364,15 @@ export default function Builder() {
       {/* Upgrade modal: pick plan → Stripe Checkout (paid flow) */}
       {upgradeModalOpen && (
         <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
-          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">Upgrade to deploy</span>
-              <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d3f4f]">
+              <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
             </div>
             <div className="space-y-2">
-              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
+              <button onClick={() => startCheckout()} className="w-full py-2 px-3 bg-primary hover:bg-primary/90 text-white text-sm rounded">
                 Upgrade to Pro
               </button>
             </div>
@@ -1379,15 +1382,15 @@ export default function Builder() {
 
       {/* Create project: ask project name (e.g. from sidebar) */}
       {showCreateProjectModal && (
-        <div className="fixed inset-0 bg-[#1e1e1e]/80 flex items-center justify-center z-50" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }}>
-          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-editor-bg/80 flex items-center justify-center z-50" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }}>
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">New project</span>
-              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d3f4f]">
+              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
             </div>
-            <label className="block text-xs text-[#9ca3af] mb-2">Project name</label>
+            <label className="block text-xs text-muted mb-2">Project name</label>
             <input
               type="text"
               value={newProjectName}
@@ -1403,11 +1406,11 @@ export default function Builder() {
                 }
               }}
               placeholder="e.g. My app, Dashboard"
-              className="w-full px-3 py-2 rounded bg-[#1e1e1e] border border-[#2d3f4f] text-[#d4d4d4] placeholder-[#9ca3af] focus:border-[#007acc] focus:outline-none text-sm mb-4"
+              className="w-full px-3 py-2 rounded bg-editor-bg border border-border text-white placeholder-muted focus:border-primary focus:outline-none text-sm mb-4"
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="px-3 py-2 rounded border border-[#2d3f4f] text-[#d4d4d4] text-sm">Cancel</button>
+              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="px-3 py-2 rounded border border-border text-white text-sm">Cancel</button>
               <button
                 type="button"
                 onClick={() => {
@@ -1418,7 +1421,7 @@ export default function Builder() {
                     setNewProjectName("");
                   }
                 }}
-                className="px-3 py-2 rounded bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm"
+                className="px-3 py-2 rounded bg-primary hover:bg-primary/90 text-white text-sm"
               >
                 Create
               </button>

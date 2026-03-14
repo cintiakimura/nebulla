@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
-import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
-import { getApiBase } from "../lib/api";
+import { getSupabaseAuthClient, getSessionToken, clearSupabaseConfigCache, ensureSupabaseConfig } from "../lib/supabaseAuth";
+import { getApiBase, setApiBaseFallback, clearBackendUnavailable } from "../lib/api";
 import { isOpenMode } from "../lib/auth";
 import { SECRET_KEYS, getStoredSecret, setStoredSecret, type SecretKey } from "../lib/storedSecrets";
 import { getConnectedServices, setDomainVerified } from "../lib/setupStorage";
@@ -17,6 +17,7 @@ type Limits = { isPro?: boolean; paidUntil?: string };
 
 export default function Settings() {
   const navigate = useNavigate();
+  const [apiUrl, setApiUrl] = useState("");
   const [stripePriceId, setStripePriceId] = useState("");
   const [limits, setLimits] = useState<Limits | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
@@ -49,6 +50,11 @@ export default function Settings() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setApiUrl(getApiBase() || "");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (isOpenMode()) {
       setStripePriceId(localStorage.getItem(KEY_STRIPE_PRICE_ID) ?? "");
       setDomainVerifiedState(getConnectedServices().domainVerified);
@@ -61,6 +67,19 @@ export default function Settings() {
     setStripePriceId(localStorage.getItem(KEY_STRIPE_PRICE_ID) ?? "");
     setDomainVerifiedState(getConnectedServices().domainVerified);
   }, [navigate]);
+
+  const saveApiUrl = async () => {
+    const url = apiUrl.trim().replace(/\/$/, "").replace(/\/api$/i, "");
+    if (url) {
+      setApiBaseFallback(url);
+      clearBackendUnavailable();
+    } else {
+      setApiBaseFallback("");
+    }
+    clearSupabaseConfigCache();
+    window.dispatchEvent(new CustomEvent("kyn-api-base-changed"));
+    await ensureSupabaseConfig();
+  };
 
   useEffect(() => {
     const apiBase = getApiBase();
@@ -93,18 +112,22 @@ export default function Settings() {
 
   const connectGitHub = () => {
     const supabase = getSupabaseAuthClient();
-    if (supabase) {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
+    if (!supabase) {
+      alert("Cannot connect: API URL may be wrong or backend not reachable. Set API URL above to your backend, save, then reload the page and try again.");
+      return;
     }
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
   };
 
   const connectGoogle = () => {
     const supabase = getSupabaseAuthClient();
-    if (supabase) {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+    if (!supabase) {
+      alert("Cannot connect: API URL may be wrong or backend not reachable. Set API URL above to your backend, save, then reload the page and try again.");
+      return;
     }
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
   };
 
   const openManageSubscription = async () => {
@@ -136,18 +159,37 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e] text-[#d4d4d4] p-6 md:p-8">
+    <div className="min-h-screen bg-background text-white p-6 md:p-8">
       <div className="max-w-2xl mx-auto space-y-8">
         <h1 className="text-2xl font-semibold text-white">Settings</h1>
 
         <section className="space-y-2">
+          <h2 className="text-lg font-medium text-white">API URL</h2>
+          <p className="text-sm text-muted mb-2">
+            Only needed if Login or projects don’t load. Set this to the URL of your backend (e.g. <code className="bg-sidebar-bg px-1">https://your-api.vercel.app</code>). Leave empty if the app and API are on the same host.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="url"
+              placeholder="https://your-backend.example.com"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              className="flex-1 min-w-[200px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-[#9ca3af]"
+            />
+            <button type="button" onClick={saveApiUrl} className="px-3 py-2 bg-primary text-white rounded text-sm">
+              Save
+            </button>
+          </div>
+        </section>
+
+        <section className="space-y-2">
           <h2 className="text-lg font-medium text-white">Login</h2>
-          <p className="text-sm text-[#9ca3af] mb-3">Sign in with your account to sync projects and deploy.</p>
+          <p className="text-sm text-muted mb-3">Sign in with your account to sync projects and deploy.</p>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={connectGitHub} className="px-4 py-2 bg-[#264f78] hover:bg-[#1a8ad4] text-white text-sm rounded transition-colors">
+            <button type="button" onClick={connectGitHub} className="px-4 py-2 bg-primary/80 hover:bg-primary/90 text-white text-sm rounded transition-colors">
               Connect GitHub
             </button>
-            <button type="button" onClick={connectGoogle} className="px-4 py-2 bg-[#264f78] hover:bg-[#1a8ad4] text-white text-sm rounded transition-colors">
+            <button type="button" onClick={connectGoogle} className="px-4 py-2 bg-primary/80 hover:bg-primary/90 text-white text-sm rounded transition-colors">
               Connect Google
             </button>
           </div>
@@ -158,32 +200,32 @@ export default function Settings() {
           <button
             type="button"
             onClick={() => setSecretsOpen((o) => !o)}
-            className="flex items-center gap-2 text-sm text-[#d4d4d4] hover:text-[#9cdcfe]"
+            className="flex items-center gap-2 text-sm text-white hover:text-primary"
           >
             {secretsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             {secretsOpen ? "Hide" : "Show"} secrets
           </button>
           {secretsOpen && (
             <>
-              <p className="text-sm text-[#9ca3af] mb-2 mt-2">
+              <p className="text-sm text-muted mb-2 mt-2">
                 Optional. Values here override server .env. Stored in this browser only (localStorage).
               </p>
               <div className="space-y-3 max-w-xl">
                 {SECRET_KEYS.map((key) => (
                   <div key={key} className="flex flex-wrap items-center gap-2">
-                    <label className="text-sm font-medium text-[#d4d4d4] w-56 shrink-0">{key}</label>
+                    <label className="text-sm font-medium text-white w-56 shrink-0">{key}</label>
                     <input
                       type="password"
                       placeholder="optional"
                       value={secretValues[key] ?? ""}
                       onChange={(e) => setSecret(key, e.target.value)}
-                      className="flex-1 min-w-[200px] px-3 py-2 bg-[#1e1e1e] border border-[#2d3f4f] rounded text-sm text-[#d4d4d4] placeholder-[#9ca3af]"
+                      className="flex-1 min-w-[200px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-[#9ca3af]"
                       autoComplete="off"
                     />
                     <button
                       type="button"
                       onClick={() => saveSecret(key)}
-                      className="px-3 py-2 bg-[#007acc] text-white rounded text-sm shrink-0"
+                      className="px-3 py-2 bg-primary text-white rounded text-sm shrink-0"
                     >
                       {secretSaved === key ? "Saved" : "Save"}
                     </button>
@@ -202,9 +244,9 @@ export default function Settings() {
               placeholder="Stripe Price ID"
               value={stripePriceId}
               onChange={(e) => setStripePriceId(e.target.value)}
-              className="px-3 py-2 bg-[#252526] border border-[#2d3f4f] rounded text-sm text-white placeholder-[#9ca3af] max-w-xs"
+              className="px-3 py-2 bg-sidebar-bg border border-border rounded text-sm text-white placeholder-[#9ca3af] max-w-xs"
             />
-            <button type="button" onClick={saveStripePriceId} className="px-3 py-2 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded">
+            <button type="button" onClick={saveStripePriceId} className="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-sm rounded">
               Save
             </button>
           </div>
@@ -213,7 +255,7 @@ export default function Settings() {
         <section className="space-y-2">
           <h2 className="text-lg font-medium text-white">Subscription</h2>
           {limits?.isPro && (
-            <p className="text-sm text-[#9ca3af] mb-2">Pro</p>
+            <p className="text-sm text-muted mb-2">Pro</p>
           )}
           {limits?.paidUntil != null && new Date(limits.paidUntil) <= new Date() && (
             <div className="mb-3 p-3 bg-amber-500/15 border border-amber-500/40 rounded-lg text-sm text-amber-200">
@@ -224,7 +266,7 @@ export default function Settings() {
             type="button"
             onClick={openManageSubscription}
             disabled={billingLoading}
-            className="px-3 py-2 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded disabled:opacity-50 transition-colors"
+            className="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-sm rounded disabled:opacity-50 transition-colors"
           >
             {billingLoading ? "Opening…" : "Manage Subscription"}
           </button>
@@ -232,7 +274,7 @@ export default function Settings() {
 
         <section className="space-y-2">
           <h2 className="text-lg font-medium text-white">Domain / DNS</h2>
-          <p className="text-sm text-[#9ca3af] mb-2">
+          <p className="text-sm text-muted mb-2">
             Add these records at your DNS provider to use a custom domain. Backend handles deployment.
           </p>
           {domainVerified ? (
@@ -243,26 +285,26 @@ export default function Settings() {
             <>
               <div className="space-y-2 mb-2">
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-[#d4d4d4] text-xs">
+                  <code className="flex-1 px-2 py-1.5 bg-editor-bg rounded text-white text-xs">
                     A @ {VERCEL_DNS.A}
                   </code>
                   <button
                     type="button"
                     onClick={() => copyDns("A")}
-                    className="p-1.5 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
+                    className="p-1.5 rounded hover:bg-border text-muted hover:text-white"
                     title="Copy"
                   >
                     {dnsCopied === "A" ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-[#d4d4d4] text-xs">
+                  <code className="flex-1 px-2 py-1.5 bg-editor-bg rounded text-white text-xs">
                     CNAME www {VERCEL_DNS.CNAME}
                   </code>
                   <button
                     type="button"
                     onClick={() => copyDns("CNAME")}
-                    className="p-1.5 rounded hover:bg-[#2d3f4f] text-[#9ca3af] hover:text-white"
+                    className="p-1.5 rounded hover:bg-border text-muted hover:text-white"
                     title="Copy"
                   >
                     {dnsCopied === "CNAME" ? <Check size={14} /> : <Copy size={14} />}
@@ -270,17 +312,17 @@ export default function Settings() {
                 </div>
               </div>
               <div className="flex gap-3 text-xs mb-2">
-                <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-[#9cdcfe] hover:underline">
+                <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                   GoDaddy
                 </a>
-                <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-[#9cdcfe] hover:underline">
+                <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                   Cloudflare
                 </a>
               </div>
               <button
                 type="button"
                 onClick={handleVerifyDomain}
-                className="text-xs text-[#9cdcfe] hover:underline"
+                className="text-xs text-primary hover:underline"
               >
                 Mark as verified
               </button>

@@ -1,22 +1,27 @@
-/** Abyss theme: #0F172A background, #E0E0E0 text, #00BFFF accent, #FF6B6B secondary. No purple. */
+/** Dark blue theme: #1A1A2B background, white text, #007ACC strong blue accent. */
 export default {
   darkMode: "class",
   theme: {
     extend: {
       colors: {
-        primary: "#00BFFF",
-        secondary: "#FF6B6B",
-        background: "#0F172A",
-        text: "#E0E0E0",
+        primary: "#007ACC",
+        secondary: "#007ACC",
+        background: "#1A1A2B",
+        "editor-bg": "#1e1e32",
+        "sidebar-bg": "#252538",
+        text: "#ffffff",
+        muted: "#9ca3af",
+        border: "#2d3f4f",
         abyss: {
-          bg: "#0F172A",
-          text: "#E0E0E0",
-          accent: "#00BFFF",
-          "accent-hover": "#40d4ff",
-          secondary: "#FF6B6B",
+          bg: "#1A1A2B",
+          "editor-bg": "#1e1e32",
+          text: "#ffffff",
+          accent: "#007ACC",
+          "accent-hover": "#1a8ad4",
+          secondary: "#007ACC",
           muted: "#9ca3af",
-          border: "#1e293b",
-          hover: "#1e293b",
+          border: "#2d3f4f",
+          hover: "#2B3040",
         },
       },
       fontFamily: {

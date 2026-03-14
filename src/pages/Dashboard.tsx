@@ -857,13 +857,13 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 onChange={(e) => setWelcomeModalPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleWelcomeStart()}
                 placeholder="e.g. A todo app, a landing page..."
-                className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333333] rounded-lg text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none mb-4"
+                className="w-full px-4 py-3 bg-editor-bg border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none mb-4"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleWelcomeStart}
                   disabled={welcomeModalLoading || atProjectLimit}
-                  className="flex-1 py-2.5 bg-[#00BFFF] hover:bg-[#40d4ff] text-white font-medium rounded-lg disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg disabled:opacity-50"
                 >
                   {welcomeModalLoading ? "Creating…" : "Start"}
                 </button>
@@ -994,7 +994,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           )}
         </div>
         <button
-          className="p-3 rounded-lg bg-[#1e1e1e] text-white transition-colors"
+          className="p-3 rounded-lg bg-editor-bg text-white transition-colors"
           title="Projects"
         >
           <FolderOpen size={20} strokeWidth={1.5} />
@@ -1040,7 +1040,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             <div className="relative" ref={avatarRef}>
             <button
               onClick={() => setAvatarOpen((o) => !o)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#1e1e1e] transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-editor-bg transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-vs-accent flex items-center justify-center text-white text-sm font-medium">U</div>
               <ChevronDown size={16} className="text-gray-400" />
@@ -1090,7 +1090,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                   <button
                     onClick={() => (atProjectLimit ? setUpgradeModalOpen(true) : createAndOpenProject(startBuildingPrompt.trim() || "My first app"))}
                     disabled={atProjectLimit}
-                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-[#1e1e1e] text-[#9ca3af] cursor-not-allowed" : "bg-[#00BFFF] hover:bg-[#40d4ff] text-white hover:scale-105"}`}
+                    className={`mt-3 w-full py-2.5 font-medium rounded-lg transition-colors ${atProjectLimit ? "bg-editor-bg text-muted cursor-not-allowed" : "bg-primary hover:bg-primary/90 text-white hover:scale-105"}`}
                   >
                     Start building
                   </button>
@@ -1156,7 +1156,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                     placeholder="Search projects..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-[#252526] border border-[#333333] rounded-md text-sm text-white placeholder-gray-500 focus:border-[#555] outline-none"
+                    className="w-full pl-9 pr-3 py-2 bg-sidebar-bg border border-border rounded-md text-sm text-white placeholder-gray-500 focus:border-[#555] outline-none"
                   />
                 </div>
                 <div className="flex gap-1 p-1 bg-vs-editor rounded-lg border border-vs-border w-fit">
@@ -1164,7 +1164,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                     <button
                       key={t}
                       onClick={() => setTab(t)}
-                      className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${tab === t ? "bg-[#1e1e1e] text-white" : "text-gray-400 hover:text-white"}`}
+                      className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${tab === t ? "bg-editor-bg text-white" : "text-gray-400 hover:text-white"}`}
                     >
                       {t === "all" ? "All" : t === "deployed" ? "Deployed" : "Drafts"}
                     </button>
@@ -1178,7 +1178,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                     onClick={() => navigate(`/builder/${project.id}`)}
                     className="bg-vs-editor border border-vs-border rounded-lg overflow-hidden text-left hover:border-vs-hover transition-colors group"
                   >
-                    <div className="aspect-video bg-[#1e1e1e] flex items-center justify-center border-b border-[#333333]">
+                    <div className="aspect-video bg-editor-bg flex items-center justify-center border-b border-border">
                       {project.thumbnail ? (
                         <img src={project.thumbnail} alt="" className="w-full h-full object-cover" />
                       ) : (

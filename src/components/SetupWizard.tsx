@@ -64,7 +64,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-auto bg-[#1e1e1e]">
+    <div className="flex-1 flex flex-col min-h-0 overflow-auto bg-background">
       <div className="p-8 max-w-2xl mx-auto">
         <h1 className="text-xl font-semibold text-white mb-1">
           Connect Your Tools – One-Time Setup
@@ -95,7 +95,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
           </div>
 
           {/* Stripe */}
-          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <CreditCard size={24} className="text-gray-300" />
@@ -117,7 +117,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                   placeholder="Secret key (sk_...)"
                   value={stripeKey}
                   onChange={(e) => setStripeKeyState(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
+                  className="w-full px-3 py-2 bg-background border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-primary outline-none"
                 />
                 <button
                   type="submit"
@@ -131,7 +131,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
           </div>
 
           {/* Custom Domain */}
-          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium text-white">Add Custom (optional)</div>
               {services.domainVerified ? (
@@ -150,7 +150,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
             <div className="text-xs text-gray-500 mb-2">Add these at your DNS provider:</div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
+                <code className="flex-1 px-2 py-1.5 bg-background rounded text-gray-300 text-xs">
                   A @ {VERCEL_DNS.A}
                 </code>
                 <button
@@ -162,7 +162,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
+                <code className="flex-1 px-2 py-1.5 bg-background rounded text-gray-300 text-xs">
                   CNAME www {VERCEL_DNS.CNAME}
                 </code>
                 <button

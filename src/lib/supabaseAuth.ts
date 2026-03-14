@@ -17,8 +17,7 @@ function getCacheKey(url: string, key: string): string {
 /** Fetch Supabase url + anon key from backend (no env vars needed on frontend). */
 export async function fetchSupabaseConfig(): Promise<{ url: string; anonKey: string } | null> {
   if (typeof window === "undefined") return null;
-  const base = getApiBase();
-  if (!base) return null;
+  const base = getApiBase() || window.location.origin;
   try {
     const res = await fetch(`${base}/api/config`);
     if (!res.ok) return null;
@@ -39,6 +38,13 @@ export async function ensureSupabaseConfig(): Promise<void> {
     client = null;
     clientCacheKey = "";
   }
+}
+
+/** Clear cached Supabase config and client so next getSupabaseAuthClient() will refetch (e.g. after API URL change). */
+export function clearSupabaseConfigCache(): void {
+  cachedConfig = null;
+  client = null;
+  clientCacheKey = "";
 }
 
 export function getSupabaseAuthClient(): SupabaseClient | null {

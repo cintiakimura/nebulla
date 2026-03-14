@@ -1,35 +1,35 @@
 @import "tailwindcss";
 
-/* Abyss theme — #0F172A background, #E0E0E0 text, #00BFFF accent, #FF6B6B secondary. No purple. */
+/* Dark blue theme — #1A1A2B background, white text, #007ACC strong blue accent. */
 @theme inline {
-  --color-vs-bg: #0F172A;
-  --color-vs-editor: #0F172A;
-  --color-vs-accent: #00BFFF;
-  --color-vs-foreground: #E0E0E0;
+  --color-vs-bg: #1A1A2B;
+  --color-vs-editor: #1e1e32;
+  --color-vs-accent: #007ACC;
+  --color-vs-foreground: #ffffff;
   --color-vs-muted: #9ca3af;
-  --color-vs-hover: #1e293b;
-  --color-vs-border: #1e293b;
-  --color-vs-status: #0F172A;
-  --color-vs-secondary: #FF6B6B;
+  --color-vs-hover: #2B3040;
+  --color-vs-border: #2d3f4f;
+  --color-vs-status: #1A1A2B;
+  --color-vs-secondary: #007ACC;
 }
 
 @layer base {
   :root {
-    --color-primary: #00BFFF;
-    --color-background: #0F172A;
-    --color-text: #E0E0E0;
-    --bg-primary: #0F172A;
-    --bg-editor: #0F172A;
-    --bg-sidebar: #0F172A;
-    --accent: #00BFFF;
-    --accent-hover: #40d4ff;
-    --secondary: #FF6B6B;
-    --text-primary: #E0E0E0;
+    --color-primary: #007ACC;
+    --color-background: #1A1A2B;
+    --color-text: #ffffff;
+    --bg-primary: #1A1A2B;
+    --bg-editor: #1e1e32;
+    --bg-sidebar: #252538;
+    --accent: #007ACC;
+    --accent-hover: #1a8ad4;
+    --secondary: #007ACC;
+    --text-primary: #ffffff;
     --text-secondary: #9ca3af;
-    --hover: #1e293b;
-    --status-bg: #0F172A;
-    --border: #1e293b;
-    --border-subtle: #0f172a;
+    --hover: #2B3040;
+    --status-bg: #1A1A2B;
+    --border: #2d3f4f;
+    --border-subtle: #1e1e32;
     --syntax-string: #ce9178;
     --syntax-keyword: #569cd6;
     --syntax-function: #dcdcaa;
