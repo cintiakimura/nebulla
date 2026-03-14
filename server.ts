@@ -138,7 +138,7 @@ async function startServer() {
 
   // Temp bypass: open-mode fallback user "open-dev-user" with no auth → return empty list so dashboard loads (stops 404).
   app.get("/api/users/open-dev-user/projects", (_req, res) => {
-    console.log("Bypass route hit");
+    console.log("Bypass hit for open-dev-user");
     res.status(200).json([]);
   });
 
