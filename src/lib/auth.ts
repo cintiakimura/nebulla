@@ -5,7 +5,6 @@ import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "./ap
  * Open mode (no login, no pay walls): when VITE_OPEN_MODE is set OR host is cintiakimura.eu.
  */
 const KEY_USER_ID = "kyn_user_id";
-const KEY_OPEN_MODE_USER_ID = "kyn_open_mode_user_id";
 
 const DASHBOARD_DOMAIN = "cintiakimura.eu";
 
@@ -17,32 +16,11 @@ export function isOpenMode(): boolean {
   return h === "localhost" || h === "127.0.0.1" || h === DASHBOARD_DOMAIN || h === `www.${DASHBOARD_DOMAIN}`;
 }
 
-async function getOpenModeFallbackUserId(): Promise<string | null> {
-  const apiBase = getApiBase();
-  if (!apiBase) return null;
-  try {
-    const res = await fetch(`${apiBase}/api/config`);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { openModeFallbackUserId?: string | null };
-    const id = data.openModeFallbackUserId?.trim();
-    return id || null;
-  } catch {
-    return null;
-  }
-}
-
 export async function getUserId(): Promise<string> {
   if (typeof window === "undefined") return "";
-  if (isOpenMode()) {
-    let fallback = localStorage.getItem(KEY_OPEN_MODE_USER_ID);
-    if (fallback) return fallback;
-    fallback = await getOpenModeFallbackUserId();
-    if (fallback) {
-      localStorage.setItem(KEY_OPEN_MODE_USER_ID, fallback);
-      return fallback;
-    }
-    return "open-dev-user";
-  }
+  // Open mode: always use "open-dev-user" so API requests hit /api/users/open-dev-user/projects
+  // (Vercel serverless only handles that path; using a UUID from /api/config would 404).
+  if (isOpenMode()) return "open-dev-user";
   let userId = localStorage.getItem(KEY_USER_ID);
   if (userId) return userId;
   const apiBase = getApiBase();

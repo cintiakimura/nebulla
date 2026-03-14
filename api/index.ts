@@ -31,6 +31,20 @@ const defaultCode = `export default function App() {
 }`;
 const defaultPackageJson = JSON.stringify({ name: "kyn-app", private: true, version: "0.0.0" }, null, 2);
 
+/** Serve /api/config so frontend gets Supabase url + anon key for OAuth (e.g. Connect GitHub). No server load. */
+function handleConfig(method: string, pathname: string, res: VercelResponse): boolean {
+  if (method !== "GET" || pathname !== "/api/config") return false;
+  const supabaseUrl = (process.env.SUPABASE_URL ?? "").trim();
+  const supabaseAnon = (process.env.SUPABASE_ANON_KEY ?? "").trim();
+  const openModeFallbackUserId = (process.env.OPEN_MODE_FALLBACK_USER_ID ?? "").trim() || null;
+  res.status(200).json({
+    supabaseUrl: supabaseUrl && supabaseUrl !== "PLACEHOLDER" ? supabaseUrl : "",
+    supabaseAnonKey: supabaseAnon && supabaseAnon !== "PLACEHOLDER" ? supabaseAnon : "",
+    openModeFallbackUserId,
+  });
+  return true;
+}
+
 function isOpenDevUserPath(pathname: string): boolean {
   return pathname === OPEN_DEV_PATH || pathname.startsWith(OPEN_DEV_PATH + "/");
 }
@@ -373,6 +387,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pathname = "/api" + (pathSeg ? `/${pathSeg}` : "");
   (req as unknown as { url: string }).url = pathname;
   console.log("[api/index]", req.method, pathname);
+
+  if (handleConfig(req.method ?? "GET", pathname, res)) return;
 
   const handled = await handleOpenDevUser(req.method ?? "GET", req, res, pathname);
   if (handled) return;

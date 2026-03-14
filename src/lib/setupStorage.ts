@@ -2,6 +2,7 @@
  * One-time setup state. Persisted in localStorage.
  * In production would sync to user account / encrypted vault.
  */
+import { isOpenMode } from "./auth";
 
 const KEY_COMPLETE = "kyn_setup_complete";
 const KEY_SUPABASE = "kyn_supabase_creds";
@@ -21,6 +22,8 @@ export type ConnectedServices = {
 
 export function getSetupComplete(): boolean {
   if (typeof window === "undefined") return false;
+  // Open mode: treat as complete so Builder/Grok work without running the setup wizard.
+  if (isOpenMode()) return true;
   return localStorage.getItem(KEY_COMPLETE) === "true";
 }
 

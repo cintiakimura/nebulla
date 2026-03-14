@@ -18,8 +18,9 @@ function getCacheKey(url: string, key: string): string {
 export async function fetchSupabaseConfig(): Promise<{ url: string; anonKey: string } | null> {
   if (typeof window === "undefined") return null;
   const base = getApiBase() || window.location.origin;
+  const configUrl = base.endsWith("/api") ? `${base}/config` : `${base}/api/config`;
   try {
-    const res = await fetch(`${base}/api/config`);
+    const res = await fetch(configUrl);
     if (!res.ok) return null;
     const data = (await res.json()) as { supabaseUrl?: string; supabaseAnonKey?: string };
     const url = data.supabaseUrl?.trim();
