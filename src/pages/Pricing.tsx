@@ -27,7 +27,7 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#E0E0E0] font-sans selection:bg-[#00BFFF]/30 p-6">
+    <div className="min-h-screen bg-background text-text font-sans selection:bg-primary/30 p-6">
       <nav className="max-w-6xl mx-auto flex items-center justify-between mb-20">
         <button
           onClick={() => navigate("/")}

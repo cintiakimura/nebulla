@@ -86,7 +86,7 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] bg-black/50"
+        className="fixed inset-0 z-[100] bg-background/80"
         onClick={onClose}
         aria-hidden="true"
       />

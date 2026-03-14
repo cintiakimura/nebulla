@@ -126,10 +126,10 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center p-6 text-[#E0E0E0] font-sans">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-text font-sans">
       <button
         onClick={() => navigate("/")}
-        className="absolute top-8 left-8 text-[#9ca3af] hover:text-[#E0E0E0] flex items-center gap-2 transition-colors"
+        className="absolute top-8 left-8 text-gray-400 hover:text-text flex items-center gap-2 transition-colors"
       >
         <ArrowLeft size={20} />
         Back
@@ -149,7 +149,7 @@ export default function Login() {
                   placeholder="you@example.com"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#000000] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] outline-none"
+                  className="w-full px-4 py-3 bg-[#0F172A] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] outline-none"
                   autoComplete="email"
                 />
                 {error && <p className="text-xs text-amber-500/90">{error}</p>}
@@ -184,7 +184,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-3 bg-[#000000] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-[#0F172A] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none"
                   autoComplete="email"
                 />
               </div>
@@ -198,7 +198,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-[#000000] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-[#0F172A] border border-[#1e1e1e] rounded-lg text-[#E0E0E0] placeholder-[#9ca3af] focus:border-[#00BFFF] focus:ring-1 focus:ring-[#00BFFF] outline-none"
                   autoComplete={isSignUp ? "new-password" : "current-password"}
                 />
               </div>

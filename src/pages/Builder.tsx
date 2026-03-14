@@ -762,11 +762,8 @@ export default function Builder() {
                     <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: '100%', width: '100%' }} />
                   </div>
                   {!paidStatus.paid && (
-                    <div
-                      className="absolute bottom-2 right-2 text-[10px] text-[#6b7280] pointer-events-none select-none z-10"
-                      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-                    >
-                      Lumen Academy – Upgrade for full code & deploy
+                    <div className="absolute bottom-2 right-2 text-sm text-gray-500 bg-background/80 px-2 py-1 rounded pointer-events-none select-none z-10">
+                      Kyn Sandbox – Upgrade for full access
                     </div>
                   )}
                 </div>
@@ -1016,9 +1013,9 @@ export default function Builder() {
 
       {/* Grok API key missing: 503 from agent/chat */}
       {showGrokKeyModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
+        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
           <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat and voice.</p>
+            <p className="text-sm text-[#d4d4d4] mb-3">Service down—try later. Use text chat or type instead.</p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3d3d4d] text-[#d4d4d4] text-sm">Close</button>
               <Link to="/settings" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded bg-vs-accent text-white text-sm">Open Settings</Link>
@@ -1029,7 +1026,7 @@ export default function Builder() {
 
       {/* Rate limit modal: 429 too many requests */}
       {rateLimitModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}>
+        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}>
           <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">Too many requests</span>
@@ -1055,7 +1052,7 @@ export default function Builder() {
 
       {/* Upgrade modal: pick plan → Stripe Checkout (paid flow) */}
       {upgradeModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
+        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
           <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-white">Upgrade to deploy</span>

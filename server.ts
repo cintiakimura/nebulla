@@ -100,7 +100,7 @@ function getGrokApiKey(): string | null {
   return key;
 }
 
-const SERVICE_UNAVAILABLE_MSG = "Service unavailable—contact support";
+const SERVICE_UNAVAILABLE_MSG = "Service down—try later";
 
 async function startServer() {
   const app = express();

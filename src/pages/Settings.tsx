@@ -173,7 +173,7 @@ export default function Settings() {
         <section>
           <h2>Backend URL</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            URL where your <strong>backend</strong> runs (server.ts), e.g. <code className="bg-black/20 px-1">https://api.yourdomain.com</code> or <code className="bg-black/20 px-1">https://your-app.onrender.com</code>. Not your frontend site (e.g. www.cintiakimura.eu) — the API must be served by a separate backend. Do not paste API keys here.
+            URL where your <strong>backend</strong> runs (server.ts), e.g. <code className="bg-background/30 px-1">https://api.yourdomain.com</code> or <code className="bg-background/30 px-1">https://your-app.onrender.com</code>. Not your frontend site (e.g. www.cintiakimura.eu) — the API must be served by a separate backend. Do not paste API keys here.
           </p>
           <input
             type="url"

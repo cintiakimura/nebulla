@@ -116,7 +116,7 @@ export function useBidirectionalVoiceAgent(apiBase: string, options: {
       return;
     }
     if (!token) {
-      onError?.(grokKeyMissing ? "Service unavailable—contact support." : "Voice token not available. Contact support.");
+      onError?.(grokKeyMissing ? "Service down—try later" : "Service down—try later");
       setStatus("error");
       return;
     }

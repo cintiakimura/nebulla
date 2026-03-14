@@ -412,7 +412,7 @@ export default function MasterPlanBrainstorming() {
       </aside>
 
       {showGrokKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowGrokKeyModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80" onClick={() => setShowGrokKeyModal(false)}>
           <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat.</p>
             <div className="flex justify-end gap-2">

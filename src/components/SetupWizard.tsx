@@ -147,7 +147,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                 >
                   Set up Supabase <ExternalLink size={12} />
                 </a>
-                <div className="space-y-2">
+                <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); handleSaveSupabase(); }}>
                   <input
                     type="url"
                     placeholder="Project URL"
@@ -163,13 +163,13 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                     className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
                   />
                   <button
-                    onClick={handleSaveSupabase}
+                    type="submit"
                     disabled={!supabaseUrl.trim() || !supabaseAnonKey.trim()}
                     className="px-3 py-1.5 bg-[#333] hover:bg-[#444] disabled:opacity-50 text-white text-sm rounded transition-colors"
                   >
                     Save
                   </button>
-                </div>
+                </form>
               </>
             )}
           </div>
@@ -214,7 +214,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
               ) : null}
             </div>
             {!services.stripe && (
-              <div className="space-y-2">
+              <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); handleSaveStripe(); }}>
                 <input
                   type="password"
                   placeholder="Secret key (sk_...)"
@@ -223,13 +223,13 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
                   className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
                 />
                 <button
-                  onClick={handleSaveStripe}
+                  type="submit"
                   disabled={!stripeKey.trim()}
                   className="px-3 py-1.5 bg-[#333] hover:bg-[#444] disabled:opacity-50 text-white text-sm rounded transition-colors"
                 >
                   Connect
                 </button>
-              </div>
+              </form>
             )}
           </div>
 

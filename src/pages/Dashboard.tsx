@@ -29,6 +29,7 @@ import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
 import { speakWithSpeechSynthesisFallback } from "../lib/grokVoiceAgent";
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
+import VoiceFallback from "../components/VoiceFallback";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
 import {
@@ -203,10 +204,9 @@ export default function Dashboard() {
       });
     },
     onError(msg) {
-      if (msg.includes("Add your Grok") || msg.includes("Settings")) {
-        setSettingsDrawerMessage("Add your Grok API key below to use chat and voice.");
-        setSettingsDrawerOpen(true);
-      } else setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or contact support.` }]);
+      setUseVoiceAgentWs(false);
+      setSettingsDrawerMessage("Service down—try later");
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice unavailable: ${msg}. Use "Type instead" or text chat.` }]);
     },
   });
 
@@ -308,6 +308,32 @@ export default function Dashboard() {
   }, []);
 
 
+  // Send user text to chat API (used by VoiceFallback and voice effect)
+  const sendUserText = useCallback(async (text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    const apiBase = getApiBase() || "";
+    const userId = await getUserId();
+    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+    const messages = [...history, { role: "user" as const, content: t }];
+    try {
+      const res = await fetch(`${apiBase}/api/agent/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages, userId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+      if (res.status === 503) setSettingsDrawerMessage("Service down—try later");
+      const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service down—try later");
+      const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: t };
+      const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
+      setChatMessages((prev) => [...prev, userMsg, assistantMsg]);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Network error";
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", content: t }, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${err}` }]);
+    }
+  }, [chatMessages]);
+
   // When user stops speaking (mic off), send transcript to Grok and play reply via TTS (only when NOT using bidirectional Voice Agent WS)
   const voiceCancelRef = useRef(false);
   useEffect(() => {
@@ -334,10 +360,10 @@ export default function Dashboard() {
         if (voiceCancelRef.current) return;
         const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
         if (res.status === 503) {
-          setSettingsDrawerMessage("Service unavailable—contact support.");
+          setSettingsDrawerMessage("Service down—try later");
           setSettingsDrawerOpen(true);
         }
-        const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service unavailable—contact support.");
+        const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service down—try later");
 
         const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text };
         const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
@@ -351,7 +377,7 @@ export default function Dashboard() {
               body: JSON.stringify({ text: content.slice(0, 4096), voice_id: "eve" }),
             });
             if (ttsRes.status === 503) {
-              setSettingsDrawerMessage("Service unavailable—contact support.");
+              setSettingsDrawerMessage("Service down—try later");
               setSettingsDrawerOpen(true);
             }
             if (ttsRes.ok && !voiceCancelRef.current) {
@@ -526,7 +552,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         body: JSON.stringify({ messages: [...history, { role: "user", content: MIND_MAP_PROMPT }], userId: await getUserId() }),
       });
       if (res.status === 503) {
-        setSettingsDrawerMessage("Add your Grok API key below to generate the mind map.");
+        setSettingsDrawerMessage("Service down—try later");
         setSettingsDrawerOpen(true);
       }
       const data = (await res.json().catch(() => ({}))) as { message?: { content?: string } };
@@ -618,9 +644,9 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           body: JSON.stringify({ messages }),
         });
         if (res.status === 503) {
-          setSettingsDrawerMessage("Add your Grok API key below to run the VETR debugging test.");
+          setSettingsDrawerMessage("Service down—try later");
           setSettingsDrawerOpen(true);
-          setVetrProgress("Service unavailable—contact support.");
+          setVetrProgress("Service down—try later.");
           setVetrResult("Grok not available. Add your API key in Settings.");
           done = true;
           break;
@@ -733,7 +759,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       {/* First-load welcome modal: no projects ever, after first-login flow */}
       <AnimatePresence>
         {showWelcomeModal && (
-          <div className="fixed inset-0 z-[99] flex items-center justify-center p-4 bg-black/70">
+          <div className="fixed inset-0 z-[99] flex items-center justify-center p-4 bg-background/90">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -778,7 +804,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           />
         )}
         {testReportOpen && (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setTestReportOpen(false)}>
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-background/80" onClick={() => setTestReportOpen(false)}>
             <div
               className="bg-vs-editor border border-vs-border rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
@@ -1193,6 +1219,12 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             {listening && !useVoiceAgentWs && transcript && (
               <div className="mt-2 text-xs text-gray-500 italic truncate" title={transcript}>{transcript}</div>
             )}
+            {voiceAgentStatus === "error" && (
+              <div className="mt-2 flex flex-col gap-2">
+                <span className="text-xs text-vs-muted">Service down—try later.</span>
+                <VoiceFallback onTextSubmit={sendUserText} />
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -1245,7 +1277,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         </div>
       </div>
       {mindMapOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setMindMapOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4" onClick={() => setMindMapOpen(false)}>
           <div className="w-full max-w-4xl h-[80vh] bg-vs-editor border border-vs-border rounded-lg shadow-xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-3 border-b border-vs-border">
               <span className="text-sm font-medium text-gray-300">Mind map</span>

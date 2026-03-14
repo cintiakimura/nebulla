@@ -4,7 +4,7 @@ export default function Landing() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#E0E0E0] font-sans selection:bg-[#00BFFF]/30 antialiased">
+    <div className="min-h-screen bg-background text-text font-sans selection:bg-primary/30 antialiased">
       <header className="flex justify-end gap-4 px-6 py-4 border-b border-[#1e1e1e]">
         <button
           onClick={() => navigate("/login")}
