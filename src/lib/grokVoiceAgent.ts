@@ -92,8 +92,9 @@ export function speakViaVoiceAgent(
     const audioChunks: string[] = [];
     let transcriptParts: string[] = [];
     let audioContext: AudioContext | null = null;
-    let resolveOnce = (r: VoiceAgentResult) => {
-      resolveOnce = () => {};
+    const noop = () => {};
+    let resolveOnce: (r: VoiceAgentResult) => void = (r: VoiceAgentResult) => {
+      resolveOnce = noop;
       resolve(r);
       onDone?.();
     };
@@ -165,7 +166,7 @@ export function speakViaVoiceAgent(
       ws.close();
     };
     ws.onclose = () => {
-      if (audioChunks.length > 0 && audioContext && resolveOnce !== (() => {})) {
+      if (audioChunks.length > 0 && audioContext && resolveOnce !== noop) {
         try {
           const combined = audioChunks.join("");
           const pcm = base64ToPcm16(combined);
@@ -174,7 +175,7 @@ export function speakViaVoiceAgent(
         } catch {
           resolveOnce("fallback");
         }
-      } else if (resolveOnce !== (() => {})) {
+      } else if (resolveOnce !== noop) {
         resolveOnce("fallback");
       }
       onDone?.();
@@ -198,6 +199,11 @@ export function speakWithSpeechSynthesisFallback(
   onEnd?: () => void
 ): () => void {
   if (typeof window === "undefined" || !window.speechSynthesis) {
+    onEnd?.();
+    return () => {};
+  }
+  // VETR_TEST_BUG: disable TTS fallback so audit can detect failure — remove this block to restore
+  if (text.length > 0) {
     onEnd?.();
     return () => {};
   }

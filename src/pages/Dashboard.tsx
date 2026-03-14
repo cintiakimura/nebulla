@@ -32,7 +32,18 @@ import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
 import { getGrokRequestHeaders, hasStoredSecret } from "../lib/storedSecrets";
-import { VETR_SYSTEM_PROMPT, buildVETRUserMessage, parseVETROutput, type VETRSection } from "../lib/vetrPrompt";
+import {
+  fetchUnbreakableRules,
+  getVETRSystemPrompt,
+  buildVETRUserMessage,
+  buildVETRContinuationMessage,
+  buildVETRFreshStartMessage,
+  parseVETROutput,
+  parseVETRTermination,
+  getCurrentPhase,
+  extractNewFailures,
+  type VETRSection,
+} from "../lib/vetrPrompt";
 import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 import UpgradeProModal from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
@@ -106,6 +117,9 @@ export default function Dashboard() {
   const [testLoading, setTestLoading] = useState(false);
   const [vetrResult, setVetrResult] = useState<string | null>(null);
   const [vetrLoading, setVetrLoading] = useState(false);
+  const [vetrIteration, setVetrIteration] = useState(0);
+  const [vetrProgress, setVetrProgress] = useState<string>("");
+  const [vetrFreshStartTriggered, setVetrFreshStartTriggered] = useState(false);
   const [startBuildingPrompt, setStartBuildingPrompt] = useState("");
   const [welcomeModalPrompt, setWelcomeModalPrompt] = useState("");
   const [welcomeModalLoading, setWelcomeModalLoading] = useState(false);
@@ -528,7 +542,8 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const data = (await res.json().catch(() => ({}))) as { message?: { content?: string } };
       const content = data.message?.content ?? "";
       const jsonMatch = content.match(/\{[\s\S]*"nodes"[\s\S]*"edges"[\s\S]*\}/) || content.match(/\{[\s\S]*\}/);
-      const raw = jsonMatch ? jsonMatch[0] : content;
+      // VETR_TEST_BUG: append "]" to break JSON parse — remove to restore
+      const raw = jsonMatch ? jsonMatch[0] + "]" : content;
       let parsed: MindMapData | null = null;
       try {
         parsed = JSON.parse(raw) as MindMapData;
@@ -578,6 +593,9 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
     console.log("[VETR] Phase 0: Starting audit…");
     setTestLoading(true);
     setVetrResult(null);
+    setVetrIteration(0);
+    setVetrProgress("Running audit…");
+    setVetrFreshStartTriggered(false);
     setTestReportOpen(true);
     try {
       const results = await runQuickAudit(apiBase);
@@ -585,45 +603,86 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const reportText = results.map((r) => `[${r.ok ? "PASS" : "FAIL"}] ${r.name}${r.detail ? " — " + r.detail : ""}`).join("\n");
       const failCount = results.filter((r) => !r.ok).length;
       console.log("[VETR] Phase 0 done. Failures:", failCount);
+
+      setVetrProgress("Loading UNBREAKABLE RULES…");
+      const unbreakableRules = await fetchUnbreakableRules();
+
       setVetrLoading(true);
-      try {
-        console.log("[VETR] Phase 1–7: Requesting Grok self-debug…");
+      const messages: { role: string; content: string }[] = [];
+      const MAX_ITERATIONS = 7;
+      let feedback = reportText;
+      let previousOutput = "";
+      let iteration = 1;
+      let done = false;
+      let triggerFreshStart = false;
+
+      const initialUser =
+        getVETRSystemPrompt(1, unbreakableRules) + "\n\n" + buildVETRUserMessage(reportText);
+      messages.push({ role: "user", content: initialUser });
+
+      while (iteration <= MAX_ITERATIONS && !done) {
+        setVetrIteration(iteration);
+        setVetrProgress(`Running VETR Iteration ${iteration}/${MAX_ITERATIONS} — calling Grok…`);
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
-          body: JSON.stringify({
-            messages: [
-              { role: "user", content: `${VETR_SYSTEM_PROMPT}\n\n${buildVETRUserMessage(reportText)}` },
-            ],
-          }),
+          body: JSON.stringify({ messages }),
         });
         if (res.status === 503) {
           setSettingsDrawerMessage("Add your Grok API key below to run the VETR debugging test.");
           setSettingsDrawerOpen(true);
+          setVetrProgress("Grok key required. Add your API key in Settings.");
+          setVetrResult("Grok not available. Add your API key in Settings.");
+          done = true;
+          break;
         }
         const data = await res.json().catch(() => ({}));
-        const content = res.ok && (data as { message?: { content?: string } }).message?.content
-          ? (data as { message: { content: string } }).message.content
-          : res.status === 503
-            ? "Grok not available for this test."
+        const content =
+          res.ok && (data as { message?: { content?: string } }).message?.content
+            ? (data as { message: { content: string } }).message.content
             : "Could not run VETR analysis.";
+        previousOutput = content;
+        messages.push({ role: "assistant", content });
         setVetrResult(content);
-        const len = content?.length ?? 0;
-        const hasPhase2 = /Phase 2|Bug Hypothesis|Most Likely Root Cause|Wrong Code Explanation|Variable.*Trace|Proposed Fix Strategy/i.test(content);
-        const hasPhase3 = /Phase 3|minimal diff|replaced blocks|line numbers/i.test(content);
-        const hasFreshStart = /Strategic Fresh Start|fresh start|reset context/i.test(content);
-        const confidenceMatch = content.match(/confidence[:\s]*(\d+)/i);
-        const confidence = confidenceMatch ? confidenceMatch[1] : null;
-        console.log("[VETR] Response received:", { length: len, hasPhase2, hasPhase3, hasFreshStart, confidence: confidence ?? "n/a" });
-        if (confidence) console.log("[VETR] Final confidence:", confidence);
-      } finally {
-        setVetrLoading(false);
+        setVetrProgress(`Running VETR Iteration ${iteration}/${MAX_ITERATIONS} — ${getCurrentPhase(content)}`);
+
+        const { terminated, confidence, freshStart } = parseVETRTermination(content);
+        if (freshStart) triggerFreshStart = true;
+        if (terminated) {
+          console.log("[VETR] Terminated. Confidence:", confidence);
+          setVetrProgress(confidence != null ? `Done. Confidence: ${confidence}%` : "Done.");
+          done = true;
+          break;
+        }
+        if (iteration >= MAX_ITERATIONS) {
+          setVetrProgress("Max iterations (7) reached.");
+          done = true;
+          break;
+        }
+        feedback = extractNewFailures(content) + feedback;
+        iteration += 1;
+        if (triggerFreshStart || (iteration >= 4 && /no progress|still fail|same failure|stalled/i.test(content))) {
+          setVetrFreshStartTriggered(true);
+          setVetrProgress(`Iteration ${iteration}/7 — Strategic Fresh Start: resetting context and restarting generation.`);
+          messages.push({ role: "user", content: buildVETRFreshStartMessage(content, reportText) });
+          triggerFreshStart = false;
+          feedback = reportText;
+        } else {
+          setVetrProgress(`Iteration ${iteration}/7 — ${getCurrentPhase(content)}`);
+          messages.push({
+            role: "user",
+            content: buildVETRContinuationMessage(iteration, content, feedback),
+          });
+        }
       }
+      if (!done) setVetrProgress((p) => (p.startsWith("Done") || p.includes("reached") ? p : `Iteration ${iteration}/${MAX_ITERATIONS} complete.`));
     } catch (e) {
       setTestReport([{ name: "Audit", ok: false, detail: e instanceof Error ? e.message : String(e) }]);
+      setVetrResult(e instanceof Error ? e.message : String(e));
       console.log("[VETR] Error:", e);
     } finally {
       setTestLoading(false);
+      setVetrLoading(false);
     }
   };
 
@@ -776,26 +835,40 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                         </div>
                       ))}
                     </div>
-                    {vetrResult && (() => {
-                      const { iteration, sections } = parseVETROutput(vetrResult);
-                      return (
-                        <div className="pt-4 border-t border-vs-border">
-                          <h4 className="text-xs font-semibold text-vs-muted uppercase tracking-wider mb-2">VETR analysis (Verify → Explain → Trace → Repair → Validate)</h4>
-                          {iteration && (
-                            <p className="text-xs text-vs-accent font-medium mb-2">{iteration}</p>
-                          )}
-                          {sections.length > 1 ? (
-                            <VETRCollapsibleSections sections={sections} />
-                          ) : (
-                            <pre className="text-xs text-vs-foreground whitespace-pre-wrap font-sans bg-vs-bg p-3 rounded overflow-auto max-h-64">
-                              {vetrResult}
-                            </pre>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {(vetrProgress || vetrResult) && (
+                      <div className="pt-4 border-t border-vs-border">
+                        <h4 className="text-xs font-semibold text-vs-muted uppercase tracking-wider mb-2">VETR analysis (Verify → Explain → Trace → Repair → Validate)</h4>
+                        {(vetrProgress || vetrIteration > 0) && (
+                          <p className="text-xs text-vs-accent font-medium mb-2">
+                            {vetrProgress || `Iteration ${vetrIteration}/7`}
+                          </p>
+                        )}
+                        {vetrFreshStartTriggered && (
+                          <div className="mb-2 rounded-lg bg-amber-500/15 border border-amber-500/40 px-3 py-2 text-xs text-amber-200">
+                            Resetting context and restarting generation.
+                          </div>
+                        )}
+                        {vetrResult && (() => {
+                          const { iteration, sections } = parseVETROutput(vetrResult);
+                          return (
+                            <>
+                              {iteration && (
+                                <p className="text-xs text-vs-foreground/80 mb-2">{iteration}</p>
+                              )}
+                              {sections.length > 1 ? (
+                                <VETRCollapsibleSections sections={sections} />
+                              ) : (
+                                <pre className="text-xs text-vs-foreground whitespace-pre-wrap font-sans bg-vs-bg p-3 rounded overflow-auto max-h-96">
+                                  {vetrResult}
+                                </pre>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
                     {vetrLoading && (
-                      <p className="text-sm text-gray-500">Grok is applying the VETR loop: structured self-reflection (hypotheses, root cause, wrong-code explanation, variable trace, fix strategy), minimal repair, then validate.</p>
+                      <p className="text-sm text-gray-500">{vetrProgress || "Running VETR loop: Phase 0 → Phase 2 (hypotheses, root cause, trace) → Phase 3 (minimal diff) → Phase 5 (simulate) → Phase 7 termination…"}</p>
                     )}
                   </>
                 )}

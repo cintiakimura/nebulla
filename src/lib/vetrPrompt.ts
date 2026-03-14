@@ -1,99 +1,252 @@
 /**
  * VETR loop: Verify → Explain → Trace → Repair → Validate.
- * Self-test + self-debug method for the "Final debugging test" flow.
+ * Full multi-turn self-debug with mandatory structured phases.
+ * UNBREAKABLE_RULES.md is injected as the very first part of the system prompt for every VETR call.
  */
 
-export const VETR_SYSTEM_PROMPT = `You are a self-test and self-debug agent. Apply the following method strictly. Name: VETR loop (Verify → Explain → Trace → Repair → Validate).
+const UNBREAKABLE_PREFIX = `These are UNBREAKABLE RULES. You MUST follow every single one without exception. Violating any rule = immediate 0/100 confidence and forced fresh start.
 
-MANDATORY PRINCIPLES (before any loop iteration):
-1. Never trust first attempt — always assume ≥1 bug exists until proven otherwise.
-2. Maximize cheap/fast signals before expensive ones (syntax → type → unit → integration).
-3. Debugging effectiveness decays exponentially after ~3–5 turns in the same context window — detect & reset when needed.
-4. Explanation before repair dramatically improves repair quality (LeDex finding).
-5. Simulated tracing beats blind guessing (especially sub-function level).
+`;
 
-THE LOOP RULES:
+/** Fetch UNBREAKABLE_RULES.md from same origin (public/UNBREAKABLE_RULES.md). */
+export async function fetchUnbreakableRules(): Promise<string> {
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+  const url = `${base}/UNBREAKABLE_RULES.md`;
+  try {
+    const res = await fetch(url);
+    if (res.ok) return await res.text();
+  } catch {
+    // ignore
+  }
+  return "";
+}
 
-Phase 0 — Guardrails & Fast Filters (do every time):
-1. Run static checks: syntax, type checker (mypy, pyright, tsc, rustc --deny warnings, …). If fails → go directly to Phase 2 with error as feedback.
-2. Run linter / basic style (ruff, eslint, clippy, …) — treat warnings as soft errors.
-3. If no fast failures → run available unit tests (or minimal smoke test). Capture stdout/stderr, assertion messages, stack traces → F_i.
+const VETR_PHASES_STRUCTURE = `You MUST output EXACTLY in this order. NEVER skip, shorten, or rephrase headings. If any section is missing, self-rate 0/100 and restart the entire loop.
 
-Phase 1 — Decide whether debugging is needed (self-test gate):
-- If all tests pass AND coverage reasonable AND no linter errors → output final code + confidence score (0–100) and STOP.
-- Else → enter debugging loop (max 5–7 iterations total).
+Phase 0: Guardrails & Fast Filters
+[static checks, linter, smoke tests results]
 
-Phase 2 — Structured Self-Reflection & Explanation (most important step):
-Output **exactly** in this order, do NOT skip any section:
-  A. Bug Hypothesis List      — at least 2–4 numbered hypotheses, be specific.
-  B. Most Likely Root Cause   — pick one, explain why (reference failing input/output).
-  C. Wrong Code Explanation   — line-by-line or block-by-block what is wrong & why.
-  D. Variable / State Trace    — dry-run key paths with example values from failing test.
-  E. Proposed Fix Strategy    — concrete changes, not full code yet.
+Phase 1: Self-test Gate
+[pass/fail decision + confidence]
 
-Phase 3 — Generate Repair (small & targeted):
-- Output ONLY the **minimal diff** or **replaced blocks** + line numbers.
-- Do NOT rewrite the whole file unless absolutely necessary.
-- Add defensive checks / error handling / logging where root cause suggests.
-- If uncertain → add comment: "// TODO: verify this assumption with test X".
+Phase 2: Structured Self-Reflection
+A. Bug Hypothesis List
+1. ...
+2. ...
+3. ...
+4. ...
 
-Phase 4 — Self-Generated Test Augmentation (when few/no tests):
-Choose one per iteration:
-  A. Post-execution: generate 2–4 new test cases that try to falsify the current code.
-  B. In-execution: generate property-based or metamorphic relations.
-Run them → add failures to feedback F_i+1. (Self-generated tests introduce bias — cross-check with original problem intent.)
+B. Most Likely Root Cause
+...
 
-Phase 5 — Simulated Execution (use whenever possible):
-- Simulate line-by-line or function-by-function.
-- Track 3–5 important variables across steps.
-- Compare simulated vs expected output from failing test.
-- If mismatch found → update Bug Hypothesis List.
+C. Wrong Code Explanation
+[line-by-line or block-by-block]
 
-Phase 6 — Validate & Decay Check:
-After repair:
-- Re-run **all** known tests (original + self-generated).
-- If still failing → increment iteration.
-- If iteration ≥4 AND improvement <20% (or no new tests pass) → TRIGGER STRATEGIC FRESH START:
-  Strategic Fresh Start: Summarize all previous attempts in 100–150 words; reset context (drop old code versions); rephrase problem slightly more precisely; start new generation from scratch with summary as strong hint.
+D. Variable / State Trace
+[dry-run with example values]
 
-Phase 7 — Termination conditions:
-- All tests pass (including self-generated ones that try to break it).
-- Confidence ≥92 (self-assessed).
-- Max iterations reached → output best candidate + list of remaining suspected issues.`;
+E. Proposed Fix Strategy
+...
+
+Phase 3: Generate Repair
+ONLY minimal diff + line numbers. Add defensive checks. TODO if uncertain.
+
+Phase 4: Self-Generated Test Augmentation
+[2–4 new falsifying tests or property-based]
+
+Phase 5: Simulated Execution
+[line-by-line simulation, track 3–5 variables]
+
+Phase 6: Validate & Decay Check
+[re-run all tests; if stalled → fresh start summary]
+
+Phase 7: Termination
+[final code/diff + confidence 0–100 + remaining suspected issues if not perfect]`;
+
+const GUARDRAILS = `
+- Complete every phase in order. NEVER skip or shorten Phase 2. Output ALL sections A–E.
+- Do NOT give a final answer until Phase 7 termination.
+- Assume ≥1 bug exists until proven otherwise. Explain deeply before any fix.
+- Output minimal diff only in Phase 3. Simulate execution in Phase 5.
+- If iteration ≥4 and no progress → output "TRIGGER STRATEGIC FRESH START" and a 100–150 word summary; next turn will reset.`;
+
+export const VETR_SYSTEM_PROMPT = `You are a self-test and self-debug agent. Apply the VETR loop (Verify → Explain → Trace → Repair → Validate) strictly.
+${GUARDRAILS}
+
+--- MANDATORY OUTPUT STRUCTURE ---
+${VETR_PHASES_STRUCTURE}
+`;
+
+/** Build full system prompt for a VETR call: UNBREAKABLE_RULES + VETR + iteration. */
+export function getVETRSystemPrompt(iteration: number, unbreakableRulesText: string): string {
+  const rulesBlock = unbreakableRulesText.trim()
+    ? UNBREAKABLE_PREFIX + unbreakableRulesText.trim() + "\n\n--- VETR (Code/Debug) ---\n\n"
+    : "";
+  return `${rulesBlock}${VETR_SYSTEM_PROMPT}
+
+This is iteration ${iteration}/7.`;
+}
 
 export type VETRSection = { title: string; body: string };
 
-/** Parse VETR model output into iteration label + collapsible sections. */
+/** Detect if the model output indicates termination (all pass + confidence ≥92 or max iter). */
+export function parseVETRTermination(content: string): { terminated: boolean; confidence: number | null; freshStart: boolean } {
+  const freshStart = /strategic fresh start|trigger strategic fresh start|reset context|strategic reset/i.test(content);
+  const confidenceMatch = content.match(/confidence[:\s]*(\d+)/i);
+  const confidence = confidenceMatch ? parseInt(confidenceMatch[1], 10) : null;
+  const phase7Termination = /phase\s*7\s*[—\-]\s*termination|phase 7.*termination/i.test(content);
+  const allPass = /all tests pass|all checks passed/i.test(content);
+  // Only terminate when model explicitly reports success (all pass + confidence ≥92). Do NOT stop on lazy "Phase 7" with "remaining issues" or "max iter" — that would make the loop one-shot.
+  const terminated = phase7Termination && allPass && (confidence != null && confidence >= 92);
+  return { terminated: !!terminated, confidence, freshStart };
+}
+
+/** Extract current phase from response for progress display (e.g. "Phase 2: Self-Reflection"). */
+export function getCurrentPhase(content: string): string {
+  const phaseNames: [RegExp, string][] = [
+    [/phase\s*0[:\s]|phase 0\s*[—\-]/i, "Phase 0: Guardrails & Fast Filters"],
+    [/phase\s*1[:\s]|phase 1\s*[—\-]|self-test gate/i, "Phase 1: Self-test Gate"],
+    [/phase\s*2[:\s]|phase 2\s*[—\-]|structured self-reflection|bug hypothesis/i, "Phase 2: Self-Reflection"],
+    [/phase\s*3[:\s]|phase 3\s*[—\-]|generate repair|minimal diff/i, "Phase 3: Generate Repair"],
+    [/phase\s*4[:\s]|phase 4\s*[—\-]|self-generated test|test augmentation/i, "Phase 4: Test Augmentation"],
+    [/phase\s*5[:\s]|phase 5\s*[—\-]|simulated execution/i, "Phase 5: Simulated Execution"],
+    [/phase\s*6[:\s]|phase 6\s*[—\-]|validate.*decay/i, "Phase 6: Validate & Decay Check"],
+    [/phase\s*7[:\s]|phase 7\s*[—\-]|termination/i, "Phase 7: Termination"],
+  ];
+  let lastPhase = "VETR";
+  for (const [re, name] of phaseNames) {
+    if (re.test(content)) lastPhase = name;
+  }
+  return lastPhase;
+}
+
+/** Extract new failures / self-test feedback from response to append to feedback for next iteration. */
+export function extractNewFailures(response: string): string {
+  const lines: string[] = [];
+  const lower = response.toLowerCase();
+  // Lines with [FAIL], failed, still fail, assertion, error
+  const failRe = /^\[FAIL\].*|^.*\bfailed\b.*|^.*\bstill fail\b.*|^.*assertion.*|expected.*actual|status\s*\d{3}/im;
+  response.split("\n").forEach((line) => {
+    const t = line.trim();
+    if (t.length > 10 && (failRe.test(t) || /self-test|re-run|validation.*fail/i.test(t))) {
+      lines.push(t);
+    }
+  });
+  if (lines.length === 0 && (/still fail|no progress|same failure|stalled/i.test(lower) || /confidence[:\s]*[0-8]\d/i.test(response))) {
+    lines.push("(Previous iteration reported low confidence or no progress.)");
+  }
+  return lines.length ? `\n--- New feedback from last response ---\n${lines.slice(-15).join("\n")}\n` : "";
+}
+
+/** Parse VETR model output into iteration label + collapsible sections (Phase 2 A–E, Phase 3, etc.). */
 export function parseVETROutput(content: string): { iteration: string | null; sections: VETRSection[] } {
-  const iterationMatch = content.match(/[Ii]teration\s*(\d+)\s*\/\s*(\d+)/);
-  const iteration = iterationMatch ? `Iteration ${iterationMatch[1]}/${iterationMatch[2]}` : null;
+  const iterationMatch = content.match(/[Tt]his is iteration\s*(\d+)\s*\/\s*7|[Ii]teration\s*(\d+)\s*\/\s*(\d+)/);
+  const iteration = iterationMatch
+    ? `Iteration ${iterationMatch[1] ?? iterationMatch[2]}/${iterationMatch[3] ?? "7"}`
+    : null;
+
   const sections: VETRSection[] = [];
-  const parts = content.split(/\n(?=#{2,3}\s+)/);
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i].trim();
-    if (!part) continue;
-    const firstLineEnd = part.indexOf("\n");
-    const firstLine = firstLineEnd >= 0 ? part.slice(0, firstLineEnd) : part;
-    const body = firstLineEnd >= 0 ? part.slice(firstLineEnd + 1).trim() : "";
-    const title = firstLine.replace(/^#+\s*/, "").trim();
-    if (title) sections.push({ title, body: body || firstLine });
+  const phaseRegex = /(\*\*Phase\s+\d+[^*]*\*\*|\*\*Phase\s+\d+[:\s][^*]*\*\*|\*\*[A-E]\.[^*]+\*\*|##\s+[^\n]+|###\s+[^\n]+)/g;
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  let lastTitle = "";
+  let lastBody = "";
+
+  while ((m = phaseRegex.exec(content)) !== null) {
+    if (lastTitle) {
+      lastBody = content.slice(lastIndex, m.index).trim();
+      if (lastTitle || lastBody) sections.push({ title: lastTitle.replace(/^#+\s*|\*\*/g, "").trim(), body: lastBody });
+    }
+    lastTitle = m[1];
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastTitle) {
+    lastBody = content.slice(lastIndex).trim();
+    sections.push({ title: lastTitle.replace(/^#+\s*|\*\*/g, "").trim(), body: lastBody });
+  }
+
+  if (sections.length === 0) {
+    const parts = content.split(/\n(?=#{2,3}\s+)/);
+    for (const part of parts) {
+      const p = part.trim();
+      if (!p) continue;
+      const firstLineEnd = p.indexOf("\n");
+      const firstLine = firstLineEnd >= 0 ? p.slice(0, firstLineEnd) : p;
+      const body = firstLineEnd >= 0 ? p.slice(firstLineEnd + 1).trim() : "";
+      const title = firstLine.replace(/^#+\s*/, "").trim();
+      if (title) sections.push({ title, body: body || firstLine });
+    }
   }
   if (sections.length === 0 && content.trim()) sections.push({ title: "VETR output", body: content.trim() });
   return { iteration, sections };
 }
 
-/** User message template: inject the audit report so Grok applies VETR to it. */
-export function buildVETRUserMessage(auditReportText: string): string {
-  return `Apply the VETR loop to the following audit report. The "tests" here are each line: [PASS] or [FAIL] for a functionality; treat the system under test as the platform (APIs, auth, projects, agent, deploy, etc.).
+/** Initial user message: full audit report + strict instructions. */
+export function buildVETRUserMessage(auditReportText: string, additionalFeedback?: string): string {
+  const feedback = additionalFeedback ? `${auditReportText}\n${additionalFeedback}` : auditReportText;
+  return `Apply the VETR loop to this audit report. Each line is a functionality check: [PASS] or [FAIL] with optional detail. Treat the system under test as the platform (APIs, auth, projects, agent, voice, builder, deploy).
 
 --- AUDIT REPORT ---
-${auditReportText}
+${feedback}
 
 --- INSTRUCTIONS ---
-1. For each [FAIL], output Phase 2 in full: A. Bug Hypothesis List, B. Most Likely Root Cause, C. Wrong Code Explanation, D. Variable/State Trace, E. Proposed Fix Strategy.
-2. Then Phase 3: minimal diff or concrete code changes (with file/area and line references where possible).
-3. Optionally Phase 4: suggest 2–4 new test cases that would further stress the failing area.
-4. Optionally Phase 5: simulate the failing path (e.g. request → handler → response) with example values.
-5. If all [PASS], output a short confidence summary (0–100) and "All checks passed."
-6. Use clear headings: "## Phase 2 — Structured Self-Reflection", "### A. Bug Hypothesis List", etc.`;
+1. Assume ≥1 bug exists. Explain deeply before any fix.
+2. Output Phase 2 in full: A. Bug Hypothesis List (2–4 items), B. Most Likely Root Cause, C. Wrong Code Explanation (line-by-line), D. Variable/State Trace, E. Proposed Fix Strategy.
+3. Output Phase 3: minimal diff or concrete code changes with file/line references.
+4. Output Phase 4: 2–4 new test cases that would stress the failing area.
+5. Output Phase 5: simulate the failing path (e.g. request → handler → response) with example values.
+6. Use EXACT headings: Phase 2: Structured Self-Reflection, A. Bug Hypothesis List, B. Most Likely Root Cause, etc.
+7. Do NOT output Phase 7 — Termination in this first response. Output Phase 0 through Phase 6, then end with "Continue to iteration 2/7" and what you will do next. Phase 7 is only for a later iteration when all tests actually pass and you report confidence ≥92.
+8. This is iteration 1/7.`;
+}
+
+/** Continuation message for iteration N+1 (multi-turn). */
+export function buildVETRContinuationMessage(
+  iterationNum: number,
+  previousAssistantContent: string,
+  auditReportText: string,
+  additionalFeedback?: string
+): string {
+  const feedback = additionalFeedback ? `${auditReportText}\n${additionalFeedback}` : auditReportText;
+  return `Remember: UNBREAKABLE RULES apply. This is iteration ${iterationNum}/7.
+
+Continue VETR. Your previous response was:
+---
+${previousAssistantContent.slice(-6000)}
+---
+
+Audit report (and new feedback) for reference:
+---
+${feedback}
+---
+
+Instructions:
+1. If you triggered "Strategic Fresh Start", output a 100–150 word summary of all attempts, then start Phase 2 again with a new generation.
+2. Otherwise: Refine your hypotheses (Phase 2), output a revised minimal diff (Phase 3), and re-validate (Phase 5–6).
+3. If you now believe all tests pass, output Phase 7 — Termination with "All tests pass. Confidence: N%" (N≥92).
+4. If iteration ${iterationNum} is 7, output Phase 7 — Termination with "Max iterations reached" and the best candidate + remaining suspected issues.
+5. Output ALL Phase 2 subsections (A–E) again. Use exact headings.`;
+}
+
+/** Message to force Strategic Fresh Start after decay (e.g. iteration ≥4, no progress). */
+export function buildVETRFreshStartMessage(previousAssistantContent: string, auditReportText: string): string {
+  return `TRIGGER STRATEGIC FRESH START.
+
+You have completed 4+ iterations without termination. Do the following:
+1. Summarize all previous attempts in 100–150 words (what you tried, what failed, what you learned).
+2. Reset context: treat the next output as a new generation.
+3. Rephrase the problem slightly more precisely.
+4. Start Phase 2 again with the summary as a strong hint. Output Phase 2: Structured Self-Reflection with A–E in full, then Phase 3–5.
+
+Your last response (excerpt):
+---
+${previousAssistantContent.slice(-4000)}
+---
+
+Audit report:
+---
+${auditReportText}
+---
+
+Resetting context and restarting generation. This is a fresh start (iteration 5/7).`;
 }

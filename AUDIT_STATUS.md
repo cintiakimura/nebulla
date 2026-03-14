@@ -115,4 +115,48 @@ Status key: **OK** = implemented and working | **Partial** = works with config/e
 
 ---
 
+## 9. VETR Final debugging test
+
+The **Final debugging test** (Dashboard → status bar / audit modal) runs a **full multi-turn VETR loop** (Verify → Explain → Trace → Repair → Validate), not a one-shot report. **UNBREAKABLE_RULES.md** is loaded from `/UNBREAKABLE_RULES.md` (public) and injected verbatim as the very first part of the system prompt for every VETR call.
+
+| Behavior | Status |
+|----------|--------|
+| **UNBREAKABLE RULES** | Fetched on button click; prepended with "These are UNBREAKABLE RULES. You MUST follow every single one without exception. Violating any rule = immediate 0/100 confidence and forced fresh start." |
+| **Phase 0** | Runs `runQuickAudit(apiBase)` once; builds report text with PASS/FAIL per endpoint. |
+| **Iterations** | Up to 7 rounds: feedback = audit report + extracted new failures each turn; each round sends full conversation (user + assistant history) to Grok; progress shows "Running VETR Iteration X/7 — Phase Y". |
+| **Structured output** | Prompt enforces exact headings: Phase 0–7, A. Bug Hypothesis List, B. Most Likely Root Cause, C. Wrong Code Explanation, D. Variable/State Trace, E. Proposed Fix Strategy. "If any section is missing, self-rate 0/100 and restart the entire loop." |
+| **Termination** | Stops when: (a) model outputs Phase 7 — Termination with all tests pass and confidence ≥92, or (b) max 7 iterations reached. |
+| **Decay / Fresh Start** | If after 4+ iterations there is no progress (e.g. "still fail", "stalled"), next user message triggers Strategic Fresh Start (summary + reset context + rephrase problem + new generation). Modal shows "Resetting context and restarting generation." |
+| **UI** | Modal shows live progress (e.g. "Running VETR Iteration 3/7 — Phase 2: Self-Reflection") and collapsible sections from parsed VETR output (phases, hypotheses, diff, etc.). |
+
+### Example: full multi-turn VETR run (forced bug)
+
+To test, force a bug (e.g. comment out a key line in `server.ts` for `/api/agent/chat` or `/api/builder/generate`), then click **Final debugging test**. Expected: 3–5+ iterations with full phases each time.
+
+**Example modal progress (abbreviated):**
+
+```
+Iteration 1/7: Calling Grok…
+Iteration 2/7: Continuing VETR…
+Iteration 3/7: Continuing VETR…
+Iteration 4/7: Continuing VETR…
+Done. Confidence: 94%
+```
+
+**Example VETR output sections (from one iteration):**
+
+- **Phase 2: Structured Self-Reflection**
+  - **A. Bug Hypothesis List** — 1. Missing API key check … 2. Handler returns before calling Grok …
+  - **B. Most Likely Root Cause** — The handler does not read `X-Grok-Api-Key` when env key is unset.
+  - **C. Wrong Code Explanation** — Line 584: `const apiKey = process.env.GROK_API_KEY` …
+  - **D. Variable/State Trace** — req.headers not read → apiKey undefined → 503.
+  - **E. Proposed Fix Strategy** — Prefer header then env; return 503 with message "Add your Grok API key in Settings."
+- **Phase 3: Minimal repair** — (diff with file/line references)
+- **Phase 5: Simulate execution** — Request with header → apiKey set → 200.
+- **Phase 7 — Termination** — All tests pass. Confidence: 94%.
+
+The implementation enforces multiple rounds, self-reflection, minimal diff repair, and validation until confidence ≥92 or max iterations.
+
+---
+
 *Run `npm run lint`, `npm run build`, `npm audit`, and (with server running) `node scripts/test-all.mjs` to re-verify.*

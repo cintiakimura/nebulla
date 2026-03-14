@@ -45,7 +45,8 @@ function applyCodeFromContent(
   let tsxMatch: RegExpExecArray | null;
   let lastTsx = "";
   while ((tsxMatch = tsxRegex.exec(content)) !== null) lastTsx = tsxMatch[1].trim();
-  if (lastTsx.length > 10) setCode(lastTsx);
+  // VETR_TEST_BUG: never apply code (condition always false) — change back to > 10 to restore
+  if (lastTsx.length > 99999) setCode(lastTsx);
   let jsonMatch: RegExpExecArray | null;
   let lastJson = "";
   while ((jsonMatch = jsonRegex.exec(content)) !== null) lastJson = jsonMatch[1].trim();

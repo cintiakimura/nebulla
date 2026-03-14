@@ -40,12 +40,12 @@ export default function Settings() {
   };
 
   const saveSecret = (key: SecretKey) => {
-    const raw = secretValues[key];
-    const toSave = raw === "••••••••" ? getStoredSecret(key) : raw;
-    setStoredSecret(key, toSave ?? "");
+    const raw = secretValues[key] ?? "";
+    const toSave = raw === "••••••••" ? getStoredSecret(key) : raw.trim();
+    setStoredSecret(key, toSave);
     setSecretSaved(key);
     setTimeout(() => setSecretSaved(null), 2000);
-    if (raw !== "••••••••") setSecretValues((prev) => ({ ...prev, [key]: getStoredSecret(key) ? "••••••••" : "" }));
+    setSecretValues((prev) => ({ ...prev, [key]: getStoredSecret(key) ? "••••••••" : "" }));
   };
 
   useEffect(() => {

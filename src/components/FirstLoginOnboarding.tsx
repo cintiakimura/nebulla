@@ -37,7 +37,10 @@ function playGrokEve(text: string, onEnd?: () => void, onGrokKeyMissing?: () => 
         onEnd?.();
         return null;
       }
-      if (res.status === 503) onGrokKeyMissing?.();
+      if (res.status === 503) {
+        onGrokKeyMissing?.();
+        return null;
+      }
       if (!res.ok) {
         onEnd?.();
         return null;

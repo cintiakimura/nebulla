@@ -585,7 +585,7 @@ async function startServer() {
   });
   app.post("/api/agent/chat", agentChatLimiter, resolveUserId, async (req, res) => {
     const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-    const apiKey = headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY;
+    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
     if (!apiKey || apiKey === "PLACEHOLDER") {
       res.status(503).json({ error: "Grok API key not configured. Add your Grok API key in Settings." });
       return;
@@ -668,11 +668,14 @@ async function startServer() {
   // Grok voice (xAI TTS, voice Eve) — natural speech for onboarding and "Grok speaks" in Builder
   app.post("/api/tts", async (req, res) => {
     const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-    const apiKey = headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY;
+    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
     if (!apiKey || apiKey === "PLACEHOLDER") {
       res.status(503).json({ error: "Grok API key required for voice. Add your Grok API key in Settings." });
       return;
     }
+    // VETR_TEST_BUG: force TTS to fail so audit shows failure — remove this block to restore
+    res.status(500).json({ error: "VETR_TEST_BUG: TTS disabled for test" });
+    return;
     try {
       const { text, voice_id: voiceId } = req.body as { text?: string; voice_id?: string };
       const toSpeak = typeof text === "string" ? text.trim() : "";
