@@ -8,18 +8,24 @@ import { createApp } from "../server";
 let appPromise: Promise<Awaited<ReturnType<typeof createApp>>> | null = null;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Vercel catch-all: path segments in req.query.path, or take pathname from req.url.
-  const pathSeg = req.query?.path;
+  const rawUrl = (req as NodeJS.IncomingMessage & { url?: string }).url || "";
   let pathname: string;
-  if (pathSeg !== undefined && pathSeg !== null) {
-    const segments = Array.isArray(pathSeg) ? pathSeg : [pathSeg];
-    pathname = "/api" + (segments.length ? "/" + segments.join("/") : "");
+  let qs = "";
+  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+    try {
+      const u = new URL(rawUrl);
+      pathname = u.pathname;
+      qs = u.search || "";
+    } catch {
+      pathname = "/api";
+    }
   } else {
-    const u = (req as NodeJS.IncomingMessage & { url?: string }).url || "";
-    const pathOnly = u.includes("?") ? u.slice(0, u.indexOf("?")) : u;
+    const pathOnly = rawUrl.includes("?") ? rawUrl.slice(0, rawUrl.indexOf("?")) : rawUrl;
     pathname = pathOnly.startsWith("/") ? pathOnly : "/" + pathOnly;
+    qs = rawUrl.includes("?") ? "?" + rawUrl.split("?")[1] : "";
   }
-  const qs = typeof req.url === "string" && req.url.includes("?") ? "?" + req.url.split("?")[1] : "";
+  // If path doesn't start with /api, prepend it (catch-all may strip it)
+  if (!pathname.startsWith("/api")) pathname = "/api" + (pathname === "/" ? "" : pathname);
   (req as NodeJS.IncomingMessage & { url: string }).url = pathname + qs;
 
   if (!appPromise) appPromise = createApp();
