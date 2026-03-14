@@ -138,11 +138,13 @@ async function startServer() {
 
   // Temp bypass: open-mode fallback user "open-dev-user" with no auth → return empty list so dashboard loads (stops 404).
   app.get("/api/users/open-dev-user/projects", (_req, res) => {
+    console.log("Bypass route hit");
     res.status(200).json([]);
   });
 
   // Projects: list (Supabase when configured, else SQLite). Auth required; param userId must match token.
   app.get("/api/users/:userId/projects", resolveUserId, requireAuth, requireMatchUserId, async (req, res) => {
+    console.log("[projects list]", req.method, req.url, "params.userId:", (req as express.Request).params?.userId);
     try {
       const userId = (req as RequestWithUserId).userId!;
       if (isSupabaseConfigured()) {
