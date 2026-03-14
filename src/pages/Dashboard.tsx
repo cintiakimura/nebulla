@@ -74,6 +74,10 @@ export default function Dashboard() {
   const avatarRef = useRef<HTMLDivElement>(null);
 
   const KEY_SEEN_WELCOME = "kyn_seen_welcome";
+  const KEY_MIC_TOOLTIP = "kyn_mic_tooltip_dismissed";
+  const [showMicTooltip, setShowMicTooltip] = useState(() =>
+    typeof sessionStorage !== "undefined" ? !sessionStorage.getItem(KEY_MIC_TOOLTIP) : false
+  );
   const seenWelcome = typeof window !== "undefined" && localStorage.getItem(KEY_SEEN_WELCOME) === "1";
   const showWelcomeModal = !loading && projects.length === 0 && !seenWelcome && showFirstLoginOnboarding === false;
 
@@ -754,7 +758,23 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="p-3 border-t border-[#333333]">
+          <div className="p-3 border-t border-[#333333] relative">
+            {showMicTooltip && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 px-3 py-2 rounded-lg bg-[#252526] border border-[#333] text-sm text-gray-200 shadow-lg flex items-center justify-between gap-2">
+                <span>Click the microphone and say hi.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionStorage.setItem(KEY_MIC_TOOLTIP, "1");
+                    setShowMicTooltip(false);
+                  }}
+                  className="shrink-0 p-1 rounded text-gray-400 hover:text-white"
+                  aria-label="Dismiss"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
             <button
               onClick={handleMicToggle}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm transition-colors ${listening ? "bg-red-500/20 text-red-400" : "bg-[#333] text-gray-300 hover:bg-[#444]"}`}
@@ -769,13 +789,31 @@ export default function Dashboard() {
         </div>
       )}
       {!chatOpen && (
-        <button
-          onClick={() => setChatOpen(true)}
-          className="fixed right-4 bottom-4 p-2 bg-[#252526] border border-[#333333] rounded-lg text-gray-400 hover:text-white hover:bg-[#37373d] transition-colors"
-          title="Open chat"
-        >
-          <Mic size={20} />
-        </button>
+        <div className="fixed right-4 bottom-4 flex flex-col items-end gap-2">
+          {showMicTooltip && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#252526] border border-[#333] text-sm text-gray-200 shadow-lg">
+              <span>Click the microphone and say hi.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  sessionStorage.setItem(KEY_MIC_TOOLTIP, "1");
+                  setShowMicTooltip(false);
+                }}
+                className="p-1 rounded text-gray-400 hover:text-white"
+                aria-label="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => setChatOpen(true)}
+            className="p-2 bg-[#252526] border border-[#333333] rounded-lg text-gray-400 hover:text-white hover:bg-[#37373d] transition-colors"
+            title="Open chat"
+          >
+            <Mic size={20} />
+          </button>
+        </div>
       )}
       <UpgradeBubble show={showUpgradeBubble} />
     </div>

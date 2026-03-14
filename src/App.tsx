@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
+import SimpleStart from "./pages/SimpleStart";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
 import Pricing from "./pages/Pricing";
@@ -14,7 +15,7 @@ import { ensureSupabaseConfig } from "./lib/supabaseAuth";
 import { isOpenMode } from "./lib/auth";
 
 function RootRedirect() {
-  return isOpenMode() ? <Navigate to="/dashboard" replace /> : <Landing />;
+  return isOpenMode() ? <SimpleStart /> : <Landing />;
 }
 
 export default function App() {

@@ -16,12 +16,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   (req as NodeJS.IncomingMessage & { url: string }).url = pathname;
   console.log("[api/index]", req.method, pathname);
 
-  // Catch-all: if GET open-dev-user/projects, return 200 + [] here so dashboard loads even if Express isn't reached.
-  if (req.method === "GET" && pathname.includes("open-dev-user/projects")) {
-    console.log("[api/index] catch-all open-dev-user/projects → 200 []");
-    return res.status(200).json([]);
-  }
-
   if (!appPromise) appPromise = createApp();
   const app = await appPromise;
   return app(req, res);
