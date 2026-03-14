@@ -45,8 +45,7 @@ function applyCodeFromContent(
   let tsxMatch: RegExpExecArray | null;
   let lastTsx = "";
   while ((tsxMatch = tsxRegex.exec(content)) !== null) lastTsx = tsxMatch[1].trim();
-  // VETR_TEST_BUG: never apply code (condition always false) — change back to > 10 to restore
-  if (lastTsx.length > 99999) setCode(lastTsx);
+  if (lastTsx.length > 10) setCode(lastTsx);
   let jsonMatch: RegExpExecArray | null;
   let lastJson = "";
   while ((jsonMatch = jsonRegex.exec(content)) !== null) lastJson = jsonMatch[1].trim();
@@ -395,24 +394,29 @@ export default function Builder() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt: uiPrompt, userId }),
           });
-          const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
-          if (res.ok && data.code) {
-            const code = data.code.trim();
-            if (code.includes("```")) {
-              applyCodeFromContent(code, setCode, setPackageJsonContent);
-            } else {
-              setCode(code);
-            }
-            const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
-            const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
-            setChatMessages(prev => [...prev, builderMsg]);
-            saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });
-            if (grokSpeaks) speakWithGrokEve(kynContent);
-          } else if (data.error && !data.placeholder) {
-            const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
-            setChatMessages(prev => [...prev, errMsg]);
-            saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
-          }
+              const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
+              if (res.ok && data.code) {
+                const code = data.code.trim();
+                if (code.includes("```")) {
+                  applyCodeFromContent(code, setCode, setPackageJsonContent);
+                } else {
+                  setCode(code);
+                }
+                const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
+                const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
+                setChatMessages(prev => [...prev, builderMsg]);
+                saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });
+                if (grokSpeaks) speakWithGrokEve(kynContent);
+              } else if (data.error && !data.placeholder) {
+                const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
+                setChatMessages(prev => [...prev, errMsg]);
+                saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+              } else if (!res.ok) {
+                const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
+                const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
+                setChatMessages(prev => [...prev, errMsg]);
+                saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+              }
         } catch (_) {}
       })();
     }
@@ -457,6 +461,11 @@ export default function Builder() {
                 if (grokSpeaks) speakWithGrokEve(kynContent);
               } else if (data.error && !data.placeholder) {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
+                setChatMessages(prev => [...prev, errMsg]);
+                saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+              } else if (!res.ok) {
+                const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
+                const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
                 setChatMessages(prev => [...prev, errMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
               }
@@ -546,14 +555,14 @@ export default function Builder() {
     addLog(`[Deploy]: Initiating deployment...`);
     try {
       const res = await fetch(`${getApiBase() || ""}/api/deploy`, { method: 'POST' });
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
       if (res.ok) {
-        addLog(`[Deploy Success]: ${data.message}`);
+        addLog(`[Deploy Success]: ${data.message ?? "OK"}`);
       } else {
-        addLog(`[Deploy Error]: ${data.error}`);
+        addLog(`[Deploy Error]: ${data.error ?? `HTTP ${res.status}`}`);
       }
     } catch (e) {
-      addLog(`[Deploy Failed]: Network error.`);
+      addLog(`[Deploy Failed]: ${e instanceof Error ? e.message : "Network error."}`);
     }
   };
 

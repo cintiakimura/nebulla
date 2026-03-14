@@ -202,11 +202,6 @@ export function speakWithSpeechSynthesisFallback(
     onEnd?.();
     return () => {};
   }
-  // VETR_TEST_BUG: disable TTS fallback so audit can detect failure — remove this block to restore
-  if (text.length > 0) {
-    onEnd?.();
-    return () => {};
-  }
   const maxChunk = 200;
   const chunks: string[] = [];
   for (let i = 0; i < text.length; i += maxChunk) chunks.push(text.slice(i, i + maxChunk));

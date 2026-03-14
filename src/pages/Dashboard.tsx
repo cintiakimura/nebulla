@@ -542,8 +542,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const data = (await res.json().catch(() => ({}))) as { message?: { content?: string } };
       const content = data.message?.content ?? "";
       const jsonMatch = content.match(/\{[\s\S]*"nodes"[\s\S]*"edges"[\s\S]*\}/) || content.match(/\{[\s\S]*\}/);
-      // VETR_TEST_BUG: append "]" to break JSON parse — remove to restore
-      const raw = jsonMatch ? jsonMatch[0] + "]" : content;
+      const raw = jsonMatch ? jsonMatch[0] : content;
       let parsed: MindMapData | null = null;
       try {
         parsed = JSON.parse(raw) as MindMapData;
@@ -610,7 +609,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       setVetrLoading(true);
       const messages: { role: string; content: string }[] = [];
       const MAX_ITERATIONS = 7;
-      let feedback = reportText;
+      let additionalFeedbackAccumulated = "";
       let previousOutput = "";
       let iteration = 1;
       let done = false;
@@ -659,19 +658,19 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           done = true;
           break;
         }
-        feedback = extractNewFailures(content) + feedback;
+        additionalFeedbackAccumulated = extractNewFailures(content) + additionalFeedbackAccumulated;
         iteration += 1;
         if (triggerFreshStart || (iteration >= 4 && /no progress|still fail|same failure|stalled/i.test(content))) {
           setVetrFreshStartTriggered(true);
           setVetrProgress(`Iteration ${iteration}/7 — Strategic Fresh Start: resetting context and restarting generation.`);
           messages.push({ role: "user", content: buildVETRFreshStartMessage(content, reportText) });
           triggerFreshStart = false;
-          feedback = reportText;
+          additionalFeedbackAccumulated = "";
         } else {
           setVetrProgress(`Iteration ${iteration}/7 — ${getCurrentPhase(content)}`);
           messages.push({
             role: "user",
-            content: buildVETRContinuationMessage(iteration, content, feedback),
+            content: buildVETRContinuationMessage(iteration, content, reportText, additionalFeedbackAccumulated),
           });
         }
       }

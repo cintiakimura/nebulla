@@ -48,6 +48,7 @@ export default function MasterPlanBrainstorming() {
   const [awaitingLock, setAwaitingLock] = useState(false);
   const [pendingSummary, setPendingSummary] = useState("");
   const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,7 +65,12 @@ export default function MasterPlanBrainstorming() {
       const headers: Record<string, string> = { Accept: "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
       try {
+        setLoadError(null);
         const listRes = await fetch(`${apiBase || ""}/api/users/${userId}/projects`, { headers });
+        if (!listRes.ok) {
+          setLoadError(`Could not load projects (HTTP ${listRes.status}). Check Backend URL in Settings.`);
+          return;
+        }
         const list = (await listRes.json().catch(() => [])) as { id: string; name: string }[];
         let pid = list.find((p) => p.name === MASTER_PLAN_PROJECT_NAME)?.id;
         if (!pid) {
@@ -78,12 +84,19 @@ export default function MasterPlanBrainstorming() {
           if (createRes.status === 201) {
             const data = (await createRes.json()) as { id: string };
             pid = data.id;
+          } else {
+            const err = (await createRes.json().catch(() => ({}))) as { error?: string };
+            setLoadError(err.error ?? `Could not create project (HTTP ${createRes.status}).`);
+            return;
           }
         }
         if (cancelled || !pid) return;
         setProjectId(pid);
         const getRes = await fetch(`${apiBase || ""}/api/users/${userId}/projects/${pid}`, { headers });
-        if (!getRes.ok) return;
+        if (!getRes.ok) {
+          setLoadError(`Could not load project (HTTP ${getRes.status}).`);
+          return;
+        }
         const project = (await getRes.json()) as { specs?: string; chat_messages?: string | unknown[] };
         const rawSpecs = project.specs;
         if (typeof rawSpecs === "string") {
@@ -113,7 +126,9 @@ export default function MasterPlanBrainstorming() {
             },
           ]);
         }
-      } catch (_) {}
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : "Failed to load. Check Backend URL in Settings.");
+      }
     })();
     return () => {
       cancelled = true;
@@ -242,6 +257,14 @@ export default function MasterPlanBrainstorming() {
 
   const visibleTabs = TABS.filter((tab) => (specs[tab] ?? "").trim() !== "");
 
+  if (loadError) {
+    return (
+      <div style={{ padding: 24, background: "#1E1E1E", color: "#D4D4D4", fontFamily: "Segoe UI, system-ui, sans-serif" }}>
+        <p style={{ color: "#f59e0b" }}>{loadError}</p>
+        <p style={{ marginTop: 8, fontSize: 14 }}>Check Settings → Backend URL and try again.</p>
+      </div>
+    );
+  }
   if (!projectId) {
     return (
       <div style={{ padding: 24, background: "#1E1E1E", color: "#D4D4D4", fontFamily: "Segoe UI, system-ui, sans-serif" }}>

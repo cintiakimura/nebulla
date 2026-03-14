@@ -4,9 +4,11 @@ const KEY_BACKEND_UNAVAILABLE = "kyn_backend_unavailable";
 const KEY_API_BASE_FALLBACK = "kyn_api_base_fallback";
 
 /**
- * API base URL for backend calls. Empty = same origin (e.g. dev server or when frontend is served by Express).
- * Set VITE_API_URL in production when the frontend is on a different host (e.g. Vercel) and the backend is elsewhere (e.g. Railway).
- * If VITE_API_URL is not set, falls back to localStorage (wizard-pasted Railway URL) for progressive enhancement.
+ * API base URL for backend calls. Use this for every API request so auth, frontend, backend and URL stay in sync.
+ * - Empty = same origin (e.g. dev server or when frontend is served by Express).
+ * - Set VITE_API_URL in production when the frontend is on a different host (e.g. Vercel) and the backend is elsewhere (e.g. Railway).
+ * - If VITE_API_URL is not set, falls back to localStorage (wizard-pasted Railway URL) for progressive enhancement.
+ * Protected routes: send Authorization: Bearer <token> (getSessionToken from supabaseAuth). Grok routes: add getGrokRequestHeaders() (X-Grok-Api-Key).
  */
 export function getApiBase(): string {
   const envUrl = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";

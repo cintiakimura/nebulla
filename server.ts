@@ -116,7 +116,7 @@ async function startServer() {
     app.use((req, res, next) => {
       res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Grok-Api-Key");
       if (req.method === "OPTIONS") return res.sendStatus(204);
       next();
     });
@@ -673,9 +673,6 @@ async function startServer() {
       res.status(503).json({ error: "Grok API key required for voice. Add your Grok API key in Settings." });
       return;
     }
-    // VETR_TEST_BUG: force TTS to fail so audit shows failure — remove this block to restore
-    res.status(500).json({ error: "VETR_TEST_BUG: TTS disabled for test" });
-    return;
     try {
       const { text, voice_id: voiceId } = req.body as { text?: string; voice_id?: string };
       const toSpeak = typeof text === "string" ? text.trim() : "";
