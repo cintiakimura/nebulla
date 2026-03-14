@@ -71,7 +71,9 @@ export default function Dashboard() {
   const [startBuildingPrompt, setStartBuildingPrompt] = useState("");
   const [welcomeModalPrompt, setWelcomeModalPrompt] = useState("");
   const [welcomeModalLoading, setWelcomeModalLoading] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const prevListeningRef = useRef(false);
 
   const KEY_SEEN_WELCOME = "kyn_seen_welcome";
   const KEY_MIC_TOOLTIP = "kyn_mic_tooltip_dismissed";
@@ -81,7 +83,7 @@ export default function Dashboard() {
   const seenWelcome = typeof window !== "undefined" && localStorage.getItem(KEY_SEEN_WELCOME) === "1";
   const showWelcomeModal = !loading && projects.length === 0 && !seenWelcome && showFirstLoginOnboarding === false;
 
-  const { transcript, listening } = useSpeechRecognition();
+  const { transcript, listening, resetTranscript } = useSpeechRecognition();
   const paidStatus = getPaidStatus();
   const projectCount = projects.length;
   const atProjectLimit = !paidStatus.paid && projectCount >= (limits?.projectLimit ?? projectLimit);
@@ -179,6 +181,71 @@ export default function Dashboard() {
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
+
+  // When user stops speaking (mic off), send transcript to Grok and play reply via TTS
+  const voiceCancelRef = useRef(false);
+  useEffect(() => {
+    const wasListening = prevListeningRef.current;
+    prevListeningRef.current = listening;
+    if (!wasListening || listening) return;
+    const text = (typeof transcript === "string" ? transcript : "").trim();
+    if (!text) return;
+
+    voiceCancelRef.current = false;
+    setVoiceLoading(true);
+    (async () => {
+      try {
+        const apiBase = getApiBase() || "";
+        const userId = await getUserId();
+        const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+        const messages = [...history, { role: "user" as const, content: text }];
+        const res = await fetch(`${apiBase}/api/agent/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages, userId }),
+        });
+        if (voiceCancelRef.current) return;
+        const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+        const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Grok didn’t respond. Check GROK_API_KEY in Settings.");
+
+        const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text };
+        const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
+        setChatMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+        if (res.ok && content && !voiceCancelRef.current) {
+          try {
+            const ttsRes = await fetch(`${apiBase || ""}/api/tts`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: content.slice(0, 4096), voice_id: "eve" }),
+            });
+            if (ttsRes.ok && !voiceCancelRef.current) {
+              const blob = await ttsRes.blob();
+              const url = URL.createObjectURL(blob);
+              const audio = new Audio(url);
+              audio.onended = () => URL.revokeObjectURL(url);
+              audio.play().catch(() => {});
+            }
+          } catch (_) {}
+        }
+      } catch (e) {
+        if (!voiceCancelRef.current) {
+          const err = e instanceof Error ? e.message : "Network error";
+          setChatMessages((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), role: "user", content: text },
+            { id: crypto.randomUUID(), role: "assistant", content: `Something went wrong: ${err}. Check Backend URL and GROK_API_KEY.` },
+          ]);
+        }
+      } finally {
+        if (!voiceCancelRef.current) {
+          resetTranscript();
+          setVoiceLoading(false);
+        }
+      }
+    })();
+    return () => { voiceCancelRef.current = true; };
+  }, [listening, transcript, chatMessages]);
 
   const filtered = projects.filter((p) => {
     const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase());
@@ -777,10 +844,11 @@ export default function Dashboard() {
             )}
             <button
               onClick={handleMicToggle}
-              className={`w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm transition-colors ${listening ? "bg-red-500/20 text-red-400" : "bg-[#333] text-gray-300 hover:bg-[#444]"}`}
+              disabled={voiceLoading}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm transition-colors ${listening ? "bg-red-500/20 text-red-400" : voiceLoading ? "bg-[#333] text-gray-500" : "bg-[#333] text-gray-300 hover:bg-[#444]"}`}
             >
               {listening ? <MicOff size={16} /> : <Mic size={16} />}
-              {listening ? "Listening..." : "Voice"}
+              {listening ? "Listening..." : voiceLoading ? "Grok…" : "Voice"}
             </button>
             {listening && transcript && (
               <div className="mt-2 text-xs text-gray-500 italic truncate" title={transcript}>{transcript}</div>

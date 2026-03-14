@@ -228,7 +228,7 @@ export default function Builder() {
     };
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    await fetch(`${getApiBase()}/api/users/${userId}/projects/${projectId}`, {
+    await fetch(`${getApiBase() || ""}/api/users/${userId}/projects/${projectId}`, {
       method: "PUT",
       headers,
       body: JSON.stringify(body),
@@ -292,7 +292,7 @@ export default function Builder() {
     ];
     addLog(`[Grok]: Sending to agent...`);
     try {
-      const res = await fetch(`${getApiBase()}/api/agent/chat`, {
+      const res = await fetch(`${getApiBase() || ""}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages, userId }),
