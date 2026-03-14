@@ -2,6 +2,8 @@
  * Runs the same API checks as scripts/test-all.mjs from the browser.
  * Returns a list of { name, ok, detail } for each functionality.
  */
+import { getGrokRequestHeaders } from "./storedSecrets";
+
 export type AuditEntry = { name: string; ok: boolean; detail: string };
 
 export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
@@ -96,7 +98,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const chatRes = await fetch(`${base}/api/agent/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
       body: JSON.stringify({ messages: [{ role: "user", content: "Say: test" }] }),
     });
     const chatData = await chatRes.json().catch(() => ({})) as { message?: { content?: string } };

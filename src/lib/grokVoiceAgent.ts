@@ -4,26 +4,37 @@
  * Fallback to REST TTS or browser SpeechSynthesis when WebSocket fails.
  */
 
+import { getGrokRequestHeaders } from "./storedSecrets";
+
 const REALTIME_URL = "wss://api.x.ai/v1/realtime";
 const SAMPLE_RATE = 24000;
 
 export type VoiceAgentResult = "played" | "fallback";
 
+export type RealtimeTokenResult = { token: string | null; grokKeyMissing?: boolean };
+
 /** Get ephemeral token from our backend (POST /api/realtime/token). */
-export async function getRealtimeToken(apiBase: string): Promise<string | null> {
+export async function getRealtimeToken(apiBase: string): Promise<RealtimeTokenResult> {
   const url = `${apiBase || ""}/api/realtime/token`;
-  if (!url.startsWith("http") && !url.startsWith("/")) return null;
-  const res = await fetch(url, { method: "POST" });
-  if (!res.ok) return null;
+  if (!url.startsWith("http") && !url.startsWith("/")) return { token: null };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    const grokKeyMissing = res.status === 503 && text.toLowerCase().includes("grok");
+    return { token: null, grokKeyMissing };
+  }
   const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!data || typeof data !== "object") return null;
+  if (!data || typeof data !== "object") return { token: null };
   const token =
     typeof (data as { client_secret?: string }).client_secret === "string"
       ? (data as { client_secret: string }).client_secret
       : typeof (data as { value?: string }).value === "string"
         ? (data as { value: string }).value
         : null;
-  return token;
+  return { token };
 }
 
 /** Decode base64 PCM16 to Int16Array. */
@@ -64,7 +75,8 @@ export function speakViaVoiceAgent(
   return new Promise(async (resolve) => {
     let token: string | null = null;
     try {
-      token = await getRealtimeToken(apiBase);
+      const result = await getRealtimeToken(apiBase);
+      token = result.token;
     } catch {
       resolve("fallback");
       onDone?.();

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
 import { getApiBase, setApiBaseFallback, clearBackendUnavailable } from "../lib/api";
 import { isOpenMode } from "../lib/auth";
+import { SECRET_KEYS, getStoredSecret, setStoredSecret, type SecretKey } from "../lib/storedSecrets";
 
 const KEY_USER_ID = "kyn_user_id";
 const KEY_SUPABASE_URL = "supabase_url";
@@ -23,6 +24,29 @@ export default function Settings() {
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [secretValues, setSecretValues] = useState<Record<string, string>>({});
+  const [secretSaved, setSecretSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    SECRET_KEYS.forEach((k) => {
+      next[k] = getStoredSecret(k) ? "••••••••" : "";
+    });
+    setSecretValues(next);
+  }, []);
+
+  const setSecret = (key: SecretKey, value: string) => {
+    setSecretValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveSecret = (key: SecretKey) => {
+    const raw = secretValues[key];
+    const toSave = raw === "••••••••" ? getStoredSecret(key) : raw;
+    setStoredSecret(key, toSave ?? "");
+    setSecretSaved(key);
+    setTimeout(() => setSecretSaved(null), 2000);
+    if (raw !== "••••••••") setSecretValues((prev) => ({ ...prev, [key]: getStoredSecret(key) ? "••••••••" : "" }));
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -161,6 +185,35 @@ export default function Settings() {
           <button type="button" onClick={saveBackendUrl} className="ml-2 px-3 py-2 bg-[#007acc] text-white rounded text-sm">
             Save
           </button>
+        </section>
+
+        <section>
+          <h2>API keys & secrets</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            Optional. Values here override server .env. Stored in this browser only (localStorage). Use for Grok, Supabase, Stripe, or Builder key when you can’t set env (e.g. Vercel).
+          </p>
+          <div className="space-y-3 max-w-xl">
+            {SECRET_KEYS.map((key) => (
+              <div key={key} className="flex flex-wrap items-center gap-2">
+                <label className="text-sm font-medium text-vs-foreground w-56 shrink-0">{key}</label>
+                <input
+                  type="password"
+                  placeholder={key === "GROK_API_KEY" ? "xai-…" : "optional"}
+                  value={secretValues[key] ?? ""}
+                  onChange={(e) => setSecret(key, e.target.value)}
+                  className="flex-1 min-w-[200px] px-3 py-2 bg-vs-bg border border-vs-border rounded text-sm text-vs-foreground placeholder-gray-500"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => saveSecret(key)}
+                  className="px-3 py-2 bg-vs-accent text-vs-accent-foreground rounded text-sm shrink-0"
+                >
+                  {secretSaved === key ? "Saved" : "Save"}
+                </button>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section>

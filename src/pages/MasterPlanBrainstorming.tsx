@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getApiBase } from "../lib/api";
 import { getUserId } from "../lib/auth";
 import { getSessionToken } from "../lib/supabaseAuth";
+import { getGrokRequestHeaders } from "../lib/storedSecrets";
 
 const TABS = [
   "Objective",
@@ -46,6 +47,7 @@ export default function MasterPlanBrainstorming() {
   const [stepIndex, setStepIndex] = useState(0);
   const [awaitingLock, setAwaitingLock] = useState(false);
   const [pendingSummary, setPendingSummary] = useState("");
+  const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -168,10 +170,11 @@ export default function MasterPlanBrainstorming() {
       ];
       const res = await fetch(`${apiBase || ""}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
         body: JSON.stringify({ messages: apiMessages }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 503) setShowGrokKeyModal(true);
       const reply = res.ok && data?.message?.content ? data.message.content : res.status === 503 ? "Grok isn’t available right now." : "Sorry, I couldn’t reply.";
       const withReply = [...nextMessages, { id: crypto.randomUUID(), role: "assistant" as const, content: reply }];
       setMessages(withReply);
@@ -385,6 +388,18 @@ export default function MasterPlanBrainstorming() {
           </button>
         </div>
       </aside>
+
+      {showGrokKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowGrokKeyModal(false)}>
+          <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat.</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3d3d4d] text-[#d4d4d4] text-sm">Close</button>
+              <button type="button" onClick={() => { setShowGrokKeyModal(false); navigate("/settings"); }} className="px-3 py-2 rounded bg-[#007ACC] text-white text-sm">Open Settings</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

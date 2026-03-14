@@ -17,6 +17,7 @@ import { getSetupComplete, setSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess } from "../lib/auth";
 import { getApiBase, clearBackendUnavailable } from "../lib/api";
 import { getSessionToken } from "../lib/supabaseAuth";
+import { getGrokRequestHeaders } from "../lib/storedSecrets";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import SetupWizard from "../components/SetupWizard";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
@@ -90,6 +91,7 @@ export default function Builder() {
   });
   const [readOnly, setReadOnly] = useState(false);
   const [rateLimitModalOpen, setRateLimitModalOpen] = useState(false);
+  const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const grokAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -294,11 +296,12 @@ export default function Builder() {
     try {
       const res = await fetch(`${getApiBase() || ""}/api/agent/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getGrokRequestHeaders() },
         body: JSON.stringify({ messages, userId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 503 && ((data as { error?: string })?.error ?? "").toLowerCase().includes("grok")) setShowGrokKeyModal(true);
         const dataErr = (data as { error?: string })?.error;
         const details = (data as { details?: string })?.details;
         let errMsg: string;
@@ -993,6 +996,19 @@ export default function Builder() {
         ctaLabel={proModalAction === "read_only" ? "Upgrade" : undefined}
         ctaToPricing={proModalAction === "read_only"}
       />
+
+      {/* Grok API key missing: 503 from agent/chat */}
+      {showGrokKeyModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
+          <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+            <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat and voice.</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3d3d4d] text-[#d4d4d4] text-sm">Close</button>
+              <Link to="/settings" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded bg-vs-accent text-white text-sm">Open Settings</Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rate limit modal: 429 too many requests */}
       {rateLimitModalOpen && (

@@ -179,16 +179,14 @@ async function handleGrok(
   res: VercelResponse,
   pathname: string
 ): Promise<boolean> {
-  const apiKey = process.env.GROK_API_KEY?.trim();
+  const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
+  const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
   if (!apiKey || apiKey === "PLACEHOLDER") {
     if (pathname === "/api/agent/chat" || pathname === "/api/tts" || pathname === "/api/realtime/token") {
-      if (pathname === "/api/tts") {
-        res.status(503).json({ error: "Grok API key required for voice. Add GROK_API_KEY to .env." });
-      } else if (pathname === "/api/realtime/token") {
-        res.status(503).json({ error: "GROK_API_KEY not set." });
-      } else {
-        res.status(503).json({ error: "Grok API key not configured. Add GROK_API_KEY to .env (get key at console.x.ai)." });
-      }
+      const msg = "Add your Grok API key in Settings.";
+      if (pathname === "/api/tts") res.status(503).json({ error: "Grok API key required for voice. " + msg });
+      else if (pathname === "/api/realtime/token") res.status(503).json({ error: "GROK_API_KEY not set. " + msg });
+      else res.status(503).json({ error: "Grok API key not configured. " + msg });
       return true;
     }
     return false;

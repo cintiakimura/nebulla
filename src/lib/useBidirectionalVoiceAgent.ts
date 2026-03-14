@@ -105,15 +105,18 @@ export function useBidirectionalVoiceAgent(apiBase: string, options: {
     if (status === "listening" || status === "connecting") return;
     setStatus("connecting");
     let token: string | null = null;
+    let grokKeyMissing = false;
     try {
-      token = await getRealtimeToken(apiBase);
+      const result = await getRealtimeToken(apiBase);
+      token = result.token;
+      grokKeyMissing = result.grokKeyMissing ?? false;
     } catch (e) {
       onError?.(e instanceof Error ? e.message : "Failed to get token");
       setStatus("error");
       return;
     }
     if (!token) {
-      onError?.("Voice token not available. Check GROK_API_KEY.");
+      onError?.(grokKeyMissing ? "Add your Grok API key in Settings." : "Voice token not available. Check GROK_API_KEY.");
       setStatus("error");
       return;
     }

@@ -135,10 +135,11 @@ async function startServer() {
   });
 
   // Ephemeral token for Grok Voice Agent WebSocket (client uses this to connect to wss://api.x.ai/v1/realtime)
-  app.post("/api/realtime/token", async (_req, res) => {
-    const apiKey = process.env.GROK_API_KEY?.trim();
+  app.post("/api/realtime/token", async (req, res) => {
+    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
+    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
     if (!apiKey || apiKey === "PLACEHOLDER") {
-      res.status(503).json({ error: "GROK_API_KEY not set." });
+      res.status(503).json({ error: "GROK_API_KEY not set. Add your Grok API key in Settings." });
       return;
     }
     try {
@@ -583,9 +584,10 @@ async function startServer() {
     standardHeaders: true,
   });
   app.post("/api/agent/chat", agentChatLimiter, resolveUserId, async (req, res) => {
-    const apiKey = process.env.GROK_API_KEY;
+    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
+    const apiKey = headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY;
     if (!apiKey || apiKey === "PLACEHOLDER") {
-      res.status(503).json({ error: "Grok API key not configured. Add GROK_API_KEY to .env (get key at console.x.ai)." });
+      res.status(503).json({ error: "Grok API key not configured. Add your Grok API key in Settings." });
       return;
     }
     try {
@@ -665,9 +667,10 @@ async function startServer() {
 
   // Grok voice (xAI TTS, voice Eve) — natural speech for onboarding and "Grok speaks" in Builder
   app.post("/api/tts", async (req, res) => {
-    const apiKey = process.env.GROK_API_KEY;
+    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
+    const apiKey = headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY;
     if (!apiKey || apiKey === "PLACEHOLDER") {
-      res.status(503).json({ error: "Grok API key required for voice. Add GROK_API_KEY to .env." });
+      res.status(503).json({ error: "Grok API key required for voice. Add your Grok API key in Settings." });
       return;
     }
     try {

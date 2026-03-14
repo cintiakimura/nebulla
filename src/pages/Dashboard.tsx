@@ -31,6 +31,7 @@ import { speakWithSpeechSynthesisFallback } from "../lib/grokVoiceAgent";
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
+import { getGrokRequestHeaders } from "../lib/storedSecrets";
 import { VETR_SYSTEM_PROMPT, buildVETRUserMessage, parseVETROutput, type VETRSection } from "../lib/vetrPrompt";
 import FirstLoginOnboarding from "../components/FirstLoginOnboarding";
 import UpgradeProModal from "../components/UpgradeProModal";
@@ -112,6 +113,7 @@ export default function Dashboard() {
   const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
   const [mindMapOpen, setMindMapOpen] = useState(false);
   const [mindMapLoading, setMindMapLoading] = useState(false);
+  const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
   const prevListeningRef = useRef(false);
   const planningProjectIdRef = useRef<string | null>(null);
@@ -185,7 +187,8 @@ export default function Dashboard() {
       });
     },
     onError(msg) {
-      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or check GROK_API_KEY.` }]);
+      if (msg.includes("Add your Grok") || msg.includes("Settings")) setShowGrokKeyModal(true);
+      else setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Voice error: ${msg}. Try text or check GROK_API_KEY.` }]);
     },
   });
 
@@ -321,9 +324,10 @@ export default function Dashboard() {
           try {
             const ttsRes = await fetch(`${apiBase || ""}/api/tts`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
               body: JSON.stringify({ text: content.slice(0, 4096), voice_id: "eve" }),
             });
+            if (ttsRes.status === 503) setShowGrokKeyModal(true);
             if (ttsRes.ok && !voiceCancelRef.current) {
               const blob = await ttsRes.blob();
               const url = URL.createObjectURL(blob);
@@ -560,13 +564,14 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         console.log("[VETR] Phase 1–7: Requesting Grok self-debug…");
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
           body: JSON.stringify({
             messages: [
               { role: "user", content: `${VETR_SYSTEM_PROMPT}\n\n${buildVETRUserMessage(reportText)}` },
             ],
           }),
         });
+        if (res.status === 503) setShowGrokKeyModal(true);
         const data = await res.json().catch(() => ({}));
         const content = res.ok && (data as { message?: { content?: string } }).message?.content
           ? (data as { message: { content: string } }).message.content
@@ -694,6 +699,21 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             ctaLabel="Upgrade to Pro"
             ctaToPricing
           />
+        )}
+        {showGrokKeyModal && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setShowGrokKeyModal(false)}>
+            <div className="bg-vs-editor border border-vs-border rounded-lg shadow-xl max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+              <p className="text-vs-foreground mb-3">Add your Grok API key in Settings to use chat and voice.</p>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-vs-border text-vs-foreground text-sm">
+                  Close
+                </button>
+                <button type="button" onClick={() => { setShowGrokKeyModal(false); navigate("/settings"); }} className="px-3 py-2 rounded bg-vs-accent text-vs-accent-foreground text-sm">
+                  Open Settings
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {testReportOpen && (
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60" onClick={() => setTestReportOpen(false)}>

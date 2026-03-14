@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Mic } from "lucide-react";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { getApiBase } from "../lib/api";
+import { getGrokRequestHeaders } from "../lib/storedSecrets";
 
 const INTRO_SCRIPT =
   "Hey, I'm Kyn, your dev partner. Most people rush into code and end up with bugs and frustration. We talk first, plan architecture, brainstorm together, get an airtight plan before writing any code.";
@@ -11,7 +13,7 @@ const PROMPT_READY =
 const OUTRO_SCRIPT = "Let's go. What's your idea? Describe what you're building.";
 
 /** Play text using Grok voice (Eve) via backend TTS. No browser TTS. If no backend is configured, skips playback and calls onEnd (avoids 405 on frontend host). */
-function playGrokEve(text: string, onEnd?: () => void): () => void {
+function playGrokEve(text: string, onEnd?: () => void, onGrokKeyMissing?: () => void): () => void {
   if (typeof window === "undefined") {
     onEnd?.();
     return () => {};
@@ -27,11 +29,16 @@ function playGrokEve(text: string, onEnd?: () => void): () => void {
 
   fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getGrokRequestHeaders() },
     body: JSON.stringify({ text, voice_id: "eve" }),
   })
     .then((res) => {
-      if (cancelled || !res.ok) {
+      if (cancelled) {
+        onEnd?.();
+        return null;
+      }
+      if (res.status === 503) onGrokKeyMissing?.();
+      if (!res.ok) {
         onEnd?.();
         return null;
       }
@@ -68,9 +75,12 @@ type Props = {
 };
 
 export default function FirstLoginOnboarding({ onComplete }: Props) {
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("idle");
   const [displayText, setDisplayText] = useState<string>("");
+  const [showGrokKeyBanner, setShowGrokKeyBanner] = useState(false);
   const cancelPlayRef = useRef<(() => void) | null>(null);
+  const onGrokMissing = () => setShowGrokKeyBanner(true);
   const { transcript, listening } = useSpeechRecognition();
 
   const handleLetsStart = () => {
@@ -83,8 +93,8 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
         setStep("waiting_ready");
         setDisplayText("");
         SpeechRecognition.startListening({ continuous: true });
-      });
-    });
+      }, onGrokMissing);
+    }, onGrokMissing);
   };
 
   const handleImReady = () => {
@@ -92,7 +102,7 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
     cancelPlayRef.current?.();
     setStep("done");
     setDisplayText(OUTRO_SCRIPT);
-    playGrokEve(OUTRO_SCRIPT);
+    playGrokEve(OUTRO_SCRIPT, undefined, onGrokMissing);
   };
 
   useEffect(() => {
@@ -128,6 +138,12 @@ export default function FirstLoginOnboarding({ onComplete }: Props) {
         className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-vs-bg text-vs-foreground font-sans"
         style={{ pointerEvents: isDone ? "none" : "auto" }}
       >
+        {showGrokKeyBanner && (
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2 rounded-lg bg-amber-500/20 border border-amber-500/40 px-3 py-2 text-sm text-amber-200">
+            <span>Add your Grok API key in Settings to hear voice.</span>
+            <button type="button" onClick={() => { setShowGrokKeyBanner(false); navigate("/settings"); }} className="shrink-0 px-2 py-1 rounded bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 text-xs font-medium">Open Settings</button>
+          </div>
+        )}
         <div className="flex flex-col items-center justify-center gap-10 px-6 max-w-2xl text-center">
           {step === "idle" && (
             <>
