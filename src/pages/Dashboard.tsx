@@ -27,7 +27,6 @@ import { useDropzone } from "react-dropzone";
 import { getSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib/auth";
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
-import { speakWithSpeechSynthesisFallback } from "../lib/grokVoiceAgent";
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import VoiceFallback from "../components/VoiceFallback";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
@@ -388,7 +387,7 @@ export default function Dashboard() {
               audio.play().catch(() => {});
             }
           } catch (_) {
-            speakWithSpeechSynthesisFallback(content.slice(0, 4096));
+            /* TTS fallback disabled to avoid double voice */
           }
         }
       } catch (e) {
