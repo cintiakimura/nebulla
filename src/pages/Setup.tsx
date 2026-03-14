@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileCode, Layout, Settings, Wrench } from "lucide-react";
-import SetupWizard from "../components/SetupWizard";
+import { FileCode, Layout, Settings } from "lucide-react";
 import { isOpenMode } from "../lib/auth";
 
 const KEY_USER_ID = "kyn_user_id";
@@ -17,10 +16,6 @@ export default function Setup() {
       navigate("/login", { replace: true });
     }
   }, [navigate]);
-
-  const handleSetupComplete = () => {
-    navigate("/builder");
-  };
 
   if (typeof window !== "undefined" && !isOpenMode() && !localStorage.getItem(KEY_USER_ID)) {
     return null;
@@ -38,7 +33,7 @@ export default function Setup() {
           <FileCode size={24} strokeWidth={1.5} />
         </button>
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/builder")}
           className="p-2 text-gray-400 hover:text-white hover:bg-[#444] rounded-md mb-4"
           title="Deploy"
         >
@@ -46,30 +41,41 @@ export default function Setup() {
         </button>
         <div className="mt-auto flex flex-col gap-4">
           <button
-            className="p-2 text-white bg-[#444] rounded-md"
-            title="Setup (connect tools)"
+            onClick={() => navigate("/settings")}
+            className="p-2 text-gray-400 hover:text-white hover:bg-[#444] rounded-md"
+            title="Settings"
           >
-            <Wrench size={24} strokeWidth={1.5} />
-          </button>
-          <button className="p-2 text-gray-400 hover:text-white hover:bg-[#444] rounded-md" title="Settings">
             <Settings size={24} strokeWidth={1.5} />
           </button>
         </div>
       </div>
 
-      {/* Sidebar (Explorer) - minimal when on setup */}
+      {/* Sidebar - minimal when on setup */}
       <div className="w-64 bg-[#252526] border-r border-[#333333] flex flex-col">
         <div className="p-3 text-xs font-semibold tracking-wider text-gray-400 uppercase">
           Setup
         </div>
         <div className="flex-1 overflow-auto px-3 text-sm text-gray-500">
-          Connect your tools once. Change them later from here or Dashboard → Project Settings.
+          Connect GitHub and set your domain in Settings.
         </div>
       </div>
 
-      {/* Center: Setup wizard only, no terminal */}
-      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
-        <SetupWizard onComplete={handleSetupComplete} isTweaks />
+      {/* Center: open for preview; config is in Settings */}
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden bg-[#1e1e1e]">
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            <p className="text-[#d4d4d4] text-sm mb-4">
+              Supabase is configured on the backend. Connect GitHub and set your domain in Settings.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/settings")}
+              className="px-4 py-2 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-sm rounded transition-colors"
+            >
+              Open Settings
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Chat Panel - same width as Explorer */}

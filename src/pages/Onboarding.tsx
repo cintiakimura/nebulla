@@ -62,7 +62,7 @@ export default function Onboarding() {
       if (res.status === 403) {
         const data = await res.json().catch(() => ({}));
         if ((data as { error?: string }).error === "free_project_limit_reached") {
-          navigate("/dashboard"); // send to dashboard where upgrade modal can show
+          navigate("/builder");
           return;
         }
       }
@@ -185,7 +185,7 @@ export default function Onboarding() {
         {/* Footer Actions */}
         <div className="mt-8 flex justify-between items-center">
           <button 
-            onClick={step === 1 ? () => navigate("/dashboard") : handlePrev}
+            onClick={step === 1 ? () => navigate("/builder") : handlePrev}
             className="px-4 py-2 text-gray-400 hover:text-white transition-colors flex items-center gap-2"
           >
             <ArrowLeft size={18} />

@@ -6,7 +6,7 @@ export default function SimpleStart() {
 
   const handleStart = () => {
     setFirstLoginDone();
-    navigate("/dashboard", { replace: true });
+    navigate("/builder", { replace: true });
   };
 
   return (

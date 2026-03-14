@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { FileText, Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { getApiBase } from "../lib/api";
 import { getUserId } from "../lib/auth";
 import { getSessionToken } from "../lib/supabaseAuth";
+import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
 
 const TABS = [
   "Objective",
@@ -48,7 +50,16 @@ export default function MasterPlanBrainstorming() {
   const [pendingSummary, setPendingSummary] = useState("");
   const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [mindMapOpen, setMindMapOpen] = useState(false);
+  const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
+  const [mindMapLoading, setMindMapLoading] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const MIND_MAP_PROMPT = `Based on our planning conversation and the summarized document sections (objective, users, data, constraints, branding, pages, integrations, done state), output a mind map as a single JSON object with this exact shape (no other text):
+{"nodes":[{"id":"1","label":"App Idea","type":"central"},{"id":"2","label":"Objective","type":"branch"},{"id":"3","label":"Users","type":"branch"}],"edges":[{"source":"1","target":"2"},{"source":"1","target":"3"}]}
+Use one central node "App Idea" and branch nodes for each planning theme we covered. Label branches with short titles. Output only the JSON.`;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -255,6 +266,47 @@ export default function MasterPlanBrainstorming() {
   };
 
   const visibleTabs = TABS.filter((tab) => (specs[tab] ?? "").trim() !== "");
+  const hasAnyDocContent = TABS.some((tab) => (specs[tab] ?? "").trim() !== "");
+
+  const handleShowMindMap = async () => {
+    const api = getApiBase();
+    if (!api) {
+      setMindMapData(null);
+      setMindMapOpen(true);
+      return;
+    }
+    setMindMapLoading(true);
+    setMindMapOpen(true);
+    try {
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const context = hasAnyDocContent
+        ? `\nDocument summaries per section:\n${TABS.map((t) => `${t}: ${(specs[t] ?? "").trim().slice(0, 200)}`).join("\n")}`
+        : "";
+      const res = await fetch(`${api}/api/agent/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...history, { role: "user" as const, content: MIND_MAP_PROMPT + context }],
+          userId: await getUserId(),
+        }),
+      });
+      if (res.status === 503) setShowGrokKeyModal(true);
+      const data = (await res.json().catch(() => ({}))) as { message?: { content?: string } };
+      const content = data.message?.content ?? "";
+      const jsonMatch = content.match(/\{[\s\S]*"nodes"[\s\S]*"edges"[\s\S]*\}/) || content.match(/\{[\s\S]*\}/);
+      const raw = jsonMatch ? jsonMatch[0] : content;
+      let parsed: MindMapData | null = null;
+      try {
+        parsed = JSON.parse(raw) as MindMapData;
+        if (!parsed?.nodes || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) parsed = null;
+      } catch (_) {}
+      setMindMapData(parsed);
+    } catch (_) {
+      setMindMapData(null);
+    } finally {
+      setMindMapLoading(false);
+    }
+  };
 
   if (loadError) {
     return (
@@ -283,140 +335,412 @@ export default function MasterPlanBrainstorming() {
         fontFamily: "Segoe UI, system-ui, sans-serif",
       }}
     >
-      <aside
-        style={{
-          width: "6%",
-          minWidth: 48,
-          maxWidth: 80,
-          background: "#252526",
-          borderRight: "1px solid #333",
-          overflow: "auto",
-          padding: 8,
-        }}
-      >
-        {(visibleTabs.length > 0 ? visibleTabs : TABS).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              padding: "8px 12px",
-              marginBottom: 4,
-              cursor: "pointer",
-              background: activeTab === tab ? "#2A2D2E" : "transparent",
-              color: "#D4D4D4",
-              border: "none",
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </aside>
+      {/* Left: question tabs (one per subject) — toggleable */}
+      {sectionsOpen ? (
+        <aside
+          style={{
+            width: 180,
+            flexShrink: 0,
+            background: "#252526",
+            borderRight: "1px solid #3c3c3c",
+            overflow: "auto",
+            padding: "12px 0",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sections</span>
+            <button
+              type="button"
+              onClick={() => setSectionsOpen(false)}
+              style={{ padding: 4, background: "transparent", border: "none", color: "#9ca3af", cursor: "pointer", borderRadius: 4 }}
+              title="Hide sections"
+            >
+              <PanelLeftClose size={14} />
+            </button>
+          </div>
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                textAlign: "left",
+                padding: "10px 16px",
+                cursor: "pointer",
+                background: activeTab === tab ? "#094771" : "transparent",
+                borderLeft: activeTab === tab ? "3px solid #007acc" : "3px solid transparent",
+                color: activeTab === tab ? "#fff" : "#d4d4d4",
+                borderTop: "none",
+                borderBottom: "none",
+                borderRight: "none",
+                fontSize: 13,
+              }}
+            >
+              {tab}
+              {(specs[tab] ?? "").trim() !== "" && (
+                <span style={{ marginLeft: 6, color: "#4ec9b0", fontSize: 10 }}>●</span>
+              )}
+            </button>
+          ))}
+        </aside>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setSectionsOpen(true)}
+          style={{
+            width: 28,
+            flexShrink: 0,
+            background: "#252526",
+            borderRight: "1px solid #3c3c3c",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#9ca3af",
+            cursor: "pointer",
+            border: "none",
+          }}
+          title="Show sections"
+        >
+          <PanelLeftOpen size={16} />
+        </button>
+      )}
+      {/* Center: Google Docs–style document (one tab = one section) */}
       <main
         style={{
           flex: "1 1 55%",
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
-          background: "#1E1E1E",
+          background: "#1e1e1e",
         }}
       >
-        <textarea
-          value={content}
-          onChange={(e) => {
-            setContent(e.target.value);
-            setSpecs((s) => ({ ...s, [activeTab]: e.target.value }));
-          }}
-          onBlur={() => {
-            const next = { ...specs, [activeTab]: content };
-            setSpecs(next);
-            saveSpecsToProject(next);
-          }}
-          placeholder={`Content for ${activeTab}`}
+        {/* Toolbar */}
+        <div
           style={{
-            flex: 1,
-            padding: 12,
-            resize: "none",
+            flexShrink: 0,
+            height: 48,
+            padding: "0 16px",
             background: "#252526",
-            color: "#D4D4D4",
-            border: "none",
-            fontFamily: "Consolas, Menlo, Monaco, monospace",
-            fontSize: 13,
+            borderBottom: "1px solid #3c3c3c",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
           }}
-        />
-      </main>
-      <aside
-        style={{
-          width: "35%",
-          minWidth: 320,
-          background: "#252526",
-          borderLeft: "1px solid #333",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div style={{ flex: 1, overflow: "auto", padding: 12, color: "#D4D4D4" }}>
-          {messages.map((m) => (
-            <div key={m.id} style={{ marginBottom: 12 }}>
-              <strong style={{ color: m.role === "user" ? "#D4D4D4" : "#007ACC" }}>
-                {m.role === "user" ? "You" : "Grok"}:
-              </strong>
-              <div style={{ whiteSpace: "pre-wrap", marginTop: 4, color: "#D4D4D4" }}>{m.content}</div>
-            </div>
-          ))}
-          <div ref={chatEndRef} />
-        </div>
-        {awaitingLock && (
-          <div style={{ padding: 8, borderTop: "1px solid #333", background: "#252526" }}>
-            <button type="button" onClick={() => handleLock("yes")} style={{ marginRight: 8, padding: "6px 12px", background: "#007ACC", color: "#fff", border: "none", cursor: "pointer" }}>
-              Lock
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <FileText size={18} style={{ color: "#007acc" }} />
+            <span style={{ fontSize: 14, color: "#d4d4d4", fontWeight: 500 }}>Brainstorming doc</span>
+            <button
+              type="button"
+              onClick={() => setSectionsOpen((o) => !o)}
+              style={{
+                padding: "4px 8px",
+                background: sectionsOpen ? "#3c3c3c" : "transparent",
+                border: "1px solid #3c3c3c",
+                borderRadius: 4,
+                color: "#9ca3af",
+                cursor: "pointer",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+              title={sectionsOpen ? "Hide sections" : "Show sections"}
+            >
+              {sectionsOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+              Sections
             </button>
-            <button type="button" onClick={() => handleLock("no")} style={{ marginRight: 8, padding: "6px 12px", background: "#2A2D2E", color: "#D4D4D4", border: "none", cursor: "pointer" }}>
-              Edit
-            </button>
-            <button type="button" onClick={() => handleLock("skip")} style={{ marginRight: 8, padding: "6px 12px", background: "#2A2D2E", color: "#D4D4D4", border: "none", cursor: "pointer" }}>
-              Skip
-            </button>
-            <button type="button" onClick={() => handleLock("generate")} style={{ padding: "6px 12px", background: "#2A2D2E", color: "#D4D4D4", border: "none", cursor: "pointer" }}>
-              Generate
+            <button
+              type="button"
+              onClick={() => setChatOpen((o) => !o)}
+              style={{
+                padding: "4px 8px",
+                background: chatOpen ? "#3c3c3c" : "transparent",
+                border: "1px solid #3c3c3c",
+                borderRadius: 4,
+                color: "#9ca3af",
+                cursor: "pointer",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+              title={chatOpen ? "Hide chat" : "Show chat"}
+            >
+              {chatOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+              Chat
             </button>
           </div>
-        )}
-        <div style={{ padding: 8, borderTop: "1px solid #333", background: "#252526" }}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Reply or yes / no / skip / Generate"
-            style={{
-              width: "100%",
-              padding: 8,
-              marginBottom: 8,
-              background: "#1E1E1E",
-              color: "#D4D4D4",
-              border: "1px solid #333",
-            }}
-          />
           <button
             type="button"
-            onClick={handleSend}
-            disabled={loading}
-            style={{ padding: "8px 16px", background: "#007ACC", color: "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer" }}
+            onClick={handleShowMindMap}
+            disabled={mindMapLoading || messages.length === 0}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              background: messages.length > 0 ? "#007acc" : "#3c3c3c",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              fontSize: 13,
+              cursor: messages.length > 0 && !mindMapLoading ? "pointer" : "not-allowed",
+              opacity: mindMapLoading ? 0.7 : 1,
+            }}
           >
-            {loading ? "…" : "Send"}
+            <Map size={16} />
+            {mindMapLoading ? "Generating…" : "Open mind map"}
           </button>
         </div>
-      </aside>
+        {/* Document body */}
+        <div
+          style={{
+            flex: 1,
+            overflow: "auto",
+            padding: "24px 48px 48px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 720,
+              minHeight: 400,
+              background: "#252526",
+              borderRadius: 4,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+              padding: "32px 40px",
+            }}
+          >
+            <h1
+              style={{
+                fontSize: 22,
+                fontWeight: 400,
+                color: "#e8e8e8",
+                marginBottom: 24,
+                fontFamily: "Georgia, 'Times New Roman', serif",
+                borderBottom: "1px solid #3c3c3c",
+                paddingBottom: 12,
+              }}
+            >
+              {activeTab}
+            </h1>
+            <textarea
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                setSpecs((s) => ({ ...s, [activeTab]: e.target.value }));
+              }}
+              onBlur={() => {
+                const next = { ...specs, [activeTab]: content };
+                setSpecs(next);
+                saveSpecsToProject(next);
+              }}
+              placeholder={
+                (specs[activeTab] ?? "").trim() === ""
+                  ? `Answer here. When Grok summarises and you lock this section, the summary will appear here for future reference during code.`
+                  : "Add or edit notes…"
+              }
+              style={{
+                width: "100%",
+                minHeight: 280,
+                padding: 0,
+                resize: "none",
+                background: "transparent",
+                color: "#e8e8e8",
+                border: "none",
+                fontFamily: "Georgia, 'Times New Roman', serif",
+                fontSize: 15,
+                lineHeight: 1.6,
+                outline: "none",
+              }}
+            />
+          </div>
+        </div>
+      </main>
+      {/* Right: Chat — toggleable */}
+      {chatOpen ? (
+        <aside
+          style={{
+            width: "35%",
+            minWidth: 320,
+            flexShrink: 0,
+            background: "#252526",
+            borderLeft: "1px solid #3c3c3c",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ flexShrink: 0, padding: "8px 12px", borderBottom: "1px solid #3c3c3c", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chat</span>
+            <button
+              type="button"
+              onClick={() => setChatOpen(false)}
+              style={{ padding: 4, background: "transparent", border: "none", color: "#9ca3af", cursor: "pointer", borderRadius: 4 }}
+              title="Hide chat"
+            >
+              <PanelRightClose size={14} />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: 12, color: "#D4D4D4" }}>
+            {messages.map((m) => (
+              <div key={m.id} style={{ marginBottom: 12 }}>
+                <strong style={{ color: m.role === "user" ? "#D4D4D4" : "#007ACC" }}>
+                  {m.role === "user" ? "You" : "Grok"}:
+                </strong>
+                <div style={{ whiteSpace: "pre-wrap", marginTop: 4, color: "#D4D4D4" }}>{m.content}</div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          {awaitingLock && (
+            <div style={{ padding: 8, borderTop: "1px solid #3c3c3c", background: "#252526" }}>
+              <button type="button" onClick={() => handleLock("yes")} style={{ marginRight: 8, padding: "6px 12px", background: "#007ACC", color: "#fff", border: "none", cursor: "pointer", borderRadius: 4 }}>
+                Lock
+              </button>
+              <button type="button" onClick={() => handleLock("no")} style={{ marginRight: 8, padding: "6px 12px", background: "#3c3c3c", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+                Edit
+              </button>
+              <button type="button" onClick={() => handleLock("skip")} style={{ marginRight: 8, padding: "6px 12px", background: "#3c3c3c", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+                Skip
+              </button>
+              <button type="button" onClick={() => handleLock("generate")} style={{ padding: "6px 12px", background: "#3c3c3c", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+                Generate
+              </button>
+            </div>
+          )}
+          <div style={{ padding: 8, borderTop: "1px solid #3c3c3c", background: "#252526" }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              placeholder="Reply or yes / no / skip / Generate"
+              style={{
+                width: "100%",
+                padding: 8,
+                marginBottom: 8,
+                background: "#1E1E1E",
+                color: "#D4D4D4",
+                border: "1px solid #3c3c3c",
+                borderRadius: 4,
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={loading}
+              style={{ padding: "8px 16px", background: "#007ACC", color: "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", borderRadius: 4 }}
+            >
+              {loading ? "…" : "Send"}
+            </button>
+          </div>
+        </aside>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setChatOpen(true)}
+          style={{
+            width: 28,
+            flexShrink: 0,
+            background: "#252526",
+            borderLeft: "1px solid #3c3c3c",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#9ca3af",
+            cursor: "pointer",
+            border: "none",
+          }}
+          title="Show chat"
+        >
+          <PanelRightOpen size={16} />
+        </button>
+      )}
+
+      {/* Mind map modal */}
+      {mindMapOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.85)",
+            padding: 24,
+          }}
+          onClick={() => setMindMapOpen(false)}
+        >
+          <div
+            style={{
+              width: "90vw",
+              maxWidth: 900,
+              height: "80vh",
+              background: "#1e1e1e",
+              borderRadius: 8,
+              border: "1px solid #3c3c3c",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                flexShrink: 0,
+                padding: "12px 16px",
+                borderBottom: "1px solid #3c3c3c",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "#252526",
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 500, color: "#d4d4d4" }}>Interactive mind map</span>
+              <button
+                type="button"
+                onClick={() => setMindMapOpen(false)}
+                style={{
+                  padding: 6,
+                  background: "transparent",
+                  border: "none",
+                  color: "#9ca3af",
+                  cursor: "pointer",
+                  borderRadius: 4,
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              {mindMapLoading ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9ca3af" }}>
+                  Generating mind map…
+                </div>
+              ) : (
+                <MindMapFromPlan data={mindMapData} className="w-full h-full" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showGrokKeyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80" onClick={() => setShowGrokKeyModal(false)}>
-          <div className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3d3d4d] text-[#d4d4d4] text-sm">Close</button>
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#3c3c3c] text-[#d4d4d4] text-sm">Close</button>
               <button type="button" onClick={() => { setShowGrokKeyModal(false); navigate("/settings"); }} className="px-3 py-2 rounded bg-[#007ACC] text-white text-sm">Open Settings</button>
             </div>
           </div>

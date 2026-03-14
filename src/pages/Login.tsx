@@ -33,7 +33,7 @@ export default function Login() {
         const data = (await res.json()) as { userId?: string };
         const userId = data?.userId ?? crypto.randomUUID();
         setUserIdAfterLogin(userId);
-        navigate("/dashboard", { replace: true });
+        navigate("/builder", { replace: true });
       } else {
         setBackendUnavailable();
         setError("Backend didn’t respond. Add Backend URL in Settings.");
@@ -77,7 +77,7 @@ export default function Login() {
         const uid = (data as { user: { id: string }; session: unknown }).user?.id;
         if (uid) {
           setUserIdAfterLogin(uid);
-          navigate("/dashboard", { replace: true });
+          navigate("/builder", { replace: true });
           return;
         }
       }

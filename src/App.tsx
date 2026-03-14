@@ -5,7 +5,6 @@ import SimpleStart from "./pages/SimpleStart";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
 import Pricing from "./pages/Pricing";
-import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import Builder from "./pages/Builder";
 import Setup from "./pages/Setup";
@@ -43,8 +42,8 @@ export default function App() {
           <Route path="/landing" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/pricing" element={isOpenMode() ? <Navigate to="/dashboard" replace /> : <Pricing />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/pricing" element={isOpenMode() ? <Navigate to="/builder" replace /> : <Pricing />} />
+          <Route path="/dashboard" element={<Navigate to="/builder" replace />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/builder" element={<Builder />} />
           <Route path="/builder/:projectId" element={<Builder />} />

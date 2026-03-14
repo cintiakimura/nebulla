@@ -22,7 +22,7 @@ export default function AuthCallback() {
       if (session?.user?.id) {
         setUserIdAfterLogin(session.user.id);
         setStatus("done");
-        navigate("/dashboard", { replace: true });
+        navigate("/builder", { replace: true });
       } else {
         setStatus("error");
       }
