@@ -13,6 +13,7 @@ import {
   Upload,
   X,
   Mic,
+  Image as ImageIcon,
   MicOff,
   Copy,
   Link2,
@@ -97,7 +98,14 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
-  const [chatMessages, setChatMessages] = useState<{ id: string; role: "user" | "assistant"; content: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ id: string; role: "user" | "assistant"; content: string; imageUrl?: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const [showImagePrompt, setShowImagePrompt] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageGenerating, setImageGenerating] = useState(false);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showFirstLoginOnboarding, setShowFirstLoginOnboarding] = useState<boolean | null>(null);
@@ -136,6 +144,33 @@ export default function Dashboard() {
 
   const KEY_SEEN_WELCOME = "kyn_seen_welcome";
   const KEY_MIC_TOOLTIP = "kyn_mic_tooltip_dismissed";
+  const KEY_PLANNING_CHAT = "kyn_planning_chat";
+
+  // Restore planning chat from localStorage so refresh doesn't lose it
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(KEY_PLANNING_CHAT);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((m) => m && typeof m === "object" && typeof (m as { role?: string }).role === "string" && typeof (m as { content?: string }).content === "string")) {
+        setChatMessages(parsed as { id: string; role: "user" | "assistant"; content: string; imageUrl?: string }[]);
+      }
+    } catch (_) {}
+  }, []);
+
+  // Persist planning chat so it survives refresh
+  useEffect(() => {
+    if (chatMessages.length === 0) return;
+    try {
+      localStorage.setItem(KEY_PLANNING_CHAT, JSON.stringify(chatMessages));
+    } catch (_) {}
+  }, [chatMessages]);
+
+  // Auto-scroll chat to bottom when messages change
+  useEffect(() => {
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
   const [showMicTooltip, setShowMicTooltip] = useState(() =>
     typeof sessionStorage !== "undefined" ? !sessionStorage.getItem(KEY_MIC_TOOLTIP) : false
   );
@@ -306,6 +341,81 @@ export default function Dashboard() {
   }, []);
 
 
+  // Send text message to chat (from text input)
+  const sendChatMessage = useCallback(async (text: string) => {
+    const t = text.trim();
+    if (!t || chatSending) return;
+    setChatSending(true);
+    const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: t };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatInput("");
+    try {
+      const apiBase = getApiBase() || "";
+      const userId = await getUserId();
+      const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+      const res = await fetch(`${apiBase}/api/agent/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [...history, { role: "user", content: t }], userId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+      if (res.status === 503) setSettingsDrawerMessage("Service down—try later");
+      const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service down—try later");
+      const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+      const pid = planningProjectIdRef.current;
+      if (pid) savePlanToProject(pid, [...history.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: t }, { role: "assistant", content }]);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Network error";
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${err}` }]);
+    } finally {
+      setChatSending(false);
+    }
+  }, [chatMessages, chatSending]);
+
+  const generateImage = useCallback(async (promptText: string) => {
+    const p = promptText.trim();
+    if (!p || imageGenerating) return;
+    setImageGenerating(true);
+    setShowImagePrompt(false);
+    setImagePrompt("");
+    const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: `Generate image: ${p}` };
+    setChatMessages((prev) => [...prev, userMsg]);
+    try {
+      const apiBase = getApiBase() || "";
+      const res = await fetch(`${apiBase}/api/images/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: p }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (res.ok && data.url) {
+        setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: "Here’s your image.", imageUrl: data.url }]);
+        const pid = planningProjectIdRef.current;
+        if (pid) savePlanToProject(pid, [...chatMessages.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: `Generate image: ${p}` }, { role: "assistant", content: "Here’s your image." }]);
+      } else {
+        setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: data.error || "Service down—try later." }]);
+      }
+    } catch (e) {
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: e instanceof Error ? e.message : "Image generation failed." }]);
+    } finally {
+      setImageGenerating(false);
+    }
+  }, [imageGenerating, chatMessages]);
+
+  // When logged in, persist conversation to backend (planning project) — debounced
+  useEffect(() => {
+    const pid = planningProjectIdRef.current;
+    if (!pid || chatMessages.length === 0) return;
+    const t = setTimeout(() => {
+      getSessionToken().then((token) => {
+        if (!token && isOpenMode()) return;
+        savePlanToProject(pid, chatMessages.map((m) => ({ role: m.role, content: m.content })));
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [chatMessages]);
+
   // When user stops speaking (mic off), send transcript to Grok and play reply via TTS (only when NOT using bidirectional Voice Agent WS)
   const voiceCancelRef = useRef(false);
   useEffect(() => {
@@ -441,7 +551,7 @@ export default function Dashboard() {
               await fetch(`${api || ""}/api/users/${userId}/projects/${project.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ plan: { chat_history: chatMessages } }),
+                body: JSON.stringify({ plan: { chat_history: chatMessages }, chat_messages: chatMessages }),
               });
             } catch (_) {}
           }
@@ -927,15 +1037,6 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             </button>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => { setSettingsDrawerMessage(undefined); setSettingsDrawerOpen(true); }}
-              className="p-2 rounded-md hover:bg-vs-hover text-vs-muted hover:text-vs-foreground transition-colors"
-              title="Settings & API Keys"
-              aria-label="Settings"
-            >
-              <Settings size={18} strokeWidth={1.5} />
-            </button>
             <div className="relative" ref={avatarRef}>
             <button
               onClick={() => setAvatarOpen((o) => !o)}
@@ -1122,15 +1223,16 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               </button>
             </div>
           </div>
-          <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
-            <input {...getInputProps()} />
-            <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "bg-[#00BFFF]/10 ring-1 ring-[#00BFFF]/50 rounded" : ""}`}>
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-auto p-3 space-y-3" {...getRootProps()}>
+              <input {...getInputProps()} id="dashboard-chat-file-input" className="hidden" aria-hidden="true" />
               {chatMessages.length === 0 && (
-                <p className="text-xs text-gray-500">Voice and chat here. Drop files to upload.</p>
+                <p className="text-xs text-gray-500">Voice and chat here. Type below or drop files.</p>
               )}
               {chatMessages.map((m) => (
                 <div key={m.id} className="group">
                   <div className="text-xs text-gray-500 mb-0.5">{m.role === "user" ? "You" : "Assistant"}</div>
+                  {m.imageUrl && <img src={m.imageUrl} alt="" className="max-w-full rounded-lg border border-vs-border my-1 max-h-48 object-contain" />}
                   <div className="text-sm text-gray-300 select-text break-words pr-8">{m.content}</div>
                   <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -1150,9 +1252,64 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                   </div>
                 </div>
               ))}
+              <div ref={chatMessagesEndRef} />
             </div>
-          </div>
-          <div className="p-3 border-t border-vs-border relative">
+            </div>
+            <div className="p-3 border-t border-vs-border flex flex-col gap-2">
+            {showImagePrompt ? (
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") generateImage(imagePrompt); }}
+                  placeholder="Describe the image…"
+                  className="flex-1 min-w-0 px-3 py-2 bg-vs-hover border border-vs-border rounded-lg text-sm text-vs-foreground placeholder-vs-muted focus:border-vs-accent outline-none"
+                  autoFocus
+                />
+                <button type="button" onClick={() => generateImage(imagePrompt)} disabled={imageGenerating || !imagePrompt.trim()} className="px-3 py-2 rounded-lg bg-vs-accent text-background hover:opacity-90 disabled:opacity-50 text-sm">Generate</button>
+                <button type="button" onClick={() => { setShowImagePrompt(false); setImagePrompt(""); }} className="p-2 rounded-lg bg-vs-hover text-vs-muted hover:text-vs-foreground">Cancel</button>
+              </div>
+            ) : (
+            <div className="flex gap-2 items-end">
+              <button
+                type="button"
+                onClick={() => document.getElementById("dashboard-chat-file-input")?.click()}
+                className="p-2 rounded-lg bg-vs-hover text-vs-muted hover:text-vs-foreground shrink-0"
+                title="Upload file"
+              >
+                <Upload size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImagePrompt(true)}
+                disabled={imageGenerating}
+                className="p-2 rounded-lg bg-vs-hover text-vs-muted hover:text-vs-foreground shrink-0"
+                title="Generate image with Grok"
+              >
+                <ImageIcon size={18} />
+              </button>
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(chatInput); } }}
+                placeholder="Type a message…"
+                rows={2}
+                className="flex-1 min-w-0 px-3 py-2 bg-vs-hover border border-vs-border rounded-lg text-sm text-vs-foreground placeholder-vs-muted focus:border-vs-accent outline-none resize-none"
+                disabled={chatSending}
+              />
+              <button
+                type="button"
+                onClick={() => sendChatMessage(chatInput)}
+                disabled={chatSending || !chatInput.trim()}
+                className="p-2 rounded-lg bg-vs-accent text-background hover:opacity-90 disabled:opacity-50 shrink-0"
+                title="Send"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            )}
+            <div className="relative">
             {showMicTooltip && (
               <div className="absolute bottom-full left-0 right-0 mb-2 px-3 py-2 rounded-lg bg-vs-editor border border-vs-border text-sm text-vs-foreground shadow-lg flex items-center justify-between gap-2">
                 <span>Click the microphone and say hi.</span>
@@ -1195,12 +1352,13 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             {voiceAgentStatus === "error" && (
               <span className="mt-2 text-xs text-vs-muted">Service down—try later.</span>
             )}
+            </div>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center bg-vs-editor border-l border-vs-border">
-          <button onClick={() => setChatOpen(true)} className="p-3 rounded-lg bg-vs-hover text-vs-muted hover:text-vs-foreground transition-colors" title="Open chat">
-            <Mic size={24} />
+          <button onClick={() => setChatOpen(true)} className="p-2 rounded-md bg-vs-hover text-vs-muted hover:text-vs-foreground transition-colors" title="Open chat">
+            <Mic size={18} />
           </button>
         </div>
       )}

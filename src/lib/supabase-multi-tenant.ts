@@ -32,6 +32,7 @@ export type ProjectRow = {
   package_json: string;
   chat_messages: string;
   specs: string;
+  plan: string | null;
   created_at: string;
 };
 
@@ -107,6 +108,7 @@ export async function getProject(userId: string, projectId: string): Promise<Pro
     package_json: data.package_json ?? "{}",
     chat_messages: data.chat_messages ?? "[]",
     specs: data.specs ?? "{}",
+    plan: data.plan ?? null,
     created_at: data.created_at,
   };
 }

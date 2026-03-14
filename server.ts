@@ -680,6 +680,49 @@ async function startServer() {
     }
   });
 
+  // Grok image generation (grok-imagine-image) — same XAI_API_KEY
+  app.post("/api/images/generate", async (req, res) => {
+    const apiKey = getGrokApiKey();
+    if (!apiKey) {
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
+      return;
+    }
+    try {
+      const { prompt } = req.body as { prompt?: string };
+      const p = typeof prompt === "string" ? prompt.trim() : "";
+      if (!p) {
+        res.status(400).json({ error: "prompt required" });
+        return;
+      }
+      const response = await fetch("https://api.x.ai/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "grok-imagine-image",
+          prompt: p,
+          response_format: "b64_json",
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { data?: { b64_json?: string }[]; error?: { message?: string } };
+      if (!response.ok) {
+        res.status(response.status).json({ error: data.error?.message ?? "Image generation failed" });
+        return;
+      }
+      const b64 = data.data?.[0]?.b64_json;
+      if (!b64) {
+        res.status(502).json({ error: "No image in response" });
+        return;
+      }
+      res.json({ url: `data:image/png;base64,${b64}` });
+    } catch (err) {
+      console.error("[Grok image]", err);
+      res.status(500).json({ error: "Image generation failed", details: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // Grok voice (xAI TTS, voice Eve) — natural speech for onboarding and "Grok speaks" in Builder
   app.post("/api/tts", async (req, res) => {
     const apiKey = getGrokApiKey();

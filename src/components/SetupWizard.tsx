@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
-import { Github, Database, Globe, ExternalLink, Copy, Check, CreditCard } from "lucide-react";
+import { Github, Copy, Check, CreditCard } from "lucide-react";
 import {
   getConnectedServices,
   setConnectedService,
-  getSupabaseCreds,
-  setSupabaseCreds,
   getStripeKey,
   setStripeKey,
   setSetupComplete,
@@ -12,7 +10,6 @@ import {
 } from "../lib/setupStorage";
 
 const VERCEL_DNS = { A: "76.76.21.21", CNAME: "cname.vercel-dns.com" };
-const SUPABASE_SIGNUP = "https://supabase.com/dashboard";
 const GODADDY = "https://www.godaddy.com/domains";
 const CLOUDFLARE = "https://dash.cloudflare.com";
 
@@ -24,17 +21,10 @@ type Props = {
 
 export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
   const [services, setServices] = useState(getConnectedServices());
-  const [supabaseUrl, setSupabaseUrl] = useState("");
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [stripeKey, setStripeKeyState] = useState("");
   const [copied, setCopied] = useState<"A" | "CNAME" | null>(null);
 
   useEffect(() => {
-    const creds = getSupabaseCreds();
-    if (creds) {
-      setSupabaseUrl(creds.url);
-      setSupabaseAnonKey(creds.anonKey);
-    }
     setStripeKeyState(getStripeKey());
   }, []);
 
@@ -44,20 +34,6 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
     // Reuse login OAuth flow; for now mock
     setConnectedService("github", true);
     setTimeout(refreshServices, 300);
-  };
-
-  const handleConnectVercel = () => {
-    // OAuth GitHub → Vercel; mock
-    setConnectedService("vercel", true);
-    setTimeout(refreshServices, 300);
-  };
-
-  const handleSaveSupabase = () => {
-    if (supabaseUrl.trim() && supabaseAnonKey.trim()) {
-      setSupabaseCreds(supabaseUrl, supabaseAnonKey);
-      setConnectedService("supabase", true);
-      refreshServices();
-    }
   };
 
   const handleVerifyDomain = () => {
@@ -71,7 +47,7 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
   };
 
   const allGreen =
-    services.github && services.supabase && services.vercel && services.domainVerified;
+    services.github && services.domainVerified;
 
   const handleDone = () => {
     if (!isTweaks) {
@@ -98,14 +74,11 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
         </p>
 
         <div className="space-y-4">
-          {/* GitHub */}
-          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Github size={24} className="text-gray-300" />
-              <div>
-                <div className="text-sm font-medium text-white">GitHub</div>
-                <div className="text-xs text-gray-500">Repos, deploy hooks</div>
-              </div>
+          {/* GitHub — icon only */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Github size={20} className="text-gray-300 shrink-0" />
+              <span className="text-sm text-white">GitHub</span>
             </div>
             {services.github ? (
               <span className="flex items-center gap-1 text-xs text-green-400">
@@ -114,85 +87,9 @@ export default function SetupWizard({ onComplete, isTweaks = false }: Props) {
             ) : (
               <button
                 onClick={handleConnectGitHub}
-                className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded transition-colors"
+                className="px-2 py-1 bg-[#333] hover:bg-[#444] text-white text-xs rounded transition-colors"
               >
-                Connect GitHub
-              </button>
-            )}
-          </div>
-
-          {/* Supabase */}
-          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <Database size={24} className="text-gray-300" />
-                <div>
-                  <div className="text-sm font-medium text-white">Supabase</div>
-                  <div className="text-xs text-gray-500">DB + auth</div>
-                </div>
-              </div>
-              {services.supabase ? (
-                <span className="flex items-center gap-1 text-xs text-green-400">
-                  <Check size={14} /> Set up
-                </span>
-              ) : null}
-            </div>
-            {!services.supabase && (
-              <>
-                <a
-                  href={SUPABASE_SIGNUP}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1 mb-3"
-                >
-                  Set up Supabase <ExternalLink size={12} />
-                </a>
-                <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); handleSaveSupabase(); }}>
-                  <input
-                    type="url"
-                    placeholder="Project URL"
-                    value={supabaseUrl}
-                    onChange={(e) => setSupabaseUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Anon key"
-                    value={supabaseAnonKey}
-                    onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded text-sm text-white placeholder-gray-500 focus:border-[#00BFFF] outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!supabaseUrl.trim() || !supabaseAnonKey.trim()}
-                    className="px-3 py-1.5 bg-[#333] hover:bg-[#444] disabled:opacity-50 text-white text-sm rounded transition-colors"
-                  >
-                    Save
-                  </button>
-                </form>
-              </>
-            )}
-          </div>
-
-          {/* Vercel */}
-          <div className="bg-[#252526] border border-[#333333] rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Globe size={24} className="text-gray-300" />
-              <div>
-                <div className="text-sm font-medium text-white">Vercel</div>
-                <div className="text-xs text-gray-500">Deploy & hosting</div>
-              </div>
-            </div>
-            {services.vercel ? (
-              <span className="flex items-center gap-1 text-xs text-green-400">
-                <Check size={14} /> Connected
-              </span>
-            ) : (
-              <button
-                onClick={handleConnectVercel}
-                className="px-3 py-1.5 bg-[#333] hover:bg-[#444] text-white text-sm rounded transition-colors"
-              >
-                Connect Vercel
+                Connect
               </button>
             )}
           </div>

@@ -194,7 +194,7 @@ async function handleGrok(
 ): Promise<boolean> {
   const apiKey = getGrokApiKey();
   if (!apiKey) {
-    if (pathname === "/api/agent/chat" || pathname === "/api/tts" || pathname === "/api/realtime/token") {
+    if (pathname === "/api/agent/chat" || pathname === "/api/tts" || pathname === "/api/realtime/token" || pathname === "/api/images/generate") {
       console.error("[Grok] XAI_API_KEY not set — returning 503 for", pathname);
       res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
       return true;
@@ -313,6 +313,49 @@ async function handleGrok(
     } catch (err) {
       console.error("[api/index TTS]", err);
       res.status(500).json({ error: "TTS failed", details: err instanceof Error ? err.message : String(err) });
+      return true;
+    }
+  }
+
+  if (method === "POST" && pathname === "/api/images/generate") {
+    if (!apiKey) {
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
+      return true;
+    }
+    try {
+      const { prompt } = (typeof req.body === "object" && req.body ? req.body : {}) as { prompt?: string };
+      const p = typeof prompt === "string" ? prompt.trim() : "";
+      if (!p) {
+        res.status(400).json({ error: "prompt required" });
+        return true;
+      }
+      const response = await fetch("https://api.x.ai/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "grok-imagine-image",
+          prompt: p,
+          response_format: "b64_json",
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { data?: { b64_json?: string }[]; error?: { message?: string } };
+      if (!response.ok) {
+        res.status(response.status).json({ error: data.error?.message ?? "Image generation failed" });
+        return true;
+      }
+      const b64 = data.data?.[0]?.b64_json;
+      if (!b64) {
+        res.status(502).json({ error: "No image in response" });
+        return true;
+      }
+      res.status(200).json({ url: `data:image/png;base64,${b64}` });
+      return true;
+    } catch (err) {
+      console.error("[api/index image]", err);
+      res.status(500).json({ error: "Image generation failed", details: err instanceof Error ? err.message : String(err) });
       return true;
     }
   }

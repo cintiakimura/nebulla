@@ -1,31 +1,31 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
 import { getSupabaseAuthClient, getSessionToken } from "../lib/supabaseAuth";
 import { getApiBase, setApiBaseFallback, clearBackendUnavailable } from "../lib/api";
 import { isOpenMode } from "../lib/auth";
 import { SECRET_KEYS, getStoredSecret, setStoredSecret, type SecretKey } from "../lib/storedSecrets";
+import { getConnectedServices, setDomainVerified } from "../lib/setupStorage";
 
 const KEY_USER_ID = "kyn_user_id";
-const KEY_SUPABASE_URL = "supabase_url";
-const KEY_SUPABASE_ANON_KEY = "supabase_anon_key";
 const KEY_STRIPE_PRICE_ID = "stripe_price_id";
-
-const VERCEL_ENV_VARS = ["XAI_API_KEY", "BUILDER_PRIVATE_KEY", "STRIPE_PRICE_ID"] as const;
-const VERCEL_DASHBOARD_URL = "https://vercel.com/dashboard";
+const VERCEL_DNS = { A: "76.76.21.21", CNAME: "cname.vercel-dns.com" };
+const GODADDY = "https://www.godaddy.com/domains";
+const CLOUDFLARE = "https://dash.cloudflare.com";
 
 type Limits = { isPro?: boolean; paidUntil?: string };
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [supabaseUrl, setSupabaseUrl] = useState("");
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [backendUrl, setBackendUrl] = useState("");
   const [stripePriceId, setStripePriceId] = useState("");
-  const [copiedVar, setCopiedVar] = useState<string | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [secretValues, setSecretValues] = useState<Record<string, string>>({});
   const [secretSaved, setSecretSaved] = useState<string | null>(null);
+  const [secretsOpen, setSecretsOpen] = useState(false);
+  const [dnsCopied, setDnsCopied] = useState<"A" | "CNAME" | null>(null);
+  const [domainVerified, setDomainVerifiedState] = useState(false);
 
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -61,9 +61,8 @@ export default function Settings() {
       navigate("/login", { replace: true });
       return;
     }
-    setSupabaseUrl(localStorage.getItem(KEY_SUPABASE_URL) ?? "");
-    setSupabaseAnonKey(localStorage.getItem(KEY_SUPABASE_ANON_KEY) ?? "");
     setStripePriceId(localStorage.getItem(KEY_STRIPE_PRICE_ID) ?? "");
+    setDomainVerifiedState(getConnectedServices().domainVerified);
   }, [navigate]);
 
   useEffect(() => {
@@ -77,12 +76,6 @@ export default function Settings() {
         .catch(() => {});
     });
   }, []);
-
-  const saveSupabase = () => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(KEY_SUPABASE_URL, supabaseUrl.trim());
-    localStorage.setItem(KEY_SUPABASE_ANON_KEY, supabaseAnonKey.trim());
-  };
 
   const saveStripePriceId = () => {
     if (typeof window === "undefined") return;
@@ -99,10 +92,16 @@ export default function Settings() {
     }
   };
 
-  const copyEnvVar = (name: string) => {
-    navigator.clipboard.writeText(name);
-    setCopiedVar(name);
-    setTimeout(() => setCopiedVar(null), 2000);
+  const copyDns = (type: "A" | "CNAME") => {
+    const value = type === "A" ? VERCEL_DNS.A : VERCEL_DNS.CNAME;
+    navigator.clipboard.writeText(value);
+    setDnsCopied(type);
+    setTimeout(() => setDnsCopied(null), 2000);
+  };
+
+  const handleVerifyDomain = () => {
+    setDomainVerified(true);
+    setDomainVerifiedState(true);
   };
 
   const connectGitHub = () => {
@@ -152,25 +151,6 @@ export default function Settings() {
         <h1>Settings</h1>
 
         <section>
-          <h2>Supabase setup</h2>
-          <input
-            type="url"
-            placeholder="Supabase URL"
-            value={supabaseUrl}
-            onChange={(e) => setSupabaseUrl(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Anon Key"
-            value={supabaseAnonKey}
-            onChange={(e) => setSupabaseAnonKey(e.target.value)}
-          />
-          <button type="button" onClick={saveSupabase}>
-            Save
-          </button>
-        </section>
-
-        <section>
           <h2>Backend URL</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
             URL where your <strong>backend</strong> runs (server.ts), e.g. <code className="bg-background/30 px-1">https://api.yourdomain.com</code> or <code className="bg-background/30 px-1">https://your-app.onrender.com</code>. Not your frontend site (e.g. www.cintiakimura.eu) — the API must be served by a separate backend. Do not paste API keys here.
@@ -189,48 +169,101 @@ export default function Settings() {
 
         <section>
           <h2>API keys & secrets</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            Optional. Values here override server .env. Stored in this browser only (localStorage). Use for Grok, Supabase, Stripe, or Builder key when you can’t set env (e.g. Vercel).
-          </p>
-          <div className="space-y-3 max-w-xl">
-            {SECRET_KEYS.map((key) => (
-              <div key={key} className="flex flex-wrap items-center gap-2">
-                <label className="text-sm font-medium text-vs-foreground w-56 shrink-0">{key}</label>
-                <input
-                  type="password"
-                  placeholder="optional"
-                  value={secretValues[key] ?? ""}
-                  onChange={(e) => setSecret(key, e.target.value)}
-                  className="flex-1 min-w-[200px] px-3 py-2 bg-vs-bg border border-vs-border rounded text-sm text-vs-foreground placeholder-gray-500"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  onClick={() => saveSecret(key)}
-                  className="px-3 py-2 bg-vs-accent text-vs-accent-foreground rounded text-sm shrink-0"
-                >
-                  {secretSaved === key ? "Saved" : "Save"}
-                </button>
+          <button
+            type="button"
+            onClick={() => setSecretsOpen((o) => !o)}
+            className="flex items-center gap-2 text-sm text-vs-foreground hover:text-vs-accent"
+          >
+            {secretsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {secretsOpen ? "Hide" : "Show"} secrets
+          </button>
+          {secretsOpen && (
+            <>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 mt-2">
+                Optional. Values here override server .env. Stored in this browser only (localStorage).
+              </p>
+              <div className="space-y-3 max-w-xl">
+                {SECRET_KEYS.map((key) => (
+                  <div key={key} className="flex flex-wrap items-center gap-2">
+                    <label className="text-sm font-medium text-vs-foreground w-56 shrink-0">{key}</label>
+                    <input
+                      type="password"
+                      placeholder="optional"
+                      value={secretValues[key] ?? ""}
+                      onChange={(e) => setSecret(key, e.target.value)}
+                      className="flex-1 min-w-[200px] px-3 py-2 bg-vs-bg border border-vs-border rounded text-sm text-vs-foreground placeholder-gray-500"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveSecret(key)}
+                      className="px-3 py-2 bg-vs-accent text-vs-accent-foreground rounded text-sm shrink-0"
+                    >
+                      {secretSaved === key ? "Saved" : "Save"}
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </section>
 
         <section>
-          <h2>Vercel setup</h2>
-          <ul>
-            {VERCEL_ENV_VARS.map((name) => (
-              <li key={name}>
-                {name}
-                <button type="button" onClick={() => copyEnvVar(name)}>
-                  {copiedVar === name ? "Copied" : "Copy"}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <a href={VERCEL_DASHBOARD_URL} target="_blank" rel="noopener noreferrer">
-            Go to Vercel to add these
-          </a>
+          <h2>Domain / DNS</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            Add these records at your DNS provider to use a custom domain. Backend handles deployment.
+          </p>
+          {domainVerified ? (
+            <p className="text-sm text-green-500 flex items-center gap-1">
+              <Check size={14} /> Verified
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
+                    A @ {VERCEL_DNS.A}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copyDns("A")}
+                    className="p-1.5 rounded hover:bg-[#37373d] text-gray-400 hover:text-white"
+                    title="Copy"
+                  >
+                    {dnsCopied === "A" ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-2 py-1.5 bg-[#1e1e1e] rounded text-gray-300 text-xs">
+                    CNAME www {VERCEL_DNS.CNAME}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copyDns("CNAME")}
+                    className="p-1.5 rounded hover:bg-[#37373d] text-gray-400 hover:text-white"
+                    title="Copy"
+                  >
+                    {dnsCopied === "CNAME" ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-3 text-xs mb-2">
+                <a href={GODADDY} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                  GoDaddy
+                </a>
+                <a href={CLOUDFLARE} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                  Cloudflare
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={handleVerifyDomain}
+                className="text-xs text-blue-400 hover:underline"
+              >
+                Mark as verified
+              </button>
+            </>
+          )}
         </section>
 
         <section>

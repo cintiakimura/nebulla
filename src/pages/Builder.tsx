@@ -172,7 +172,7 @@ export default function Builder() {
           if (r.ok) clearBackendUnavailable();
           return r.ok ? r.json() : null;
         })
-        .then((project: { code?: string; package_json?: string; chat_messages?: string } | null) => {
+        .then((project: { code?: string; package_json?: string; chat_messages?: string; plan?: string | null } | null) => {
           if (cancelled) {
             setProjectLoading(false);
             return;
@@ -181,9 +181,33 @@ export default function Builder() {
             if (project.code) setCode(project.code);
             if (project.package_json) setPackageJsonContent(project.package_json);
             try {
-              const msgs = typeof project.chat_messages === "string" ? JSON.parse(project.chat_messages || "[]") : project.chat_messages || [];
+              let msgs: { id: string; role: string; content: string; images?: string[] }[] = typeof project.chat_messages === "string" ? JSON.parse(project.chat_messages || "[]") : project.chat_messages || [];
               if (Array.isArray(msgs) && msgs.length > 0) {
                 setChatMessages(msgs);
+              } else if (project.plan) {
+                try {
+                  const plan = typeof project.plan === "string" ? JSON.parse(project.plan) : project.plan;
+                  const history = plan?.chat_history;
+                  if (Array.isArray(history) && history.length > 0) {
+                    const withIds = history.map((m: { id?: string; role?: string; content?: string }) => ({
+                      id: m.id ?? crypto.randomUUID(),
+                      role: (m.role ?? "user") as "user" | "assistant",
+                      content: m.content ?? "",
+                    }));
+                    setChatMessages(withIds);
+                    saveProject({ chat_messages: withIds });
+                  } else if (getSetupComplete()) {
+                    const opener = [{ id: crypto.randomUUID(), role: "assistant" as const, content: "Hey—what's on your mind? What do you wanna build, and why?" }];
+                    setChatMessages(opener);
+                    saveProject({ chat_messages: opener });
+                  }
+                } catch (_) {
+                  if (getSetupComplete()) {
+                    const opener = [{ id: crypto.randomUUID(), role: "assistant" as const, content: "Hey—what's on your mind? What do you wanna build, and why?" }];
+                    setChatMessages(opener);
+                    saveProject({ chat_messages: opener });
+                  }
+                }
               } else if (getSetupComplete()) {
                 const opener = [{ id: crypto.randomUUID(), role: "assistant" as const, content: "Hey—what's on your mind? What do you wanna build, and why?" }];
                 setChatMessages(opener);
@@ -537,6 +561,7 @@ export default function Builder() {
 
   const closeTab = (id: TabId, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (id === 'preview') return; // Preview tab always stays
     const next = openTabs.filter(t => t !== id);
     if (next.length === 0) return;
     setOpenTabs(next);
@@ -735,9 +760,11 @@ export default function Builder() {
               >
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
                 <span className="text-sm truncate">{label}</span>
-                <button onClick={(e) => closeTab(tabId, e)} className="ml-auto p-0.5 rounded hover:bg-[#2d2d3d]">
-                  <X size={12} />
-                </button>
+                {tabId !== 'preview' && (
+                  <button onClick={(e) => closeTab(tabId, e)} className="ml-auto p-0.5 rounded hover:bg-[#2d2d3d]">
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             );
           })}
