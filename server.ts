@@ -154,7 +154,7 @@ async function startServer() {
   });
 
   // Simple onboarding: create first project for open-dev-user (no auth).
-  app.post("/api/users/open-dev-user/projects", (req, res) => {
+  app.post("/api/users/open-dev-user/projects", async (req, res) => {
     const name = (req.body as { name?: string })?.name?.trim() || "My first project";
     try {
       if (isSupabaseConfigured()) {

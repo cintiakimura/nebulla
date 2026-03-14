@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? (Array.isArray(pathParam) ? pathParam.join("/") : String(pathParam))
     : "";
   const pathname = "/api" + (pathSeg ? `/${pathSeg}` : "");
-  (req as NodeJS.IncomingMessage & { url: string }).url = pathname;
+  (req as unknown as { url: string }).url = pathname;
   console.log("[api/index]", req.method, pathname);
 
   if (!appPromise) appPromise = createApp();
