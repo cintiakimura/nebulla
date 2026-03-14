@@ -138,34 +138,31 @@ async function startServer() {
 
   const OPEN_DEV_USER = "open-dev-user";
 
-  // Temp bypass: open-mode fallback user — list projects (no auth).
-  app.get("/api/users/open-dev-user/projects", async (_req, res) => {
+  // Open-dev-user: use SQLite only (Supabase projects.user_id FK references auth.users(id), so we can't insert a string id).
+  app.get("/api/users/open-dev-user/projects", (_req, res) => {
     try {
-      if (isSupabaseConfigured()) {
-        const list = await supabaseListProjects(OPEN_DEV_USER);
-        return res.status(200).json(list.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, status: r.status, last_edited: r.last_edited, created_at: r.created_at })));
-      }
       const list = db.listProjects(OPEN_DEV_USER);
       res.status(200).json(list);
     } catch (e) {
-      console.error(e);
+      console.error("[open-dev-user GET projects]", e);
       res.status(500).json({ error: "Failed to list projects" });
     }
   });
 
-  // Simple onboarding: create first project for open-dev-user (no auth).
-  app.post("/api/users/open-dev-user/projects", async (req, res) => {
+  app.post("/api/users/open-dev-user/projects", (req, res) => {
     const name = (req.body as { name?: string })?.name?.trim() || "My first project";
     try {
-      if (isSupabaseConfigured()) {
-        const project = await supabaseCreateProject(OPEN_DEV_USER, name);
-        if (!project) return res.status(500).json({ error: "Failed to create project" });
-        return res.status(201).json({ id: project.id, user_id: project.user_id, name: project.name, status: project.status || "Draft", last_edited: project.last_edited, created_at: project.created_at });
-      }
       const project = db.createProject(OPEN_DEV_USER, name);
-      res.status(201).json(project);
+      res.status(201).json({
+        id: project.id,
+        user_id: project.user_id,
+        name: project.name,
+        status: project.status,
+        last_edited: project.last_edited,
+        created_at: project.created_at,
+      });
     } catch (e) {
-      console.error(e);
+      console.error("[open-dev-user POST projects]", e);
       res.status(500).json({ error: "Failed to create project" });
     }
   });
