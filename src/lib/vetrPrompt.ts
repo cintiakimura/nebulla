@@ -8,13 +8,20 @@ const UNBREAKABLE_PREFIX = `These are UNBREAKABLE RULES. You MUST follow every s
 
 `;
 
-/** Fetch UNBREAKABLE_RULES.md from same origin (public/UNBREAKABLE_RULES.md). */
+let cachedUnbreakableRules: string | null = null;
+
+/** Fetch UNBREAKABLE_RULES.md from same origin (public/UNBREAKABLE_RULES.md). Cached in memory after first load. */
 export async function fetchUnbreakableRules(): Promise<string> {
+  if (cachedUnbreakableRules !== null) return cachedUnbreakableRules;
   const base = typeof window !== "undefined" ? window.location.origin : "";
   const url = `${base}/UNBREAKABLE_RULES.md`;
   try {
     const res = await fetch(url);
-    if (res.ok) return await res.text();
+    if (res.ok) {
+      cachedUnbreakableRules = await res.text();
+      console.log("Loaded UNBREAKABLE_RULES.md");
+      return cachedUnbreakableRules;
+    }
   } catch {
     // ignore
   }
