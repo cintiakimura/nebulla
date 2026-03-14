@@ -193,7 +193,7 @@ export default function Dashboard() {
       return;
     }
     const api = getApiBase();
-    if (!api) {
+    if (!isOpenMode() && !api) {
       setCreateError("Add your backend URL in Settings to create projects.");
       return;
     }
@@ -202,7 +202,7 @@ export default function Dashboard() {
       const token = await getSessionToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${api}/api/users/${userId}/projects`, {
+      const res = await fetch(`${api || ""}/api/users/${userId}/projects`, {
         method: "POST",
         headers,
         body: JSON.stringify({ name }),
