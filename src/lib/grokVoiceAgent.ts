@@ -70,7 +70,7 @@ export function speakViaVoiceAgent(
     onTranscript?: (text: string) => void;
   } = {}
 ): Promise<VoiceAgentResult> {
-  const { instructions = "You are Kyn, a concise dev partner.", voice = "Eve", onDone, onTranscript } = options;
+  const { instructions = "You are Kyn, senior dev teammate. Chill, no bullshit. 'We' not 'you'. Wait 3 seconds before speaking. Check if user is satisfied before next question. Unbreakable rules: listen hard, confirm before doing, shut up on no/later.", voice = "Eve", onDone, onTranscript } = options;
   return new Promise(async (resolve) => {
     let token: string | null = null;
     try {

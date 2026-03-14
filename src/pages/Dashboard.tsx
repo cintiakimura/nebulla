@@ -28,7 +28,6 @@ import { getSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib/auth";
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
-import VoiceFallback from "../components/VoiceFallback";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
 import {
@@ -307,32 +306,6 @@ export default function Dashboard() {
   }, []);
 
 
-  // Send user text to chat API (used by VoiceFallback and voice effect)
-  const sendUserText = useCallback(async (text: string) => {
-    const t = text.trim();
-    if (!t) return;
-    const apiBase = getApiBase() || "";
-    const userId = await getUserId();
-    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
-    const messages = [...history, { role: "user" as const, content: t }];
-    try {
-      const res = await fetch(`${apiBase}/api/agent/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, userId }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
-      if (res.status === 503) setSettingsDrawerMessage("Service down—try later");
-      const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service down—try later");
-      const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: t };
-      const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
-      setChatMessages((prev) => [...prev, userMsg, assistantMsg]);
-    } catch (e) {
-      const err = e instanceof Error ? e.message : "Network error";
-      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", content: t }, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${err}` }]);
-    }
-  }, [chatMessages]);
-
   // When user stops speaking (mic off), send transcript to Grok and play reply via TTS (only when NOT using bidirectional Voice Agent WS)
   const voiceCancelRef = useRef(false);
   useEffect(() => {
@@ -380,6 +353,7 @@ export default function Dashboard() {
               setSettingsDrawerOpen(true);
             }
             if (ttsRes.ok && !voiceCancelRef.current) {
+              if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
               const blob = await ttsRes.blob();
               const url = URL.createObjectURL(blob);
               const audio = new Audio(url);
@@ -1219,10 +1193,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               <div className="mt-2 text-xs text-gray-500 italic truncate" title={transcript}>{transcript}</div>
             )}
             {voiceAgentStatus === "error" && (
-              <div className="mt-2 flex flex-col gap-2">
-                <span className="text-xs text-vs-muted">Service down—try later.</span>
-                <VoiceFallback onTextSubmit={sendUserText} />
-              </div>
+              <span className="mt-2 text-xs text-vs-muted">Service down—try later.</span>
             )}
           </div>
         </div>
