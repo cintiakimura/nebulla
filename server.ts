@@ -142,7 +142,7 @@ async function startServer() {
   app.get("/api/config", (_req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL?.trim() ?? "";
     const supabaseAnon = process.env.SUPABASE_ANON_KEY?.trim() ?? "";
-    const openModeFallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim() ?? null;
+    const openModeFallbackUserId = (process.env.OPEN_MODE_FALLBACK_USER_ID ?? "").trim() || null;
     res.json({
       supabaseUrl: supabaseUrl && supabaseUrl !== "PLACEHOLDER" ? supabaseUrl : "",
       supabaseAnonKey: supabaseAnon && supabaseAnon !== "PLACEHOLDER" ? supabaseAnon : "",
