@@ -100,7 +100,8 @@ function getGrokApiKey(): string | null {
   return key;
 }
 
-const SERVICE_UNAVAILABLE_MSG = "Service down—try later";
+// Client Grok modal expects the error message to mention "grok".
+const SERVICE_UNAVAILABLE_MSG = "Grok service unavailable—try later";
 
 async function startServer() {
   const app = express();
@@ -227,8 +228,14 @@ async function startServer() {
         res.json(list.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, status: r.status, last_edited: r.last_edited, created_at: r.created_at })));
         return;
       }
-      const list = db.listProjects(userId);
-      res.json(list);
+      // SQLite fallback can fail on serverless (or with missing DB files). In that case, don't hard-fail the UI.
+      try {
+        const list = db.listProjects(userId);
+        res.json(list);
+      } catch (e2) {
+        console.error("[projects list] SQLite fallback failed:", e2);
+        res.json([]);
+      }
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Failed to list projects" });

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Lock } from "lucide-react";
 import { setUserIdAfterLogin } from "../lib/auth";
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
-import { getSupabaseAuthClient, isSupabaseAuthConfigured } from "../lib/supabaseAuth";
+import { ensureSupabaseConfig, getSupabaseAuthClient, isSupabaseAuthConfigured } from "../lib/supabaseAuth";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -92,9 +92,16 @@ export default function Login() {
     }
   };
 
-  const handleGitHubSignIn = () => {
-    const supabase = getSupabaseAuthClient();
-    if (!supabase) return;
+  const handleGitHubSignIn = async () => {
+    let supabase = getSupabaseAuthClient();
+    if (!supabase) {
+      await ensureSupabaseConfig();
+      supabase = getSupabaseAuthClient();
+    }
+    if (!supabase) {
+      setError("Supabase auth is not configured yet. Check Settings → API URL, then reload.");
+      return;
+    }
     setError(null);
     const redirectTo = `${window.location.origin}/auth/callback`;
     supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });

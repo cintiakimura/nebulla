@@ -8,7 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 
 const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
 const GROK_MODEL_DEFAULT = "grok-4.2-multi-agent-beta-0309";
-const SERVICE_UNAVAILABLE_MSG = "Service down—try later";
+// Client Grok modal expects the error message to mention "grok".
+const SERVICE_UNAVAILABLE_MSG = "Grok service unavailable—try later";
 let grokFirstCallLogged = false;
 
 function getGrokApiKey(): string | null {

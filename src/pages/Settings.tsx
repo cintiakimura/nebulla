@@ -110,20 +110,29 @@ export default function Settings() {
     setDomainVerifiedState(true);
   };
 
-  const connectGitHub = () => {
-    const supabase = getSupabaseAuthClient();
+  const connectGitHub = async () => {
+    let supabase = getSupabaseAuthClient();
     if (!supabase) {
-      alert("Cannot connect: API URL may be wrong or backend not reachable. Set API URL above to your backend, save, then reload the page and try again.");
+      // In case config fetch on app load hasn't completed yet, try once more.
+      await ensureSupabaseConfig();
+      supabase = getSupabaseAuthClient();
+    }
+    if (!supabase) {
+      alert("Cannot connect: Supabase auth is not configured yet. Check Settings → API URL, then reload and try again.");
       return;
     }
     const redirectTo = `${window.location.origin}/auth/callback`;
     supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
   };
 
-  const connectGoogle = () => {
-    const supabase = getSupabaseAuthClient();
+  const connectGoogle = async () => {
+    let supabase = getSupabaseAuthClient();
     if (!supabase) {
-      alert("Cannot connect: API URL may be wrong or backend not reachable. Set API URL above to your backend, save, then reload the page and try again.");
+      await ensureSupabaseConfig();
+      supabase = getSupabaseAuthClient();
+    }
+    if (!supabase) {
+      alert("Cannot connect: Supabase auth is not configured yet. Check Settings → API URL, then reload and try again.");
       return;
     }
     const redirectTo = `${window.location.origin}/auth/callback`;

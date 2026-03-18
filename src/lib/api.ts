@@ -12,10 +12,16 @@ const KEY_API_BASE_FALLBACK = "kyn_api_base_fallback";
  */
 export function getApiBase(): string {
   const envUrl = typeof import.meta.env.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
-  if (envUrl) return envUrl.replace(/\/$/, "");
+  const normalize = (s: string) => {
+    // Many call sites expect `getApiBase()` to be the origin, and then append `/api/...`.
+    // If VITE_API_URL is set to `https://host/api`, strip the trailing `/api`.
+    const v = s.replace(/\/$/, "");
+    return v.endsWith("/api") ? v.slice(0, -"/api".length) : v;
+  };
+  if (envUrl) return normalize(envUrl);
   if (typeof window !== "undefined") {
     const fallback = localStorage.getItem(KEY_API_BASE_FALLBACK);
-    if (fallback && typeof fallback === "string") return fallback.replace(/\/$/, "");
+    if (fallback && typeof fallback === "string") return normalize(fallback);
   }
   return "";
 }

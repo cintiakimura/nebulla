@@ -17,31 +17,48 @@ export default function AuthCallback() {
 
     let cancelled = false;
 
-    const applySession = (session: { user?: { id?: string } } | null) => {
+    const applyUserId = (userId: string) => {
       if (cancelled) return;
-      if (session?.user?.id) {
-        setUserIdAfterLogin(session.user.id);
-        setStatus("done");
-        navigate("/builder", { replace: true });
-      } else {
-        setStatus("error");
-      }
+      setUserIdAfterLogin(userId);
+      setStatus("done");
+      navigate("/builder", { replace: true });
     };
 
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (cancelled) return;
       if (error) {
         console.error("[kyn auth callback] getSession error:", error.message, error);
-        setStatus("error");
+        // If the session check fails due to clock skew or URL timing, try to fetch the user anyway.
+        supabase.auth
+          .getUser()
+          .then(({ data: { user } }) => {
+            const uid = user?.id;
+            if (uid) applyUserId(uid);
+            else setStatus("error");
+          })
+          .catch(() => setStatus("error"));
         return;
       }
-      applySession(session);
+      const uid = session?.user?.id;
+      if (uid) applyUserId(uid);
+      else {
+        // Session present but user missing (rare but can happen with URL parsing). Fetch user explicitly.
+        supabase.auth
+          .getUser()
+          .then(({ data: { user } }) => {
+            const userId = user?.id;
+            if (userId) applyUserId(userId);
+            else setStatus("error");
+          })
+          .catch(() => setStatus("error"));
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
       if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-        applySession(session);
+        const uid = session?.user?.id;
+        if (uid) applyUserId(uid);
       }
     });
 
