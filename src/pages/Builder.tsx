@@ -4,7 +4,7 @@ import {
   Play, Square, Terminal as TerminalIcon, Layout, 
   Mic, MicOff, Settings, FileCode, Github,
   X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Paperclip, Send, Volume2, VolumeX, Download, AlertCircle, FileText,
-  Plus, FolderOpen,
+  Plus, FolderOpen, MessageSquare,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import {
@@ -105,6 +105,8 @@ export default function Builder() {
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Horizontal scroll container: chat sits on the right; narrow windows need scroll or the Chat control. */
+  const builderMainScrollRef = useRef<HTMLDivElement>(null);
   const grokAudioRef = useRef<HTMLAudioElement | null>(null);
   const codeRef = useRef(code);
   const packageRef = useRef(packageJsonContent);
@@ -784,11 +786,23 @@ export default function Builder() {
     }
   };
 
+  /** Chat column is on the far right; narrow viewports clip it — scroll the main strip horizontally. */
+  const scrollBuilderToChat = () => {
+    const el = builderMainScrollRef.current;
+    if (el) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    window.setTimeout(() => chatInputDomRef.current?.focus(), 350);
+  };
+
   return (
     <div className="flex h-screen bg-background text-white overflow-hidden font-sans flex-col">
-      <div className="flex flex-1 min-h-0">
+      {/* Narrow screens: min width ~56rem — chat is on the far right; scroll horizontally or tap “Chat” (button below). */}
+      <div
+        ref={builderMainScrollRef}
+        className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
+      >
+        <div className="flex min-h-0 h-full min-w-[56rem]">
       {/* Activity bar - keep same background as the rest of the page */}
-      <div className="w-12 bg-background flex flex-col items-center py-4 border-r border-border/20 z-10">
+      <div className="w-12 bg-background flex flex-col items-center py-4 border-r border-border/20 z-10 shrink-0">
         <button
           className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
           title="Explorer"
@@ -806,6 +820,14 @@ export default function Builder() {
           <Layout size={24} strokeWidth={1.5} />
         </button>
         <div className="mt-auto flex flex-col gap-4">
+          <button
+            type="button"
+            onClick={scrollBuilderToChat}
+            className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md border-l-2 border-l-transparent"
+            title="Scroll to Grok chat (on narrow or zoomed windows)"
+          >
+            <MessageSquare size={24} strokeWidth={1.5} />
+          </button>
           <button
             onClick={() => navigate("/settings")}
             className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md border-l-2 border-l-transparent"
@@ -1219,7 +1241,10 @@ export default function Builder() {
       </div>
 
       {/* Chat Panel - same width as Explorer */}
-      <div className="w-64 bg-background border-l border-border/20 flex flex-col flex-shrink-0">
+      <div
+        id="builder-chat-panel"
+        className="w-64 bg-background border-l border-border/20 flex flex-col flex-shrink-0"
+      >
         <div className="p-3 border-b border-border flex items-center justify-between gap-2">
           <span className="text-xs font-semibold tracking-wider text-white uppercase">CHAT</span>
           <span
@@ -1377,6 +1402,19 @@ export default function Builder() {
           </button>
         </div>
       </div>
+        </div>
+      </div>
+
+      {/* Narrow / zoomed-in: chat is off-screen to the right — same as scrolling this row sideways */}
+      <button
+        type="button"
+        onClick={scrollBuilderToChat}
+        className="fixed bottom-24 right-4 z-[55] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-lg shadow-black/40 hover:bg-primary/90 xl:hidden"
+        title="Open Grok chat (on small windows it’s to the right — scroll or tap here)"
+      >
+        <MessageSquare size={18} aria-hidden />
+        Chat
+      </button>
 
       {/* Upgrade to Pro modal (free tier blocks) */}
       <UpgradeProModal
@@ -1496,7 +1534,6 @@ export default function Builder() {
           </div>
         </div>
       )}
-      </div>
       <UpgradeBubble show={!paidStatus.paid} message="Upgrade to Pro for unlimited" />
     </div>
   );
