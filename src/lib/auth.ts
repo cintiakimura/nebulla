@@ -25,8 +25,21 @@ export function isOpenMode(): boolean {
 
 export async function getUserId(): Promise<string> {
   if (typeof window === "undefined") return "";
-  // Open mode: always use "open-dev-user" so API requests hit /api/users/open-dev-user/projects
-  // (Vercel serverless only handles that path; using a UUID from /api/config would 404).
+  // If user signed in with Supabase (GitHub/Google/etc.), URL path :userId MUST match the token
+  // or the API returns 403. Open-mode domains used to always return "open-dev-user" here, which
+  // broke logged-in users (mismatch vs Bearer session).
+  try {
+    const { getSupabaseAuthClient } = await import("./supabaseAuth");
+    const supabase = getSupabaseAuthClient();
+    if (supabase) {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (uid) return uid;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  // Open mode, no Supabase session: anonymous builder (Vercel open-dev-user + serverless paths).
   if (isOpenMode()) return "open-dev-user";
   let userId = localStorage.getItem(KEY_USER_ID);
   if (userId) return userId;
