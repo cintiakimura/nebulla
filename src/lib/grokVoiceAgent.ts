@@ -214,30 +214,39 @@ export async function playGrokTts(
   if (!trimmed || typeof window === "undefined") return false;
   const base = (apiBase || "").replace(/\/$/, "");
   if (!base) return false;
-  try {
-    const ttsRes = await fetch(`${base}/api/tts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
-      body: JSON.stringify({ text: trimmed, voice_id: options?.voice_id ?? "eve" }),
-    });
-    if (!ttsRes.ok) return false;
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    const blob = await ttsRes.blob();
-    if (!blob.size) return false;
-    const objectUrl = URL.createObjectURL(blob);
-    const audio = new Audio(objectUrl);
-    if (options?.audioElementRef) options.audioElementRef.current = audio;
-    const cleanup = () => {
-      URL.revokeObjectURL(objectUrl);
-      if (options?.audioElementRef?.current === audio) options.audioElementRef.current = null;
-    };
-    audio.addEventListener("ended", cleanup, { once: true });
-    audio.addEventListener("error", cleanup, { once: true });
-    await audio.play();
-    return true;
-  } catch {
-    return false;
+  const voiceId = options?.voice_id ?? "eve";
+  const maxAttempts = 3;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 350 * attempt));
+    }
+    try {
+      const ttsRes = await fetch(`${base}/api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
+        body: JSON.stringify({ text: trimmed, voice_id: voiceId }),
+      });
+      if (!ttsRes.ok) continue;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      const blob = await ttsRes.blob();
+      if (!blob.size) continue;
+      const objectUrl = URL.createObjectURL(blob);
+      const audio = new Audio(objectUrl);
+      if (options?.audioElementRef) options.audioElementRef.current = audio;
+      const cleanup = () => {
+        URL.revokeObjectURL(objectUrl);
+        if (options?.audioElementRef?.current === audio) options.audioElementRef.current = null;
+      };
+      audio.addEventListener("ended", cleanup, { once: true });
+      audio.addEventListener("error", cleanup, { once: true });
+      await audio.play();
+      return true;
+    } catch {
+      /* retry */
+    }
   }
+  return false;
 }
 
 /**

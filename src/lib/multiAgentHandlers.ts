@@ -11,6 +11,7 @@ import {
   createVercelGithubPreviewDeployment,
   triggerVercelDeployHook,
 } from "./vercelAgentDeploy.js";
+import { XAI_CHAT_COMPLETIONS_URL } from "../config/xaiGrok.js";
 import { GROK_MULTI_AGENT } from "./grokModelSelection.js";
 
 export type CodeAgentRequestBody = {
@@ -62,7 +63,7 @@ async function grokCompletion(
   model: string,
   messages: { role: "system" | "user" | "assistant"; content: string }[]
 ): Promise<{ ok: true; content: string } | { ok: false; status: number; body: Record<string, unknown> }> {
-  const r = await fetch("https://api.x.ai/v1/chat/completions", {
+  const r = await fetch(XAI_CHAT_COMPLETIONS_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

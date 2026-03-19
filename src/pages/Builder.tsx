@@ -28,9 +28,22 @@ import UpgradeBubble from "../components/UpgradeBubble";
 import { runBuilderAgentChain } from "../lib/builderAgentChain";
 import { loadAgentTaskMemory } from "../lib/multiAgentMemory";
 
-const BUILDER_BG = "#020C17";
-const BUILDER_ACCENT = "#081334";
-const BUILDER_MUTED = "#6C7286";
+/** Builder: one dark blue canvas; borders are 1px, only slightly lighter than BG (no white strokes). */
+const BUILDER_BG = "#020c17";
+const BUILDER_ACCENT = "#081a2e";
+const BUILDER_MUTED = "#6c7286";
+const BUILDER_BORDER = "#112536";
+
+function readStoredPanelSize(key: string, fallback: number, min: number, max: number) {
+  try {
+    const v = localStorage.getItem(key);
+    const n = v ? parseInt(v, 10) : NaN;
+    if (Number.isFinite(n)) return Math.min(max, Math.max(min, n));
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+}
 
 // A component to sync Monaco with Sandpack
 const MonacoSync = ({ code, setCode }: { code: string, setCode: (c: string) => void }) => {
@@ -66,14 +79,44 @@ function BuilderBottomPanel({
   transcript: string;
   sandpackConsole?: React.ReactNode;
 }) {
+  const bottomRootRef = useRef<HTMLDivElement>(null);
+  const [bottomHeight, setBottomHeight] = useState(() =>
+    readStoredPanelSize("kyn_builder_bottom_h", 240, 132, 720)
+  );
+
+  useEffect(() => {
+    const el = bottomRootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const h = Math.round(entries[0].contentRect.height);
+      if (h < 120) return;
+      setBottomHeight(h);
+      try {
+        localStorage.setItem("kyn_builder_bottom_h", String(h));
+      } catch {
+        /* ignore */
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div
-      className="h-[min(42vh,22rem)] min-h-[132px] max-h-[min(50vh,24rem)] border-t flex flex-col flex-shrink-0"
-      style={{ backgroundColor: BUILDER_BG, borderColor: "#0a1628" }}
+      ref={bottomRootRef}
+      className="flex flex-col flex-shrink-0 min-h-[132px] max-h-[80vh]"
+      style={{
+        height: bottomHeight,
+        resize: "vertical",
+        overflow: "auto",
+        boxSizing: "border-box",
+        backgroundColor: BUILDER_BG,
+        borderTop: `1px solid ${BUILDER_BORDER}`,
+      }}
     >
       <div
-        className="h-9 flex items-center border-b flex-shrink-0"
-        style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+        className="h-9 flex items-center flex-shrink-0"
+        style={{ backgroundColor: BUILDER_ACCENT, borderBottom: `1px solid ${BUILDER_BORDER}` }}
       >
         <div className="flex items-center h-full">
           <button
@@ -130,12 +173,12 @@ function BuilderBottomPanel({
           <div className="flex flex-col h-full min-h-0">
             {sandpackConsole ? (
               <div
-                className="shrink-0 h-[42%] min-h-[96px] max-h-[200px] border-b overflow-hidden flex flex-col"
-                style={{ backgroundColor: BUILDER_BG, borderColor: "#0a1628" }}
+                className="shrink-0 h-[42%] min-h-[96px] max-h-[200px] overflow-hidden flex flex-col"
+                style={{ backgroundColor: BUILDER_BG, borderBottom: `1px solid ${BUILDER_BORDER}` }}
               >
                 <div
                   className="text-[10px] uppercase tracking-wider px-3 py-1 border-b"
-                  style={{ color: BUILDER_MUTED, borderColor: "#0a1628", backgroundColor: BUILDER_ACCENT }}
+                  style={{ color: BUILDER_MUTED, borderBottom: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
                 >
                   Preview console (Sandpack)
                 </div>
@@ -206,8 +249,8 @@ function BuilderStatusBar({
 }) {
   return (
     <div
-      className="h-6 text-xs flex items-center px-3 justify-between flex-shrink-0 border-t"
-      style={{ backgroundColor: "#081334", color: "#6C7286", borderColor: "#0a1628" }}
+      className="h-6 text-xs flex items-center px-3 justify-between flex-shrink-0"
+      style={{ backgroundColor: BUILDER_ACCENT, color: BUILDER_MUTED, borderTop: `1px solid ${BUILDER_BORDER}` }}
     >
       <div className="flex items-center gap-4">
         {paidStatus.paid ? (
@@ -311,6 +354,18 @@ export default function Builder() {
     }
   });
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [sidebarPanelW, setSidebarPanelW] = useState(() =>
+    readStoredPanelSize("kyn_builder_sidebar_w", 224, 160, 560)
+  );
+  const [terminalPanelW, setTerminalPanelW] = useState(() =>
+    readStoredPanelSize("kyn_builder_terminal_w", 300, 200, 720)
+  );
+  const [chatPanelW, setChatPanelW] = useState(() =>
+    readStoredPanelSize("kyn_builder_chat_w", 320, 260, 640)
+  );
+  const sidebarPanelRef = useRef<HTMLDivElement>(null);
+  const terminalPanelRef = useRef<HTMLDivElement>(null);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
   const [agentRunning, setAgentRunning] = useState(false);
   const [grokSpeaks, setGrokSpeaks] = useState(() => {
     try { return localStorage.getItem("kyn_grok_speaks") !== "false"; } catch { return true; }
@@ -388,6 +443,68 @@ export default function Builder() {
     }, 1000);
     return () => clearInterval(t);
   }, [rateLimitModalOpen, rateLimitCountdown]);
+
+  useEffect(() => {
+    const show = !projectId || explorerOpen;
+    if (!show) return;
+    const el = sidebarPanelRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0].contentRect.width);
+      if (w < 48) return;
+      setSidebarPanelW(w);
+      try {
+        localStorage.setItem("kyn_builder_sidebar_w", String(w));
+      } catch {
+        /* ignore */
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [explorerOpen, projectId]);
+
+  useEffect(() => {
+    if (!projectId || !setupComplete || activeTabId === "/package.json" || projectLoading) return;
+    const el = terminalPanelRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0].contentRect.width);
+      if (w < 48) return;
+      setTerminalPanelW(w);
+      try {
+        localStorage.setItem("kyn_builder_terminal_w", String(w));
+      } catch {
+        /* ignore */
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [projectId, setupComplete, activeTabId, projectLoading]);
+
+  useEffect(() => {
+    const el = chatPanelRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0].contentRect.width);
+      if (w < 48) return;
+      setChatPanelW(w);
+      try {
+        localStorage.setItem("kyn_builder_chat_w", String(w));
+      } catch {
+        /* ignore */
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const prev = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = BUILDER_BG;
+    return () => {
+      document.body.style.backgroundColor = prev;
+    };
+  }, []);
 
   // Load project when projectId is set
   useEffect(() => {
@@ -642,47 +759,32 @@ export default function Builder() {
   }, []);
 
   /**
-   * Read Grok replies aloud: prefer xAI REST TTS (Eve) — same key as chat.
-   * Falls back to browser SpeechSynthesis (sounds robotic) if TTS fails or no backend URL.
+   * After Grok reasons via POST /api/agent/chat → xAI /v1/chat/completions, speak the reply with Eve:
+   * POST /api/tts → xAI /v1/tts (same key). No browser SpeechSynthesis robot voice.
    */
   const speakWithGrokEve = (text: string, force?: boolean) => {
     if (typeof window === "undefined" || !text?.trim()) return;
     if (!force && !grokSpeaks) return;
     void (async () => {
       const base = getApiBase() || "";
-      if (base) {
-        try {
-          grokAudioRef.current?.pause();
-          const ok = await playGrokTts(base, text, { voice_id: "eve", audioElementRef: grokAudioRef });
-          if (ok) return;
-        } catch (_) {
-          /* fall through to browser */
-        }
-      }
-      if (!window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length === 0) {
-        setTimeout(() => speakWithGrokEve(text, force), 150);
+      if (!base) {
+        setLogs((prev) => [...prev, "[TTS]: Set backend URL — Eve playback needs POST /api/tts."]);
         return;
       }
-      const u = new SpeechSynthesisUtterance(text.slice(0, 4096));
-      u.rate = 0.95;
-      u.pitch = 1;
-      const enUS = voices.find((v) => v.lang === "en-US") ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
-      if (enUS) u.voice = enUS;
-      window.speechSynthesis.speak(u);
+      try {
+        grokAudioRef.current?.pause();
+        const ok = await playGrokTts(base, text, { voice_id: "eve", audioElementRef: grokAudioRef });
+        if (!ok) {
+          setLogs((prev) => [
+            ...prev,
+            "[TTS]: Grok Eve failed after retries — check xAI key, TTS permission, and /api/tts.",
+          ]);
+        }
+      } catch {
+        setLogs((prev) => [...prev, "[TTS]: Grok Eve error — check /api/tts and network."]);
+      }
     })();
   };
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
-      const onVoices = () => window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = onVoices;
-      return () => { window.speechSynthesis.onvoiceschanged = null; };
-    }
-  }, []);
 
   const persistInteractionMode = (m: "talk" | "code") => {
     setInteractionMode(m);
@@ -916,21 +1018,21 @@ export default function Builder() {
   const handleMicToggle = () => {
     if (readOnly) return;
     if (browserSupportsSpeechRecognition === false) return;
-    if (isMicrophoneAvailable === false) {
-      addLog("[Voice]: Microphone blocked or unavailable — check browser permissions (address bar lock icon).");
-      return;
-    }
     if (listening) {
+      const spoken = typeof transcript === "string" ? transcript.trim() : "";
       SpeechRecognition.stopListening();
-      if (transcript) {
-        addLog(`[Voice Input]: ${transcript}`);
+      if (spoken) {
+        addLog(`[Voice Input]: ${spoken}`);
         addLog(`[Grok]: Analyzing request...`);
-        const userMsg = { id: crypto.randomUUID(), role: 'user' as const, content: transcript };
-        setChatMessages(prev => [...prev, userMsg]);
-        saveProject({ chat_messages: [...chatMessages, userMsg] });
+        const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: spoken };
+        setChatMessages((prev) => {
+          const next = [...prev, userMsg];
+          void saveProject({ chat_messages: next });
+          return next;
+        });
         resetTranscript();
 
-        const uiPrompt = extractUiGeneratePrompt(transcript);
+        const uiPrompt = extractUiGeneratePrompt(spoken);
         if (uiPrompt) {
           (async () => {
             try {
@@ -950,33 +1052,69 @@ export default function Builder() {
                 }
                 const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
                 const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
-                setChatMessages(prev => [...prev, builderMsg]);
-                saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });
+                setChatMessages((prev) => {
+                  const next = [...prev, builderMsg];
+                  void saveProject({ chat_messages: next });
+                  return next;
+                });
                 if (grokSpeaks) speakWithGrokEve(kynContent);
               } else if (data.error && !data.placeholder) {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
-                setChatMessages(prev => [...prev, errMsg]);
-                saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+                setChatMessages((prev) => {
+                  const next = [...prev, errMsg];
+                  void saveProject({ chat_messages: next });
+                  return next;
+                });
               } else if (!res.ok) {
                 const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
-                setChatMessages(prev => [...prev, errMsg]);
-                saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
+                setChatMessages((prev) => {
+                  const next = [...prev, errMsg];
+                  void saveProject({ chat_messages: next });
+                  return next;
+                });
               } else {
                 const noCodeMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: "UI generation returned no code. Try again or rephrase your request." };
-                setChatMessages(prev => [...prev, noCodeMsg]);
-                saveProject({ chat_messages: [...chatMessages, userMsg, noCodeMsg] });
+                setChatMessages((prev) => {
+                  const next = [...prev, noCodeMsg];
+                  void saveProject({ chat_messages: next });
+                  return next;
+                });
               }
             } catch (_) {}
           })();
         }
 
-        sendToGrok(transcript);
+        sendToGrok(spoken);
+      } else {
+        addLog("[Voice]: No speech captured — try again or check the mic permission.");
+        resetTranscript();
       }
     } else {
       resetTranscript();
-      SpeechRecognition.startListening({ continuous: true });
-      addLog(`[System]: Listening for voice commands...`);
+      void (async () => {
+        try {
+          if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach((t) => t.stop());
+          }
+        } catch (e) {
+          addLog(
+            `[Voice]: Microphone permission denied or unavailable — ${e instanceof Error ? e.message : String(e)}`
+          );
+          return;
+        }
+        try {
+          await SpeechRecognition.startListening({
+            continuous: true,
+            interimResults: true,
+            language: "en-US",
+          });
+          addLog("[System]: Listening for voice commands… (tap mic again to send)");
+        } catch (e2) {
+          addLog(`[Voice]: Could not start speech recognition — ${e2 instanceof Error ? e2.message : String(e2)}`);
+        }
+      })();
     }
   };
 
@@ -1121,11 +1259,15 @@ export default function Builder() {
 
   return (
     <div className="flex h-screen overflow-hidden font-sans flex-col" style={{ backgroundColor: BUILDER_BG, color: "#a8b0c0" }}>
-      <div ref={builderMainScrollRef} className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden">
-        <div className="flex min-h-0 h-full min-w-[60rem]">
       <div
-        className="w-14 flex flex-col items-center py-3 border-r z-10 shrink-0"
-        style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+        ref={builderMainScrollRef}
+        className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
+        style={{ backgroundColor: BUILDER_BG }}
+      >
+        <div className="flex min-h-0 h-full min-w-[60rem]" style={{ backgroundColor: BUILDER_BG }}>
+      <div
+        className="w-14 flex flex-col items-center py-3 z-10 shrink-0"
+        style={{ backgroundColor: BUILDER_ACCENT, borderRight: `1px solid ${BUILDER_BORDER}` }}
       >
         <button
           type="button"
@@ -1164,7 +1306,7 @@ export default function Builder() {
             className="p-2 rounded-md transition-colors"
             style={{
               color: agentDebugEnabled ? "#22d3ee" : BUILDER_MUTED,
-              backgroundColor: agentDebugEnabled ? "rgba(2,12,23,0.5)" : "transparent",
+              backgroundColor: agentDebugEnabled ? "rgba(2,12,23,0.45)" : "transparent",
             }}
             title={agentDebugEnabled ? "Multi-agent chain ON (Code → Deploy)" : "Multi-agent chain OFF"}
           >
@@ -1192,13 +1334,35 @@ export default function Builder() {
       </div>
 
       <div
-        className={`shrink-0 flex flex-col border-r transition-all duration-200 overflow-hidden ${
-          !projectId || explorerOpen ? "w-56 opacity-100" : "w-0 opacity-0 pointer-events-none border-0"
-        }`}
-        style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+        ref={sidebarPanelRef}
+        className={`shrink-0 flex flex-col ${!projectId || explorerOpen ? "" : "pointer-events-none"}`}
+        style={
+          !projectId || explorerOpen
+            ? {
+                width: sidebarPanelW,
+                minWidth: 160,
+                maxWidth: 560,
+                minHeight: 200,
+                maxHeight: "100%",
+                resize: "both",
+                overflow: "auto",
+                boxSizing: "border-box",
+                backgroundColor: BUILDER_ACCENT,
+                borderRight: `1px solid ${BUILDER_BORDER}`,
+              }
+            : {
+                width: 0,
+                minWidth: 0,
+                overflow: "hidden",
+                resize: "none",
+                opacity: 0,
+                border: "none",
+                flexShrink: 0,
+              }
+        }
       >
         {projectId && (
-          <div className="flex items-center gap-1 p-2 border-b border-border">
+          <div className="flex items-center gap-1 p-2 shrink-0" style={{ borderBottom: `1px solid ${BUILDER_BORDER}` }}>
             <button
               type="button"
               onClick={() => { addLog("[Git]: Stage"); }}
@@ -1255,7 +1419,7 @@ export default function Builder() {
               )}
             </div>
             {!paidStatus.paid && (
-              <div className="p-3 border-t border-border text-xs text-muted">
+              <div className="p-3 text-xs text-muted shrink-0" style={{ borderTop: `1px solid ${BUILDER_BORDER}` }}>
                 {projects.length}/{projectLimit} projects
               </div>
             )}
@@ -1279,7 +1443,7 @@ export default function Builder() {
                 package.json
               </div>
             </div>
-            <div className="p-4 border-t border-border space-y-3">
+            <div className="p-4 space-y-3 shrink-0" style={{ borderTop: `1px solid ${BUILDER_BORDER}` }}>
               <div className="text-xs font-semibold tracking-wider text-primary uppercase mb-2">Deploy</div>
               {!paidStatus.paid ? (
                 <button
@@ -1336,18 +1500,20 @@ export default function Builder() {
                   <button
                     type="button"
                     onClick={() => navigate("/settings")}
-                    className="py-3 px-2 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 hover:border-primary/30 text-white font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px]"
+                    className="py-3 px-2 rounded-lg font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px] hover:brightness-110"
+                    style={{ backgroundColor: "rgba(8,26,46,0.45)", border: `1px solid ${BUILDER_BORDER}` }}
                   >
-                    <Github size={20} className="text-primary shrink-0" />
-                    <span className="text-[10px] text-muted font-medium text-center leading-tight">GitHub</span>
+                    <Github size={20} className="shrink-0 text-cyan-500/80" />
+                    <span className="text-[10px] font-medium text-center leading-tight" style={{ color: BUILDER_MUTED }}>GitHub</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="py-3 px-2 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 hover:border-primary/30 text-white font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px]"
+                    className="py-3 px-2 rounded-lg font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px] hover:brightness-110"
+                    style={{ backgroundColor: "rgba(8,26,46,0.45)", border: `1px solid ${BUILDER_BORDER}` }}
                   >
-                    <FolderOpen size={20} className="text-muted shrink-0" />
-                    <span className="text-[10px] text-muted font-medium text-center leading-tight">Local folder</span>
+                    <FolderOpen size={20} className="shrink-0" style={{ color: BUILDER_MUTED }} />
+                    <span className="text-[10px] font-medium text-center leading-tight" style={{ color: BUILDER_MUTED }}>Local folder</span>
                   </button>
                   <button
                     type="button"
@@ -1360,10 +1526,11 @@ export default function Builder() {
                       scrollBuilderToChat();
                       chatInputDomRef.current?.focus();
                     }}
-                    className="py-3 px-2 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 hover:border-primary/30 text-white font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px]"
+                    className="py-3 px-2 rounded-lg font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px] hover:brightness-110"
+                    style={{ backgroundColor: "rgba(8,26,46,0.45)", border: `1px solid ${BUILDER_BORDER}` }}
                   >
-                    <FileText size={20} className="text-muted shrink-0" />
-                    <span className="text-[10px] text-muted font-medium text-center leading-tight">Prompt</span>
+                    <FileText size={20} className="shrink-0" style={{ color: BUILDER_MUTED }} />
+                    <span className="text-[10px] font-medium text-center leading-tight" style={{ color: BUILDER_MUTED }}>Prompt</span>
                   </button>
                 </div>
               </div>
@@ -1385,7 +1552,8 @@ export default function Builder() {
                     }
                   }}
                   placeholder="e.g. My app, Dashboard, Landing page"
-                  className="w-full px-4 py-3 rounded-lg bg-sidebar-bg border border-border text-white placeholder-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-4 py-3 rounded-lg placeholder:text-[#6c7286] focus:outline-none focus:ring-1 focus:ring-cyan-900/40 text-[#a8b0c0]"
+                  style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
                 />
                 <button
                   type="button"
@@ -1398,7 +1566,7 @@ export default function Builder() {
                 </button>
               </div>
               {projects.length > 0 && (
-                <div className="pt-4 border-t border-border">
+                <div className="pt-4" style={{ borderTop: `1px solid ${BUILDER_BORDER}` }}>
                   <p className="text-xs text-muted uppercase tracking-wider mb-2">Recent projects</p>
                   <div className="space-y-1">
                     {projects.slice(0, 5).map((p) => (
@@ -1433,8 +1601,8 @@ export default function Builder() {
           <>
         {/* Tab bar - files and preview navigation */}
         <div
-          className="flex-shrink-0 h-11 flex items-center border-b overflow-x-auto gap-0"
-          style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+          className="flex-shrink-0 h-11 flex items-center overflow-x-auto gap-0 shrink-0"
+          style={{ backgroundColor: BUILDER_ACCENT, borderBottom: `1px solid ${BUILDER_BORDER}` }}
         >
           {openTabs.map((tabId) => {
             const label = tabId === 'preview' ? 'Live Preview' : tabId === '/App.tsx' ? 'App.tsx' : 'package.json';
@@ -1443,9 +1611,9 @@ export default function Builder() {
               <div
                 key={tabId}
                 onClick={() => setActiveTabId(tabId)}
-                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r cursor-pointer flex-shrink-0 ${isActive ? "border-t-2 border-t-cyan-500/70" : ""}`}
+                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] cursor-pointer flex-shrink-0 ${isActive ? "border-t-2 border-t-cyan-500/70" : ""}`}
                 style={{
-                  borderColor: "#0a1628",
+                  borderRight: `1px solid ${BUILDER_BORDER}`,
                   backgroundColor: isActive ? BUILDER_BG : "transparent",
                   color: isActive ? "#a8b0c0" : BUILDER_MUTED,
                 }}
@@ -1472,9 +1640,9 @@ export default function Builder() {
           {!setupComplete ? (
             <>
               <div className="flex-1 min-h-0 relative overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center bg-editor-bg p-8 z-[1]">
-                  <div className="max-w-md rounded-lg border border-border bg-sidebar-bg p-6 text-center">
-                    <p className="text-white text-sm mb-4">Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
+                <div className="absolute inset-0 flex items-center justify-center p-8 z-[1]" style={{ backgroundColor: BUILDER_BG }}>
+                  <div className="max-w-md rounded-lg p-6 text-center" style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}>
+                    <p className="text-sm mb-4" style={{ color: "#a8b0c0" }}>Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
                     <button
                       type="button"
                       onClick={() => navigate("/settings")}
@@ -1499,14 +1667,26 @@ export default function Builder() {
             </>
           ) : activeTabId !== "/package.json" ? (
             <>
-              <div className="flex-1 flex min-h-0 overflow-hidden">
+              <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
                 <div
-                  className="flex flex-col shrink-0 w-[min(38%,420px)] min-w-[240px] border-r flex-nowrap"
-                  style={{ backgroundColor: BUILDER_BG, borderColor: BUILDER_ACCENT }}
+                  ref={terminalPanelRef}
+                  className="flex flex-col shrink-0 flex-nowrap min-h-0"
+                  style={{
+                    width: terminalPanelW,
+                    minWidth: 200,
+                    maxWidth: 720,
+                    minHeight: 200,
+                    maxHeight: "100%",
+                    resize: "both",
+                    overflow: "auto",
+                    boxSizing: "border-box",
+                    backgroundColor: BUILDER_BG,
+                    borderRight: `1px solid ${BUILDER_BORDER}`,
+                  }}
                 >
                   <div
-                    className="text-[10px] uppercase tracking-wider px-2 py-1.5 border-b shrink-0 font-semibold"
-                    style={{ color: BUILDER_MUTED, borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}
+                    className="text-[10px] uppercase tracking-wider px-2 py-1.5 shrink-0 font-semibold"
+                    style={{ color: BUILDER_MUTED, borderBottom: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
                   >
                     Live terminal
                   </div>
@@ -1535,24 +1715,34 @@ export default function Builder() {
                 >
                   <MonacoSync code={code} setCode={setCode} />
                   <div className="flex flex-col flex-1 min-h-0 overflow-hidden h-full">
-                    <div className="flex-1 min-h-0 relative overflow-hidden bg-editor-bg">
+                    <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: BUILDER_BG }}>
                       {activeTabId === "preview" && (
-                        <div className="absolute inset-0 flex flex-col bg-editor-bg">
-                          <div className="flex-none h-8 bg-sidebar-bg border-b border-border flex items-center px-4">
-                            <span className="text-xs text-muted font-medium">Live Preview</span>
+                        <div className="absolute inset-0 flex flex-col" style={{ backgroundColor: BUILDER_BG }}>
+                          <div
+                            className="flex-none h-8 flex items-center px-4"
+                            style={{ backgroundColor: BUILDER_ACCENT, borderBottom: `1px solid ${BUILDER_BORDER}` }}
+                          >
+                            <span className="text-xs font-medium" style={{ color: BUILDER_MUTED }}>Live Preview</span>
                           </div>
-                          <div className="absolute top-8 left-0 right-0 bottom-0 w-full bg-editor-bg">
+                          <div className="absolute top-8 left-0 right-0 bottom-0 w-full" style={{ backgroundColor: BUILDER_BG }}>
                             <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: "100%", width: "100%" }} />
                           </div>
                           {!paidStatus.paid && (
-                            <div className="absolute bottom-2 right-2 text-sm text-muted bg-sidebar-bg/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-border">
+                            <div
+                              className="absolute bottom-2 right-2 text-sm px-2 py-1 rounded pointer-events-none select-none z-10"
+                              style={{
+                                color: BUILDER_MUTED,
+                                backgroundColor: "rgba(8,26,46,0.92)",
+                                border: `1px solid ${BUILDER_BORDER}`,
+                              }}
+                            >
                               Kyn Sandbox – Upgrade for full access
                             </div>
                           )}
                         </div>
                       )}
                       {activeTabId === "/App.tsx" && (
-                        <div className="absolute inset-0 w-full bg-editor-bg">
+                        <div className="absolute inset-0 w-full" style={{ backgroundColor: BUILDER_BG }}>
                           <Editor
                             height="100%"
                             defaultLanguage="typescript"
@@ -1579,14 +1769,16 @@ export default function Builder() {
                         listening={listening}
                         transcript={typeof transcript === "string" ? transcript : ""}
                         sandpackConsole={
-                          <SandpackConsole
-                            showHeader={false}
-                            showSyntaxError
-                            showSetupProgress
-                            showRestartButton={false}
-                            showResetConsoleButton
-                            className="h-full min-h-0 !bg-[#020C17] text-[11px] text-[#a8b0c0]"
-                          />
+                          <div className="h-full min-h-0 overflow-auto" style={{ backgroundColor: BUILDER_BG }}>
+                            <SandpackConsole
+                              showHeader={false}
+                              showSyntaxError
+                              showSetupProgress
+                              showRestartButton={false}
+                              showResetConsoleButton
+                              className="h-full min-h-0 !bg-transparent text-[11px] text-[#a8b0c0]"
+                            />
+                          </div>
                         }
                       />
                     ) : null}
@@ -1598,8 +1790,8 @@ export default function Builder() {
             </>
           ) : (
             <>
-              <div className="flex-1 min-h-0 relative overflow-hidden bg-editor-bg">
-                <div className="absolute inset-0 w-full bg-editor-bg">
+              <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: BUILDER_BG }}>
+                <div className="absolute inset-0 w-full" style={{ backgroundColor: BUILDER_BG }}>
                   <Editor
                     height="100%"
                     defaultLanguage="json"
@@ -1629,24 +1821,39 @@ export default function Builder() {
       </div>
 
       <div
+        ref={chatPanelRef}
         id="builder-chat-panel"
-        className="w-[min(20rem,100%)] min-w-[16rem] max-w-[22rem] flex flex-col flex-shrink-0 border-l"
-        style={{ backgroundColor: BUILDER_BG, borderColor: BUILDER_ACCENT }}
+        className="flex flex-col shrink-0 min-h-0"
+        style={{
+          width: chatPanelW,
+          minWidth: 260,
+          maxWidth: 720,
+          minHeight: 200,
+          maxHeight: "100%",
+          resize: "both",
+          overflow: "auto",
+          boxSizing: "border-box",
+          backgroundColor: BUILDER_BG,
+          borderLeft: `1px solid ${BUILDER_BORDER}`,
+        }}
       >
-        <div className="p-2 border-b flex flex-col gap-2" style={{ borderColor: BUILDER_ACCENT }}>
+        <div
+          className="p-2 flex flex-col gap-2 shrink-0"
+          style={{ borderBottom: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
+        >
           <div className="flex items-center justify-between gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#a8b0c0" }}>
               Chat
             </span>
             <Code2 size={14} style={{ color: BUILDER_MUTED }} aria-hidden />
           </div>
-          <div className="flex rounded overflow-hidden border" style={{ borderColor: BUILDER_ACCENT }}>
+          <div className="flex rounded overflow-hidden min-h-[32px]" style={{ border: `1px solid ${BUILDER_BORDER}` }}>
             <button
               type="button"
               onClick={() => persistInteractionMode("talk")}
               className="flex-1 py-1.5 text-[10px] font-medium transition-colors"
               style={{
-                backgroundColor: interactionMode === "talk" ? "#020C17" : "transparent",
+                backgroundColor: interactionMode === "talk" ? BUILDER_BG : "transparent",
                 color: interactionMode === "talk" ? "#a8b0c0" : BUILDER_MUTED,
               }}
             >
@@ -1657,7 +1864,7 @@ export default function Builder() {
               onClick={() => persistInteractionMode("code")}
               className="flex-1 py-1.5 text-[10px] font-medium transition-colors"
               style={{
-                backgroundColor: interactionMode === "code" ? "#020C17" : "transparent",
+                backgroundColor: interactionMode === "code" ? BUILDER_BG : "transparent",
                 color: interactionMode === "code" ? "#a8b0c0" : BUILDER_MUTED,
               }}
             >
@@ -1665,15 +1872,20 @@ export default function Builder() {
             </button>
           </div>
           <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
-            Code + bug on → chained Code &amp; Deploy agents. Talk → chat only.
+            Code + bug on → chained Code &amp; Deploy agents. Talk → chat only. Drag the <strong className="text-[#a8b0c0] font-normal">bottom-right</strong> grip on
+            sidebar, terminal, chat, or bottom panel to resize.
           </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
           <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={handleFileSelect} />
           <div
-            className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "ring-1 rounded" : ""}`}
-            style={isDragActive ? { backgroundColor: "rgba(8,19,52,0.85)", boxShadow: "0 0 0 1px rgba(34,211,238,0.25)" } : undefined}
+            className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "rounded" : ""}`}
+            style={
+              isDragActive
+                ? { backgroundColor: "rgba(8,26,46,0.5)", boxShadow: `0 0 0 1px ${BUILDER_BORDER}` }
+                : undefined
+            }
           >
             {chatMessages.map((msg) => (
               <div key={msg.id} className="group">
@@ -1692,7 +1904,7 @@ export default function Builder() {
                         alt="Generated UI mockup"
                         loading="lazy"
                         className="rounded-lg max-w-full border"
-                        style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_BG }}
+                        style={{ border: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_BG }}
                       />
                     ))}
                   </div>
@@ -1727,7 +1939,10 @@ export default function Builder() {
             ))}
           </div>
           {listening && (
-            <div className="px-3 py-2 border-t" style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}>
+            <div
+              className="px-3 py-2 shrink-0"
+              style={{ borderTop: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
+            >
               <div className="text-xs mb-1" style={{ color: BUILDER_MUTED }}>
                 Live transcription
               </div>
@@ -1737,8 +1952,8 @@ export default function Builder() {
             </div>
           )}
           <div
-            className="flex-shrink-0 p-2 border-t"
-            style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}
+            className="flex-shrink-0 p-2"
+            style={{ borderTop: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
             onClick={(e) => e.stopPropagation()}
           >
             {listening && (
@@ -1757,7 +1972,7 @@ export default function Builder() {
                 className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 style={{
                   backgroundColor: BUILDER_BG,
-                  borderColor: "#0a1628",
+                  border: `1px solid ${BUILDER_BORDER}`,
                   color: "#a8b0c0",
                 }}
                 disabled={readOnly}
@@ -1778,32 +1993,27 @@ export default function Builder() {
         </div>
         {/* Bottom toolbar: mic, Grok reads aloud, upload, copy */}
         <div
-          className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3 border-t"
-          style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}
+          className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3"
+          style={{ borderTop: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
         >
           <button
+            type="button"
             onClick={handleMicToggle}
-            disabled={readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false}
+            disabled={readOnly || browserSupportsSpeechRecognition === false}
             className={`p-2 rounded-md transition-colors shrink-0 ${
-              readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false
-                ? "opacity-60 cursor-not-allowed"
-                : ""
+              readOnly || browserSupportsSpeechRecognition === false ? "opacity-60 cursor-not-allowed" : ""
             } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : ""}`}
-            style={
-              !listening && !(readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false)
-                ? { color: BUILDER_MUTED }
-                : undefined
-            }
+            style={!listening && !(readOnly || browserSupportsSpeechRecognition === false) ? { color: BUILDER_MUTED } : undefined}
             title={
               readOnly
                 ? "Upgrade for full access"
                 : browserSupportsSpeechRecognition === false
                   ? "Speech recognition not supported in this browser (try Chrome)"
                   : isMicrophoneAvailable === false
-                    ? "Microphone blocked — allow mic for this site in browser settings"
+                    ? "Mic: click to request access (allow in browser prompt if shown)"
                     : listening
                       ? "Tap to stop and send"
-                      : "Speak to text (Web Speech API — allow microphone)"
+                      : "Speak to text — uses browser speech recognition (Chrome recommended)"
             }
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -1814,9 +2024,13 @@ export default function Builder() {
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
               return next;
             })}
-            className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? "border border-cyan-500/35 bg-[#020C17]" : ""}`}
-            style={{ color: grokSpeaks ? "#a8b0c0" : BUILDER_MUTED }}
-            title="Read replies with xAI Eve TTS when chat works; otherwise browser voice"
+            className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? "border border-cyan-500/35" : ""}`}
+            style={
+              grokSpeaks
+                ? { color: "#a8b0c0", backgroundColor: BUILDER_BG, border: "1px solid rgba(34,211,238,0.35)" }
+                : { color: BUILDER_MUTED }
+            }
+            title="Read replies with Grok Eve: /api/tts → xAI /v1/tts (same key as chat). No robot voice fallback."
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
@@ -1878,11 +2092,26 @@ export default function Builder() {
 
       {/* Grok API key missing: 503 from agent/chat */}
       {showGrokKeyModal && (
-        <div className="fixed inset-0 bg-editor-bg/80 flex items-center justify-center z-50" onClick={() => setShowGrokKeyModal(false)}>
-          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm text-white mb-3">Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(2,12,23,0.88)" }}
+          onClick={() => setShowGrokKeyModal(false)}
+        >
+          <div
+            className="rounded-lg p-4 w-80 shadow-xl"
+            style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm mb-3" style={{ color: "#a8b0c0" }}>Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-border text-white text-sm">Close</button>
+              <button
+                type="button"
+                onClick={() => setShowGrokKeyModal(false)}
+                className="px-3 py-2 rounded text-sm"
+                style={{ color: "#a8b0c0", border: `1px solid ${BUILDER_BORDER}` }}
+              >
+                Close
+              </button>
               <Link to="/settings" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded bg-primary text-white text-sm">Open Settings</Link>
             </div>
           </div>
@@ -1891,17 +2120,25 @@ export default function Builder() {
 
       {/* Rate limit modal: 429 too many requests */}
       {rateLimitModalOpen && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}>
-          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(2,12,23,0.88)" }}
+          onClick={() => rateLimitCountdown <= 0 && setRateLimitModalOpen(false)}
+        >
+          <div
+            className="rounded-lg p-4 w-72 shadow-xl"
+            style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium text-white">Too many requests</span>
+              <span className="text-sm font-medium" style={{ color: "#a8b0c0" }}>Too many requests</span>
               {rateLimitCountdown <= 0 ? (
                 <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                   <X size={16} />
                 </button>
               ) : null}
             </div>
-            <p className="text-sm text-white mb-3">
+            <p className="text-sm mb-3" style={{ color: "#a8b0c0" }}>
               Wait {rateLimitCountdown > 0 ? rateLimitCountdown : 0} second{rateLimitCountdown !== 1 ? "s" : ""} and try again, or upgrade for unlimited.
             </p>
             <Link
@@ -1917,10 +2154,18 @@ export default function Builder() {
 
       {/* Upgrade modal: pick plan → Stripe Checkout (paid flow) */}
       {upgradeModalOpen && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50" onClick={() => setUpgradeModalOpen(false)}>
-          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-72 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(2,12,23,0.88)" }}
+          onClick={() => setUpgradeModalOpen(false)}
+        >
+          <div
+            className="rounded-lg p-4 w-72 shadow-xl"
+            style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium text-white">Upgrade to deploy</span>
+              <span className="text-sm font-medium" style={{ color: "#a8b0c0" }}>Upgrade to deploy</span>
               <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
@@ -1936,10 +2181,21 @@ export default function Builder() {
 
       {/* Create project: ask project name (e.g. from sidebar) */}
       {showCreateProjectModal && (
-        <div className="fixed inset-0 bg-editor-bg/80 flex items-center justify-center z-50" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }}>
-          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(2,12,23,0.88)" }}
+          onClick={() => {
+            setShowCreateProjectModal(false);
+            setNewProjectName("");
+          }}
+        >
+          <div
+            className="rounded-lg p-4 w-80 shadow-xl"
+            style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium text-white">New project</span>
+              <span className="text-sm font-medium" style={{ color: "#a8b0c0" }}>New project</span>
               <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
@@ -1960,11 +2216,22 @@ export default function Builder() {
                 }
               }}
               placeholder="e.g. My app, Dashboard"
-              className="w-full px-3 py-2 rounded bg-editor-bg border border-border text-white placeholder-muted focus:border-primary focus:outline-none text-sm mb-4"
+              className="w-full px-3 py-2 rounded placeholder:text-[#6c7286] focus:outline-none focus:ring-1 focus:ring-cyan-900/40 text-sm mb-4 text-[#a8b0c0]"
+              style={{ backgroundColor: BUILDER_BG, border: `1px solid ${BUILDER_BORDER}` }}
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="px-3 py-2 rounded border border-border text-white text-sm">Cancel</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateProjectModal(false);
+                  setNewProjectName("");
+                }}
+                className="px-3 py-2 rounded text-sm"
+                style={{ color: "#a8b0c0", border: `1px solid ${BUILDER_BORDER}` }}
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={() => {

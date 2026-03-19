@@ -2,9 +2,9 @@
  * Unbreakable rules: Grok model selection and silent coding mode.
  *
  * Default voice: grok-4-1-fast-reasoning (xAI API id) — always speak, keep it natural.
- * If coding detected ("code", "debug", "fix", "refactor", "implement", "endpoint", "test",
- * "snippet", "auth", "loop", "commit", "files", or file paths) → switch to
- * grok-4.20-multi-agent-0309 silently.
+ * If coding detected in the transcript, the server may attach coding system instructions.
+ * The /api/agent/chat model stays grok-4-1-fast-reasoning unless GROK_MODEL is set.
+ * Separate code-agent HTTP pipeline uses grok-4.20-multi-agent-0309 when configured.
  *
  * Silent mode rules:
  * - No replies, no "thinking...", no mode whispers — zero output from multi-agent.
@@ -39,7 +39,7 @@ export type GrokModelSelection = {
 
 /**
  * Determines model and coding mode from conversation history.
- * Default: grok-4-1-fast-reasoning. If coding detected after last exit phrase → grok-4.20-multi-agent-0309 silently.
+ * Default: grok-4-1-fast-reasoning for model id; codingMode toggles extra system prompt only.
  * Exit phrases ("back", "stop coding", "done") snap back to fast-reasoning.
  */
 export function getGrokModelAndMode(

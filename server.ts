@@ -4,12 +4,8 @@ import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
 import { handleExportProject } from "./src/api/export-project.js";
 import { AGENT_ID, AGENT_SYSTEM_PROMPT, AGENT_PRE_CODE_QUESTIONS } from "./src/config/agentConfig.js";
-import {
-  getGrokModelAndMode,
-  GROK_CODING_MODE_SYSTEM,
-  GROK_FAST_REASONING,
-  GROK_MULTI_AGENT,
-} from "./src/lib/grokModelSelection.js";
+import { GROK_CHAT_COMPLETIONS_MODEL, XAI_CHAT_COMPLETIONS_URL, XAI_TTS_URL } from "./src/config/xaiGrok.js";
+import { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } from "./src/lib/grokModelSelection.js";
 import {
   runCodeAgentPipeline,
   runDeployAgentPipeline,
@@ -115,7 +111,11 @@ function getGrokApiKeyFromEnv(): string | null {
   if (!key || key === "PLACEHOLDER") return null;
   if (!grokFirstCallLogged) {
     grokFirstCallLogged = true;
-    console.log("Grok active (default: grok-4-1-fast-reasoning; coding: grok-4.20-multi-agent-0309)");
+    console.log(
+      "Grok: POST /v1/chat/completions (model default " +
+        GROK_CHAT_COMPLETIONS_MODEL +
+        ") + POST /v1/tts (eve) via /api/tts — same key. Code agent pipeline: separate /api/agents/code-run."
+    );
   }
   return key;
 }
@@ -885,17 +885,13 @@ async function startServer() {
         res.status(400).json({ error: "messages array required" });
         return;
       }
-      let { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
-      if (interactionMode === "talk") {
-        codingMode = false;
-        selectedModel = GROK_FAST_REASONING;
-      } else if (interactionMode === "code") {
-        codingMode = true;
-        selectedModel = GROK_MULTI_AGENT;
-      }
-      const grokModelEnv = process.env.GROK_MODEL;
-      const model =
-        typeof grokModelEnv === "string" && grokModelEnv.trim() !== "" ? grokModelEnv.trim() : selectedModel;
+      const { codingMode: codingHeuristic } = getGrokModelAndMode(messages);
+      let codingMode = codingHeuristic;
+      if (interactionMode === "talk") codingMode = false;
+      else if (interactionMode === "code") codingMode = true;
+
+      const grokModelEnv = process.env.GROK_MODEL?.trim();
+      const model = grokModelEnv || GROK_CHAT_COMPLETIONS_MODEL;
 
       // If project has a locked summary, prepend it as the single source-of-truth.
       let lockedSpecMd = "";
@@ -940,7 +936,7 @@ async function startServer() {
         ],
         stream: false,
       };
-      const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      const response = await fetch(XAI_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1040,7 +1036,7 @@ async function startServer() {
         res.status(400).json({ error: "text required (max 4096 chars)" });
         return;
       }
-      const response = await fetch("https://api.x.ai/v1/tts", {
+      const response = await fetch(XAI_TTS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1277,7 +1273,7 @@ if (typeof process.env.VERCEL === "undefined" || process.env.VERCEL !== "1") {
     if (!grokKey || grokKey === "PLACEHOLDER") {
         console.error("Grok: XAI_API_KEY not set — chat/TTS/realtime will return 503. Set XAI_API_KEY in .env.");
     } else {
-        console.log("Grok: env key loaded — chat enabled (default: grok-4-1-fast-reasoning; coding: grok-4.20-multi-agent-0309).");
+        console.log("Grok: env key loaded — chat uses POST /v1/chat/completions; TTS uses POST /v1/tts (eve) via /api/tts.");
     }
     });
   });

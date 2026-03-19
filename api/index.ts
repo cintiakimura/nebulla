@@ -6,12 +6,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { AGENT_SYSTEM_PROMPT } from "../src/config/agentConfig.js";
-import {
-  getGrokModelAndMode,
-  GROK_CODING_MODE_SYSTEM,
-  GROK_FAST_REASONING,
-  GROK_MULTI_AGENT,
-} from "../src/lib/grokModelSelection.js";
+import { GROK_CHAT_COMPLETIONS_MODEL, XAI_CHAT_COMPLETIONS_URL, XAI_TTS_URL } from "../src/config/xaiGrok.js";
+import { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } from "../src/lib/grokModelSelection.js";
 import { runCodeAgentPipeline, runDeployAgentPipeline } from "../src/lib/multiAgentHandlers.js";
 import {
   getProject as supabaseGetProject,
@@ -385,17 +381,13 @@ async function handleGrok(
           ? `You are building the user's app. ALWAYS base your responses, code generation, and suggestions on this LOCKED SPEC as the single source of truth. Do NOT contradict or ignore it unless the user explicitly says to revise and re-lock.\n\nLocked Spec:\n\n${lockedSpecMd.trim()}`
           : null;
 
-      let { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
-      if (interactionMode === "talk") {
-        codingMode = false;
-        selectedModel = GROK_FAST_REASONING;
-      } else if (interactionMode === "code") {
-        codingMode = true;
-        selectedModel = GROK_MULTI_AGENT;
-      }
-      const grokModelEnv = process.env.GROK_MODEL;
-      const model =
-        typeof grokModelEnv === "string" && grokModelEnv.trim() !== "" ? grokModelEnv.trim() : selectedModel;
+      const { codingMode: codingHeuristic } = getGrokModelAndMode(messages);
+      let codingMode = codingHeuristic;
+      if (interactionMode === "talk") codingMode = false;
+      else if (interactionMode === "code") codingMode = true;
+
+      const grokModelEnv = process.env.GROK_MODEL?.trim();
+      const model = grokModelEnv || GROK_CHAT_COMPLETIONS_MODEL;
       const body = {
         model,
         messages: [
@@ -406,7 +398,7 @@ async function handleGrok(
         ],
         stream: false,
       };
-      const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      const response = await fetch(XAI_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -453,7 +445,7 @@ async function handleGrok(
         res.status(400).json({ error: "text required (max 4096 chars)" });
         return true;
       }
-      const response = await fetch("https://api.x.ai/v1/tts", {
+      const response = await fetch(XAI_TTS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
