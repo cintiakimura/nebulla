@@ -13,6 +13,7 @@
     "start": "tsx server.ts",
     "test:all": "node scripts/test-all.mjs",
     "test:all:server": "START_SERVER=1 node scripts/test-all.mjs",
+    "vetr:verify": "npm run lint && npm run build && npm run test:all:server",
     "electron": "electron .",
     "electron:dev": "npm run dev & sleep 3 && electron ."
   },

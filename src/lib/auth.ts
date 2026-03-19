@@ -1,4 +1,5 @@
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "./api";
+import { getSupabaseAuthClient } from "./supabaseAuth";
 
 /**
  * Client-side auth: get or create userId and persist for API calls.
@@ -29,7 +30,6 @@ export async function getUserId(): Promise<string> {
   // or the API returns 403. Open-mode domains used to always return "open-dev-user" here, which
   // broke logged-in users (mismatch vs Bearer session).
   try {
-    const { getSupabaseAuthClient } = await import("./supabaseAuth");
     const supabase = getSupabaseAuthClient();
     if (supabase) {
       const { data: { session } } = await supabase.auth.getSession();
