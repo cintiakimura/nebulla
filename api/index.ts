@@ -5,6 +5,12 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { AGENT_SYSTEM_PROMPT } from "../src/config/agentConfig.js";
+import { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } from "../src/lib/grokModelSelection.js";
+import {
+  getProject as supabaseGetProject,
+  isSupabaseConfigured as supabaseIsConfigured,
+} from "../src/lib/supabase-multi-tenant.js";
 
 const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
 // Client Grok modal expects the error message to mention "grok".
@@ -325,8 +331,6 @@ async function handleGrok(
         res.status(400).json({ error: "messages array required" });
         return true;
       }
-      const { AGENT_SYSTEM_PROMPT } = await import("../src/config/agentConfig");
-      const { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } = await import("../src/lib/grokModelSelection");
       const projectId = typeof _bodyProjectId === "string" ? _bodyProjectId.trim() : "";
 
       // Best-effort locked spec injection (Vercel serverless Grok handler).
@@ -336,7 +340,6 @@ async function handleGrok(
         // In open mode the client uses "open-dev-user", but Supabase projects use the real fallback user_id.
         const uid = rawUid === "open-dev-user" && fallbackUserId ? fallbackUserId : rawUid;
         try {
-          const { getProject: supabaseGetProject, isSupabaseConfigured: supabaseIsConfigured } = await import("../src/lib/supabase-multi-tenant");
           if (supabaseIsConfigured()) {
             const p = await supabaseGetProject(uid, projectId);
             lockedSpecMd = p?.locked_summary_md ?? "";
@@ -530,6 +533,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log("[api/index]", req.method, pathname);
 
   if (handleConfig(req.method ?? "GET", pathname, res)) return;
+
+  // Avoid loading Express + better-sqlite3 (server.ts) for simple probes.
+  if ((req.method ?? "GET") === "GET" && pathname === "/api/health") {
+    res.status(200).json({ ok: true, service: "kyn-api" });
+    return;
+  }
 
   const handled = await handleOpenDevUser(req.method ?? "GET", req, res, pathname);
   if (handled) return;
