@@ -20,6 +20,7 @@ import { getApiBase, clearBackendUnavailable, setBackendUnavailable } from "../l
 import { getSessionToken } from "../lib/supabaseAuth";
 import { getBackendSecretHeaders } from "../lib/storedSecrets";
 import { formatGrokErrorForChat } from "../lib/grokApiError";
+import { playGrokTts } from "../lib/grokVoiceAgent";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
@@ -411,7 +412,8 @@ export default function Builder() {
     transcript,
     listening,
     resetTranscript,
-    browserSupportsSpeechRecognition
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable,
   } = useSpeechRecognition();
 
   useEffect(() => {
@@ -421,23 +423,38 @@ export default function Builder() {
     };
   }, []);
 
-  /** Play Grok reply with browser TTS (Web Speech API). Prefer en-US voice. */
+  /**
+   * Read Grok replies aloud: prefer xAI REST TTS (Eve) — same key as chat.
+   * Falls back to browser SpeechSynthesis (sounds robotic) if TTS fails or no backend URL.
+   */
   const speakWithGrokEve = (text: string, force?: boolean) => {
     if (typeof window === "undefined" || !text?.trim()) return;
     if (!force && !grokSpeaks) return;
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length === 0) {
-      setTimeout(() => speakWithGrokEve(text, force), 150);
-      return;
-    }
-    const u = new SpeechSynthesisUtterance(text.slice(0, 4096));
-    u.rate = 0.95;
-    u.pitch = 1;
-    const enUS = voices.find((v) => v.lang === "en-US") ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
-    if (enUS) u.voice = enUS;
-    window.speechSynthesis.speak(u);
+    void (async () => {
+      const base = getApiBase() || "";
+      if (base) {
+        try {
+          grokAudioRef.current?.pause();
+          const ok = await playGrokTts(base, text, { voice_id: "eve", audioElementRef: grokAudioRef });
+          if (ok) return;
+        } catch (_) {
+          /* fall through to browser */
+        }
+      }
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        setTimeout(() => speakWithGrokEve(text, force), 150);
+        return;
+      }
+      const u = new SpeechSynthesisUtterance(text.slice(0, 4096));
+      u.rate = 0.95;
+      u.pitch = 1;
+      const enUS = voices.find((v) => v.lang === "en-US") ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
+      if (enUS) u.voice = enUS;
+      window.speechSynthesis.speak(u);
+    })();
   };
 
   useEffect(() => {
@@ -594,6 +611,10 @@ export default function Builder() {
   const handleMicToggle = () => {
     if (readOnly) return;
     if (browserSupportsSpeechRecognition === false) return;
+    if (isMicrophoneAvailable === false) {
+      addLog("[Voice]: Microphone blocked or unavailable — check browser permissions (address bar lock icon).");
+      return;
+    }
     if (listening) {
       SpeechRecognition.stopListening();
       if (transcript) {
@@ -1343,9 +1364,9 @@ export default function Builder() {
         <div className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3 border-t border-border bg-sidebar-bg">
           <button
             onClick={handleMicToggle}
-            disabled={readOnly || browserSupportsSpeechRecognition === false}
+            disabled={readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false}
             className={`p-2 rounded-md transition-colors shrink-0 ${
-              readOnly || browserSupportsSpeechRecognition === false
+              readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false
                 ? "opacity-60 cursor-not-allowed"
                 : ""
             } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : "text-white/70 hover:text-white hover:bg-border/40"}`}
@@ -1353,10 +1374,12 @@ export default function Builder() {
               readOnly
                 ? "Upgrade for full access"
                 : browserSupportsSpeechRecognition === false
-                  ? "Speech recognition not supported in this browser"
-                  : listening
-                    ? "Listening…"
-                    : "Open talk"
+                  ? "Speech recognition not supported in this browser (try Chrome)"
+                  : isMicrophoneAvailable === false
+                    ? "Microphone blocked — allow mic for this site in browser settings"
+                    : listening
+                      ? "Tap to stop and send"
+                      : "Speak to text (Web Speech API — allow microphone)"
             }
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -1368,7 +1391,7 @@ export default function Builder() {
               return next;
             })}
             className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? 'text-white bg-primary/15 border border-primary/30' : 'text-white/70 hover:text-white hover:bg-border/40'}`}
-            title="Grok reads replies aloud (browser TTS)"
+            title="Read replies with xAI Eve TTS when chat works; otherwise browser voice"
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>

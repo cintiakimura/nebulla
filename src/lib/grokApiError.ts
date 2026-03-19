@@ -34,7 +34,7 @@ export function buildGrokChatErrorBody(errText: string): GrokChatErrorBody {
     (lower.includes("api key") && lower.includes("cannot be used"))
   ) {
     hint =
-      "Open https://console.x.ai → API keys → edit this key → enable the models you need (e.g. grok-4-1-fast-reasoning). Or set GROK_MODEL in server env to a model your key is allowed to use, then redeploy.";
+      "Open https://console.x.ai → API keys → edit this key → enable the models you need (e.g. grok-4-1-fast-reasoning). Or set GROK_MODEL in server env to a model your key is allowed to use, then redeploy. Chat, TTS (read-aloud), and the realtime voice token use the same API key.";
   }
 
   return { error: "Grok API error", details, ...(hint ? { hint } : {}) };

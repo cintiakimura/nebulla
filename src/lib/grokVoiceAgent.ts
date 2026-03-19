@@ -191,6 +191,55 @@ export function speakViaVoiceAgent(
   });
 }
 
+/** Shrink text for TTS: skip huge code blocks so Eve doesn’t read raw markdown. */
+export function textForGrokTtsSpoken(content: string): string {
+  const withoutBlocks = content.replace(/```[\s\S]*?```/g, " Code block omitted. ");
+  return withoutBlocks.replace(/\s+/g, " ").trim().slice(0, 4096);
+}
+
+/**
+ * Play assistant text via Grok REST TTS (default voice Eve). Uses same XAI_API_KEY as chat.
+ * Returns true if audio was started; false if the request failed (caller may use browser TTS).
+ */
+export async function playGrokTts(
+  apiBase: string,
+  text: string,
+  options?: {
+    voice_id?: string;
+    /** Assign so caller can pause on unmount / new message */
+    audioElementRef?: { current: HTMLAudioElement | null };
+  }
+): Promise<boolean> {
+  const trimmed = textForGrokTtsSpoken(text);
+  if (!trimmed || typeof window === "undefined") return false;
+  const base = (apiBase || "").replace(/\/$/, "");
+  if (!base) return false;
+  try {
+    const ttsRes = await fetch(`${base}/api/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
+      body: JSON.stringify({ text: trimmed, voice_id: options?.voice_id ?? "eve" }),
+    });
+    if (!ttsRes.ok) return false;
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    const blob = await ttsRes.blob();
+    if (!blob.size) return false;
+    const objectUrl = URL.createObjectURL(blob);
+    const audio = new Audio(objectUrl);
+    if (options?.audioElementRef) options.audioElementRef.current = audio;
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      if (options?.audioElementRef?.current === audio) options.audioElementRef.current = null;
+    };
+    audio.addEventListener("ended", cleanup, { once: true });
+    audio.addEventListener("error", cleanup, { once: true });
+    await audio.play();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Browser SpeechSynthesis fallback with resume hack for long text (many engines stop after ~200 chars).
  */
