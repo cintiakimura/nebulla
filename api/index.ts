@@ -73,20 +73,35 @@ async function handleOpenDevUser(
   // Single project: GET or PUT — on Supabase error return 404 / 200 so we never 500
   if (projectId) {
     if (method === "GET") {
-      if (supabaseOk && fallbackUserId) {
+      if (supabaseOk) {
         try {
           const supabase = createClient(supabaseUrl!, supabaseKey!, { auth: { persistSession: false } });
-          const { data, error } = await supabase
+          // Primary lookup: fallbackUserId-aligned user_id.
+          if (fallbackUserId) {
+            const { data, error } = await supabase
+              .from("projects")
+              .select("*")
+              .eq("id", projectId)
+              .eq("user_id", fallbackUserId)
+              .maybeSingle();
+            if (!error && data) {
+              res.status(200).json(data);
+              return true;
+            }
+            if (error) console.error("[api/index] open-dev-user GET project (by user_id)", error.message);
+          }
+
+          // Fallback lookup: allow open-mode alias mismatch by fetching by id only.
+          const { data: dataById, error: errById } = await supabase
             .from("projects")
-            .select("id, user_id, name, status, last_edited, code, package_json, chat_messages, specs, created_at")
+            .select("*")
             .eq("id", projectId)
-            .eq("user_id", fallbackUserId)
             .maybeSingle();
-          if (!error && data) {
-            res.status(200).json(data);
+          if (!errById && dataById) {
+            res.status(200).json(dataById);
             return true;
           }
-          if (error) console.error("[api/index] open-dev-user GET project", error.message);
+          if (errById) console.error("[api/index] open-dev-user GET project (by id)", errById.message);
         } catch (e) {
           console.error("[api/index] open-dev-user GET project", e);
         }
@@ -96,26 +111,77 @@ async function handleOpenDevUser(
     }
 
     if (method === "PUT") {
-      if (supabaseOk && fallbackUserId) {
+      if (supabaseOk) {
         try {
           const body = typeof req.body === "object" && req.body ? req.body as Record<string, unknown> : {};
           const supabase = createClient(supabaseUrl!, supabaseKey!, { auth: { persistSession: false } });
-          const updates: Record<string, unknown> = { last_edited: new Date().toISOString() };
+          const specsStr =
+            body.specs === undefined
+              ? undefined
+              : typeof body.specs === "string"
+                ? body.specs
+                : JSON.stringify(body.specs ?? {});
+          const lockedSummaryMd = typeof body.locked_summary_md === "string" ? body.locked_summary_md : undefined;
+          const brandingAssetsStr =
+            body.branding_assets === undefined
+              ? undefined
+              : Array.isArray(body.branding_assets)
+                ? JSON.stringify(body.branding_assets)
+                : typeof body.branding_assets === "string"
+                  ? body.branding_assets
+                  : undefined;
+          const brainstormCompleteVal =
+            body.brainstorm_complete === undefined
+              ? undefined
+              : typeof body.brainstorm_complete === "boolean"
+                ? body.brainstorm_complete
+                : typeof body.brainstorm_complete === "number"
+                  ? body.brainstorm_complete === 1
+                  : typeof body.brainstorm_complete === "string"
+                    ? body.brainstorm_complete === "1"
+                    : undefined;
+
+          const updates: Record<string, unknown> = {
+            last_edited: new Date().toISOString(),
+            ...(lockedSummaryMd !== undefined ? { locked_summary_md: lockedSummaryMd } : {}),
+            ...(brandingAssetsStr !== undefined ? { branding_assets: brandingAssetsStr } : {}),
+            ...(brainstormCompleteVal !== undefined ? { brainstorm_complete: brainstormCompleteVal } : {}),
+            ...(specsStr !== undefined ? { specs: specsStr } : {}),
+          };
           if (typeof body.code === "string") updates.code = body.code;
           if (typeof body.package_json === "string") updates.package_json = body.package_json;
           if (Array.isArray(body.chat_messages)) updates.chat_messages = JSON.stringify(body.chat_messages);
           else if (typeof body.chat_messages === "string") updates.chat_messages = body.chat_messages;
           if (typeof body.last_edited === "string") updates.last_edited = body.last_edited;
-          const { error } = await supabase
+
+          // Primary update: fallbackUserId-aligned user_id.
+          if (fallbackUserId) {
+            const { error, data } = await supabase
+              .from("projects")
+              .update(updates)
+              .eq("id", projectId)
+              .eq("user_id", fallbackUserId)
+              .select("id")
+              .maybeSingle();
+            if (!error && data) {
+              res.status(200).json({ ok: true });
+              return true;
+            }
+            if (error) console.error("[api/index] open-dev-user PUT project (by user_id)", error.message);
+          }
+
+          // Fallback update: alias mismatch => update by id only.
+          const { error: errById, data: dataById } = await supabase
             .from("projects")
             .update(updates)
             .eq("id", projectId)
-            .eq("user_id", fallbackUserId);
-          if (!error) {
+            .select("id")
+            .maybeSingle();
+          if (!errById && dataById) {
             res.status(200).json({ ok: true });
             return true;
           }
-          console.error("[api/index] open-dev-user PUT project", error.message);
+          if (errById) console.error("[api/index] open-dev-user PUT project (by id)", errById.message);
         } catch (e) {
           console.error("[api/index] open-dev-user PUT project", e);
         }
@@ -207,6 +273,7 @@ async function handleGrok(
   pathname: string
 ): Promise<boolean> {
   const apiKey = getGrokApiKey();
+  const fallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
   if (!apiKey) {
     if (pathname === "/api/agent/chat" || pathname === "/api/tts" || pathname === "/api/realtime/token" || pathname === "/api/images/generate") {
       console.error("[Grok] XAI_API_KEY not set — returning 503 for", pathname);
@@ -258,7 +325,9 @@ async function handleGrok(
       // Best-effort locked spec injection (Vercel serverless Grok handler).
       let lockedSpecMd = "";
       if (projectId && typeof _bodyUserId === "string" && _bodyUserId.trim()) {
-        const uid = _bodyUserId.trim();
+        const rawUid = _bodyUserId.trim();
+        // In open mode the client uses "open-dev-user", but Supabase projects use the real fallback user_id.
+        const uid = rawUid === "open-dev-user" && fallbackUserId ? fallbackUserId : rawUid;
         try {
           const { getProject: supabaseGetProject, isSupabaseConfigured: supabaseIsConfigured } = await import("../src/lib/supabase-multi-tenant");
           if (supabaseIsConfigured()) {

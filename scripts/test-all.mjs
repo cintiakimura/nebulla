@@ -44,6 +44,7 @@ async function runTests() {
   console.log("\n=== kyn full functionality test ===\n");
   let testBase = BASE;
   let serverProcess = null;
+  const openModeUserId = "test-open-mode-user-" + Date.now();
 
   if (START_SERVER) {
     console.log("Starting server on port " + TEST_PORT + "...");
@@ -52,7 +53,7 @@ async function runTests() {
         ...process.env,
         PORT: String(TEST_PORT),
         NODE_ENV: "test",
-        OPEN_MODE_FALLBACK_USER_ID: "test-open-mode-user",
+        OPEN_MODE_FALLBACK_USER_ID: openModeUserId,
         OPEN_MODE_ORIGIN: "", // allow fallback for localhost (no origin check)
         SUPABASE_URL: "", // force SQLite for reproducible audit
         SUPABASE_ANON_KEY: "",
@@ -94,7 +95,7 @@ async function runTests() {
     }
 
     console.log("\n--- 2. Projects ---");
-    const userId = START_SERVER ? "test-open-mode-user" : "test-user-" + Date.now();
+    const userId = START_SERVER ? openModeUserId : "test-user-" + Date.now();
     const omHeaders = openModeHeaders(testBase);
     try {
       const listRes = await fetch(testBase + "/api/users/" + userId + "/projects", { headers: omHeaders });

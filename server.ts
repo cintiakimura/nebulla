@@ -372,7 +372,8 @@ async function startServer() {
     try {
       const userId = (req as RequestWithUserId).userId!;
       const { projectId } = req.params;
-      if (isSupabaseConfigured()) {
+      const useSqliteForOpenDev = userId === "open-dev-user";
+      if (!useSqliteForOpenDev && isSupabaseConfigured()) {
         const project = await supabaseGetProject(userId, projectId);
         if (!project) {
           res.status(404).json({ error: "Project not found" });
@@ -428,7 +429,8 @@ async function startServer() {
         branding_assets: brandingAssetsStr,
         brainstorm_complete,
       };
-      if (isSupabaseConfigured()) {
+      const useSqliteForOpenDev = userId === "open-dev-user";
+      if (!useSqliteForOpenDev && isSupabaseConfigured()) {
         const supabaseUpdates = { ...baseUpdates } as Parameters<typeof supabaseUpdateProject>[2];
         if (plan !== undefined) supabaseUpdates.plan = typeof plan === "string" ? plan : JSON.stringify(plan ?? {});
         if (code_versions !== undefined) supabaseUpdates.code_versions = typeof code_versions === "string" ? code_versions : JSON.stringify(code_versions ?? []);

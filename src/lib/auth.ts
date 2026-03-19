@@ -13,7 +13,14 @@ export function isOpenMode(): boolean {
   if (import.meta.env.VITE_OPEN_MODE) return true;
   if (typeof window === "undefined") return false;
   const h = window.location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === DASHBOARD_DOMAIN || h === `www.${DASHBOARD_DOMAIN}`;
+  return (
+    h === "localhost" ||
+    h === "127.0.0.1" ||
+    h === DASHBOARD_DOMAIN ||
+    h === `www.${DASHBOARD_DOMAIN}` ||
+    // Demo deployments on Vercel: treat kyn-*.vercel.app as open mode.
+    (h.endsWith(".vercel.app") && h.startsWith("kyn-"))
+  );
 }
 
 export async function getUserId(): Promise<string> {
