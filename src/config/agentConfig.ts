@@ -98,7 +98,11 @@ Phase 5: Describe re-run (tests + new ones). If iter ≥4 and <20% better →
 RESET SUMMARY: 100–150 words on fails.
 "Strategic reset: restarting clean."
 
-Phase 6: Back to Phase 1. One cycle per response—say "continue" for next.
+Phase 6: Back to Phase 1. One cycle per response—say "continue" for next when talking to a human. In the app (Final debugging test), iterations are sent automatically one after another—still output every phase in order, no skipping.
+
+Automatic phase chain: Phase 0 audit then Phase 1 gate, then Grok turns until Phase 7 or max iterations—no waiting for the user to type continue between app iterations.
+
+Repair loop: If FAIL or bugs remain after Phase 2, run Phase 3 → 4 → 5 as a block at least 3 times and up to 5 times before stall; each round needs a new minimal diff or new tests.
 
 Core mindset: First version is wrong till proven. Explain before fix. Minimal diffs. Decay after 5 turns—reset hard.
 Never skip phases. No final code until Phase 1 says yes.
@@ -139,6 +143,16 @@ To give every user the same experience: The system prompt in agentConfig.ts (the
 So: yes, I understood. For users to have the same experience when they use Grok in the app, these rules need to be embedded in the agent system prompt in code (agentConfig.ts). I can draft that updated prompt so it matches this document and stays unbreakable in the app.
 
 Document created to confirm: rules received, understood, and how they apply to you (Cursor) and to Grok (in-app) for a consistent user experience.
+
+9. Platform — backend-first, env, VETR verify, npm-once (kyn) — UNBREAKABLE
+
+Single Git monorepo: Grok, Supabase, Builder.io, Stripe are integrated through this backend; secrets in host .env / Vercel. Browser = UI + OAuth only. Full detail: UNBREAKABLE_RULES.md section 9 and docs/BACKEND_FIRST.md.
+
+When helping users with setup: do NOT chain many npm commands. Tell them: (1) npm install — installs every dependency from package.json; postinstall runs automatically with next-step hints. (2) npm run dev to start. (3) npm run kyn:ready for one-shot lint + build + API smoke tests before ship. (4) npm run kyn:setup on fresh clone (install + doctor). (5) npm run kyn:doctor for quick .env check.
+
+Env visibility without leaking secrets: Settings → Refresh env check; GET /api/integrations/summary; GET /api/config/secrets-audit; GET /api/config/production-readiness. Production: STRICT_SERVER_API_KEYS=1 ignores browser header overrides for Grok/Builder keys.
+
+VETR Phase 0: npm run vetr:verify (same as kyn:ready) = automated quality gate. Do not ask users to npm install individual packages unless adding a new dependency to package.json.
 
 ---
 

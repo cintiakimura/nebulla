@@ -3,6 +3,8 @@
  * report has a status for every single functionality with no blind spots.
  */
 
+import { getBackendSecretHeaders } from "./storedSecrets";
+
 export type AuditEntry = { name: string; ok: boolean; detail: string };
 
 function passDetail(msg: string): string {
@@ -12,6 +14,7 @@ function passDetail(msg: string): string {
 export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   const results: AuditEntry[] = [];
   const base = apiBase.replace(/\/$/, "");
+  const secretHeaders = getBackendSecretHeaders();
 
   function record(name: string, ok: boolean, detail: string) {
     results.push({ name, ok, detail: detail ?? "" });
@@ -33,6 +36,32 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     record("GET /api/config", configOk, configOk ? passDetail("config returned") : `status ${configRes.status}`);
   } catch (e) {
     record("GET /api/config", false, e instanceof Error ? e.message : String(e));
+  }
+
+  try {
+    const secRes = await fetch(`${base}/api/config/secrets-audit`);
+    const secData = await secRes.json().catch(() => ({})) as { items?: unknown[]; runtime?: unknown };
+    const secOk = secRes.ok && Array.isArray((secData as { items?: unknown[] }).items);
+    record(
+      "GET /api/config/secrets-audit",
+      secOk,
+      secOk ? passDetail("server env checklist returned") : `status ${secRes.status}`
+    );
+  } catch (e) {
+    record("GET /api/config/secrets-audit", false, e instanceof Error ? e.message : String(e));
+  }
+
+  try {
+    const intRes = await fetch(`${base}/api/integrations/summary`);
+    const intData = await intRes.json().catch(() => ({})) as { architecture?: string };
+    const intOk = intRes.ok && intData.architecture === "backend-first-monorepo";
+    record(
+      "GET /api/integrations/summary",
+      intOk,
+      intOk ? passDetail("backend-first integrations map") : `status ${intRes.status}`
+    );
+  } catch (e) {
+    record("GET /api/integrations/summary", false, e instanceof Error ? e.message : String(e));
   }
 
   // —— 2. Auth / session ——
@@ -148,7 +177,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const chatRes = await fetch(`${base}/api/agent/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...secretHeaders },
       body: JSON.stringify({ messages: [{ role: "user", content: "Say: test" }] }),
     });
     const chatData = await chatRes.json().catch(() => ({})) as { message?: { content?: string }; error?: string };
@@ -181,7 +210,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const ttsRes = await fetch(`${base}/api/tts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...secretHeaders },
       body: JSON.stringify({ text: "Test.", voice_id: "eve" }),
     });
     const ttsOk = ttsRes.ok && (ttsRes.headers.get("content-type")?.includes("audio") ?? false);
@@ -197,7 +226,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
   try {
     const uiRes = await fetch(`${base}/api/builder/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...secretHeaders },
       body: JSON.stringify({ prompt: "A simple login button", userId }),
     });
     const uiData = await uiRes.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };

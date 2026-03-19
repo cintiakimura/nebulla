@@ -18,6 +18,7 @@ import { getSetupComplete, setSetupComplete } from "../lib/setupStorage";
 import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib/auth";
 import { getApiBase, clearBackendUnavailable, setBackendUnavailable } from "../lib/api";
 import { getSessionToken } from "../lib/supabaseAuth";
+import { getBackendSecretHeaders } from "../lib/storedSecrets";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
@@ -457,7 +458,7 @@ export default function Builder() {
     try {
       const res = await fetch(`${getApiBase() || ""}/api/agent/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getBackendSecretHeaders() },
         body: JSON.stringify({ messages, userId, projectId: projectId ?? undefined }),
       });
       const data = await res.json().catch(() => ({}));
@@ -554,7 +555,7 @@ export default function Builder() {
           const userId = await getUserId();
           const res = await fetch(`${getApiBase()}/api/builder/generate`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
             body: JSON.stringify({ prompt: uiPrompt, userId }),
           });
               const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
@@ -611,7 +612,7 @@ export default function Builder() {
               const userId = await getUserId();
               const res = await fetch(`${getApiBase()}/api/builder/generate`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
                 body: JSON.stringify({ prompt: uiPrompt, userId }),
               });
               const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };

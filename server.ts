@@ -20,6 +20,11 @@ import {
   getGrokUsage,
   incrementGrokCalls,
 } from "./src/lib/supabase-multi-tenant.js";
+import {
+  envConfigured,
+  strictServerSecretsOnly,
+  getIntegrationsSummaryJson,
+} from "./src/lib/integrationsSummary.js";
 
 type RequestWithUserId = express.Request & { userId?: string };
 
@@ -92,8 +97,8 @@ function requireMatchUserId(req: RequestWithUserId, res: express.Response, next:
 
 let grokFirstCallLogged = false;
 
-/** Backend-only Grok key (XAI_API_KEY or GROK_API_KEY). Logs once on first use. Returns null if missing. */
-function getGrokApiKey(): string | null {
+/** Grok key from server env only (XAI_API_KEY or GROK_API_KEY). Logs once on first env-backed use. */
+function getGrokApiKeyFromEnv(): string | null {
   const key = (process.env.XAI_API_KEY || process.env.GROK_API_KEY)?.trim();
   if (!key || key === "PLACEHOLDER") return null;
   if (!grokFirstCallLogged) {
@@ -101,6 +106,58 @@ function getGrokApiKey(): string | null {
     console.log("Grok active (default: grok-4-1-fast-reasoning; coding: grok-4.20-multi-agent-0309)");
   }
   return key;
+}
+
+/** Prefer `x-grok-api-key` header (Settings → browser) then env — unless STRICT_SERVER_API_KEYS is set. */
+function getGrokApiKeyFromRequest(req: express.Request): string | null {
+  if (!strictServerSecretsOnly()) {
+    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
+    if (headerKey && headerKey !== "PLACEHOLDER") return headerKey;
+  }
+  return getGrokApiKeyFromEnv();
+}
+
+function buildSecretsAuditPayload() {
+  const grokConfigured = envConfigured("XAI_API_KEY") || envConfigured("GROK_API_KEY");
+  const items = [
+    { key: "SUPABASE_URL", category: "core" as const, configured: envConfigured("SUPABASE_URL") },
+    {
+      key: "SUPABASE_PUBLISHABLE_KEY",
+      category: "core" as const,
+      configured: envConfigured("SUPABASE_PUBLISHABLE_KEY") || envConfigured("SUPABASE_ANON_KEY"),
+    },
+    { key: "SUPABASE_SECRET_KEY", category: "core" as const, configured: envConfigured("SUPABASE_SECRET_KEY") },
+    { key: "XAI_API_KEY", category: "ai" as const, configured: grokConfigured, aliases: ["GROK_API_KEY"] },
+    { key: "BUILDER_PRIVATE_KEY", category: "integrations" as const, configured: envConfigured("BUILDER_PRIVATE_KEY") },
+    { key: "ALLOWED_ORIGIN", category: "deploy" as const, configured: envConfigured("ALLOWED_ORIGIN") },
+    { key: "APP_URL", category: "deploy" as const, configured: envConfigured("APP_URL") },
+    { key: "STRIPE_SECRET_KEY", category: "billing" as const, configured: envConfigured("STRIPE_SECRET_KEY") },
+    { key: "STRIPE_WEBHOOK_SECRET", category: "billing" as const, configured: envConfigured("STRIPE_WEBHOOK_SECRET") },
+    { key: "FIREBASE_PROJECT_ID", category: "optional" as const, configured: envConfigured("FIREBASE_PROJECT_ID") },
+    { key: "GITHUB_CLIENT_ID", category: "optional" as const, configured: envConfigured("GITHUB_CLIENT_ID") },
+    { key: "VERCEL_ACCESS_TOKEN", category: "optional" as const, configured: envConfigured("VERCEL_ACCESS_TOKEN") },
+    { key: "VERCEL_PROJECT_ID", category: "optional" as const, configured: envConfigured("VERCEL_PROJECT_ID") },
+    {
+      key: "STRICT_SERVER_API_KEYS",
+      category: "deploy" as const,
+      configured: envConfigured("STRICT_SERVER_API_KEYS"),
+    },
+  ];
+  return {
+    runtime: {
+      nodeEnv: process.env.NODE_ENV ?? "development",
+      vercel: process.env.VERCEL === "1",
+    },
+    items,
+  };
+}
+
+function getBuilderPrivateKeyFromRequest(req: express.Request): string {
+  if (!strictServerSecretsOnly()) {
+    const headerKey = (req.headers["x-builder-private-key"] as string)?.trim();
+    if (headerKey && headerKey !== "PLACEHOLDER") return headerKey;
+  }
+  return (process.env.BUILDER_PRIVATE_KEY || "").trim();
 }
 
 // Client Grok modal expects the error message to mention "grok".
@@ -136,7 +193,10 @@ async function startServer() {
     app.use((req, res, next) => {
       res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, x-grok-api-key, x-builder-private-key"
+      );
       if (req.method === "OPTIONS") return res.sendStatus(204);
       next();
     });
@@ -154,12 +214,65 @@ async function startServer() {
     });
   });
 
+  /** Which env vars are set on this server (names + booleans only — never values). */
+  app.get("/api/config/secrets-audit", (_req, res) => {
+    res.json(buildSecretsAuditPayload());
+  });
+
+  /** Production checklist + core gaps; same payload as secrets-audit plus hints for Vercel/.env parity. */
+  app.get("/api/config/production-readiness", (_req, res) => {
+    const audit = buildSecretsAuditPayload();
+    const coreMissing = audit.items.filter((i) => i.category === "core" && !i.configured).map((i) => i.key);
+    res.json({
+      ...audit,
+      coreConfigured: coreMissing.length === 0,
+      coreMissing,
+      productionChecklist: [
+        "Vercel (or host): Project → Settings → Environment Variables — copy every required key from .env.example into Production (and Preview if you use preview URLs).",
+        "Vercel sets NODE_ENV=production automatically for production deployments.",
+        "Frontend build: set VITE_API_URL to your backend origin if the UI is on a different host than the API.",
+        "Supabase Dashboard → Authentication → URL configuration: add your production Site URL and redirect https://<your-domain>/auth/callback",
+        "After changing env vars on the host, redeploy so all serverless instances pick up new values.",
+      ],
+    });
+  });
+
+  /** Body: { browserSecrets: Record<string, boolean> } — which keys the user has saved in Settings (this browser). Compares to server .env presence only. */
+  app.post("/api/config/secrets-alignment", (req, res) => {
+    const browser = (req.body as { browserSecrets?: Record<string, boolean> })?.browserSecrets ?? {};
+    const alignKeys = [
+      "XAI_API_KEY",
+      "GROK_API_KEY",
+      "BUILDER_PRIVATE_KEY",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_PUBLIC_KEY",
+    ] as const;
+    const grokEnv = envConfigured("XAI_API_KEY") || envConfigured("GROK_API_KEY");
+    const rows = alignKeys.map((key) => {
+      let server = false;
+      if (key === "XAI_API_KEY" || key === "GROK_API_KEY") server = grokEnv;
+      else server = envConfigured(key);
+      const browserSet = !!browser[key];
+      const aligned = server === browserSet;
+      const hint = !server && !browserSet
+        ? "Optional — set on server (recommended) or in Settings → secrets for this browser."
+        : server && !browserSet
+          ? "Server has this key; browser vault empty — OK if you only use server env."
+          : !server && browserSet
+            ? "Browser-only override — mirror the same key in host env for production."
+            : "Both server and this browser have a value — ensure they match if you see mismatched-behavior bugs.";
+      return { key, serverConfigured: server, browserConfigured: browserSet, aligned, hint };
+    });
+    res.json({ rows, auditedAt: new Date().toISOString() });
+  });
+
+  app.get("/api/integrations/summary", async (_req, res) => {
+    res.json(await getIntegrationsSummaryJson());
+  });
+
   // Ephemeral token for Grok Voice Agent WebSocket (client uses this to connect to wss://api.x.ai/v1/realtime)
   app.post("/api/realtime/token", async (req, res) => {
-    const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-    // Accept both env names (chat uses XAI_API_KEY || GROK_API_KEY).
-    const envKey = (process.env.XAI_API_KEY || process.env.GROK_API_KEY)?.trim();
-    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : envKey)?.trim();
+    const apiKey = getGrokApiKeyFromRequest(req)?.trim();
     if (!apiKey || apiKey === "PLACEHOLDER") {
       res.status(503).json({ error: "GROK_API_KEY not set. Add your Grok API key in Settings." });
       return;
@@ -789,7 +902,7 @@ async function startServer() {
     standardHeaders: true,
   });
   app.post("/api/agent/chat", agentChatLimiter, resolveUserId, async (req, res) => {
-    const apiKey = getGrokApiKey();
+    const apiKey = getGrokApiKeyFromRequest(req);
     if (!apiKey) {
       console.error("[Grok] XAI_API_KEY not set — chat will return 503");
       res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
@@ -928,7 +1041,7 @@ async function startServer() {
 
   // Grok image generation (grok-imagine-image) — same XAI_API_KEY
   app.post("/api/images/generate", async (req, res) => {
-    const apiKey = getGrokApiKey();
+    const apiKey = getGrokApiKeyFromRequest(req);
     if (!apiKey) {
       res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
       return;
@@ -971,7 +1084,7 @@ async function startServer() {
 
   // Grok voice (xAI TTS, voice Eve) — natural speech for onboarding and "Grok speaks" in Builder
   app.post("/api/tts", async (req, res) => {
-    const apiKey = getGrokApiKey();
+    const apiKey = getGrokApiKeyFromRequest(req);
     if (!apiKey) {
       console.error("[Grok] XAI_API_KEY not set — TTS will return 503");
       res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
@@ -1046,7 +1159,7 @@ async function startServer() {
         return;
       }
       const uid = typeof userId === "string" ? userId : "";
-      const apiKey = (process.env.BUILDER_PRIVATE_KEY || "").trim();
+      const apiKey = getBuilderPrivateKeyFromRequest(req);
       if (!apiKey || apiKey === "PLACEHOLDER") {
         res.status(503).json({
           error: "Builder.io not configured. Add BUILDER_PRIVATE_KEY to .env (Builder.io dashboard → API keys).",

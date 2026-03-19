@@ -10,16 +10,17 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let cancelled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
+    let timeoutId = 0;
 
-    const bootstrap = async () => {
-      let supabase = getSupabaseAuthClient();
-      if (!supabase) {
-        try {
-          await ensureSupabaseConfig();
-          supabase = getSupabaseAuthClient();
-        } catch (_) {}
+    (async () => {
+      try {
+        await ensureSupabaseConfig();
+      } catch (_) {
+        /* non-fatal */
       }
 
+      const supabase = getSupabaseAuthClient();
       if (!supabase) {
         console.error("[kyn auth callback] Supabase client not configured");
         if (!cancelled) {
@@ -29,90 +30,80 @@ export default function AuthCallback() {
         return;
       }
 
-      const applyUserId = (userId: string) => {
-        if (cancelled) return;
-      setUserIdAfterLogin(userId);
-        setStatus("done");
-        setErrorMsg(null);
-      navigate("/builder", { replace: true });
-      };
-
-      supabase.auth.getSession().then(({ data: { session }, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error("[kyn auth callback] getSession error:", error.message, error);
-          // Try to fetch the user anyway (timing/clock skew).
-          setErrorMsg(error.message);
-          supabase.auth
-            .getUser()
-            .then(({ data: { user } }) => {
-              const uid = user?.id;
-              if (uid) applyUserId(uid);
-              else {
-                setStatus("error");
-                setErrorMsg("Could not resolve user from Supabase session.");
-              }
-            })
-            .catch((e) => {
-              console.error("[kyn auth callback] getUser error:", e);
-              setStatus("error");
-              setErrorMsg("Could not resolve user from Supabase.");
-            });
+      // OAuth (PKCE): Supabase redirects with ?code= — exchange before reading session.
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      if (code) {
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeErr) {
+          console.error("[kyn auth callback] exchangeCodeForSession:", exchangeErr.message);
+          if (!cancelled) {
+            setErrorMsg(exchangeErr.message);
+            setStatus("error");
+          }
           return;
         }
-        const uid = session?.user?.id;
-        if (uid) applyUserId(uid);
-        else {
-          // Session present but user missing. Fetch explicitly.
-          supabase.auth
-            .getUser()
-            .then(({ data: { user } }) => {
-              const userId = user?.id;
-              if (userId) applyUserId(userId);
-              else {
-                setStatus("error");
-                setErrorMsg("Supabase returned a session without a user id.");
-              }
-            })
-            .catch((e) => {
-              console.error("[kyn auth callback] getUser error:", e);
-              setStatus("error");
-              setErrorMsg("Supabase user lookup failed.");
-            });
-        }
-      });
+        window.history.replaceState({}, document.title, url.pathname + url.hash);
+      }
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const applyUserId = (userId: string) => {
+        if (cancelled) return;
+        window.clearTimeout(timeoutId);
+        setUserIdAfterLogin(userId);
+        setStatus("done");
+        setErrorMsg(null);
+        navigate("/builder", { replace: true });
+      };
+
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      if (sessionErr) {
+        console.error("[kyn auth callback] getSession error:", sessionErr.message, sessionErr);
+        setErrorMsg(sessionErr.message);
+        const { data: { user } } = await supabase.auth.getUser();
+        const uid = user?.id;
+        if (uid) applyUserId(uid);
+        else if (!cancelled) {
+          setStatus("error");
+          setErrorMsg("Could not resolve user from Supabase session.");
+        }
+      } else {
+        const uid = session?.user?.id;
+        if (uid) {
+          applyUserId(uid);
+        } else {
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id;
+          if (userId) applyUserId(userId);
+          else if (!cancelled) {
+            setStatus("error");
+            setErrorMsg("Supabase returned no user. Try signing in again.");
+          }
+        }
+      }
+
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((event, sess) => {
         if (cancelled) return;
         if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-          const uid = session?.user?.id;
+          const uid = sess?.user?.id;
           if (uid) applyUserId(uid);
         }
       });
+      subscription = sub;
 
-      const timeout = window.setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         if (!cancelled) {
           setStatus((s) => (s === "loading" ? "error" : s));
           setErrorMsg((m) => m ?? "Auth timed out.");
         }
-      }, 5000);
-
-      // Cleanup
-      return () => {
-        cancelled = true;
-        subscription.unsubscribe();
-        window.clearTimeout(timeout);
-      };
-    };
-
-    let cleanup: (() => void) | null = null;
-    bootstrap().then((fn) => {
-      cleanup = typeof fn === "function" ? fn : null;
-    });
+      }, 12000);
+    })();
 
     return () => {
       cancelled = true;
-      cleanup?.();
+      subscription?.unsubscribe();
+      window.clearTimeout(timeoutId);
     };
   }, [navigate]);
 

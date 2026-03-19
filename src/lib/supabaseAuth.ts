@@ -58,7 +58,15 @@ export function getSupabaseAuthClient(): SupabaseClient | null {
   const keyId = getCacheKey(url, key);
   if (client && clientCacheKey === keyId) return client;
   clientCacheKey = keyId;
-  client = createClient(url, key);
+  client = createClient(url, key, {
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: true,
+      persistSession: true,
+      autoRefreshToken: true,
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    },
+  });
   return client;
 }
 

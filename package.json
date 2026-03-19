@@ -5,6 +5,7 @@
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
+    "postinstall": "node scripts/kyn-postinstall.mjs",
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
@@ -14,8 +15,14 @@
     "test:all": "node scripts/test-all.mjs",
     "test:all:server": "START_SERVER=1 node scripts/test-all.mjs",
     "vetr:verify": "npm run lint && npm run build && npm run test:all:server",
+    "kyn:doctor": "node scripts/kyn-doctor.mjs",
+    "kyn:ready": "npm run vetr:verify",
+    "kyn:setup": "npm install && npm run kyn:doctor",
     "electron": "electron .",
     "electron:dev": "npm run dev & sleep 3 && electron ."
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

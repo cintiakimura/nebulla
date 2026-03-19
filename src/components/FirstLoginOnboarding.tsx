@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Mic } from "lucide-react";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { getApiBase } from "../lib/api";
+import { getBackendSecretHeaders } from "../lib/storedSecrets";
 
 const INTRO_SCRIPT =
   "Hey, I'm Kyn, your dev partner. Most people rush into code and end up with bugs and frustration. We talk first, plan architecture, brainstorm together, get an airtight plan before writing any code.";
@@ -28,7 +29,7 @@ function playGrokEve(text: string, onEnd?: () => void, onGrokKeyMissing?: () => 
 
   fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
     body: JSON.stringify({ text, voice_id: "eve" }),
   })
     .then((res) => {

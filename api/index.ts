@@ -540,6 +540,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  if ((req.method ?? "GET") === "GET" && pathname === "/api/integrations/summary") {
+    const { getIntegrationsSummaryJson } = await import("../src/lib/integrationsSummary.js");
+    res.status(200).json(await getIntegrationsSummaryJson());
+    return;
+  }
+
   const handled = await handleOpenDevUser(req.method ?? "GET", req, res, pathname);
   if (handled) return;
 

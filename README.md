@@ -18,6 +18,13 @@ These do not affect build or runtime. The Vite **chunk size** warning is relaxed
 
 ## Setup Instructions
 
+**npm-once workflow** (see **UNBREAKABLE_RULES.md §9**): `npm install` runs a **`postinstall`** banner automatically. Then:
+
+- **`npm run dev`** — start the app  
+- **`npm run kyn:ready`** — optional: lint + build + full API smoke tests (same as `vetr:verify`)  
+- **`npm run kyn:setup`** — fresh clone: `npm install` + doctor  
+- **`npm run kyn:doctor`** — quick `.env` check only  
+
 1. Copy `.env.example` to `.env`
 2. Fill in the required placeholders:
    - `FIREBASE_PROJECT_ID`

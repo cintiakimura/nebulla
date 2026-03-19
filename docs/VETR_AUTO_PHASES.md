@@ -4,6 +4,8 @@ Phases **0–1** (guardrails + smoke) can be run in one command:
 
 ```bash
 npm run vetr:verify
+# alias (same pipeline):
+npm run kyn:ready
 ```
 
 This runs, in order:
@@ -19,3 +21,5 @@ This runs, in order:
 - **Phase 2–7** structured reflection, repair diffs, multi-turn termination — see `src/lib/vetrPrompt.ts` and Dashboard VETR flow in `AUDIT_STATUS.md`.
 
 **Optional:** `npm run test:all` if you already have `npm run dev` on port 3000.
+
+**Backend env audit (Settings → Refresh env check):** `GET /api/config/secrets-audit`, `GET /api/config/production-readiness`, `POST /api/config/secrets-alignment` — names/booleans only, never secret values.

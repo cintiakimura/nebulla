@@ -31,6 +31,7 @@ import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../l
 import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
+import { getBackendSecretHeaders } from "../lib/storedSecrets";
 import {
   fetchUnbreakableRules,
   getVETRSystemPrompt,
@@ -355,7 +356,7 @@ export default function Dashboard() {
       const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch(`${apiBase}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
         body: JSON.stringify({ messages: [...history, { role: "user", content: t }], userId, projectId: planningProjectIdRef.current ?? undefined }),
       });
       const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
@@ -385,7 +386,7 @@ export default function Dashboard() {
       const apiBase = getApiBase() || "";
       const res = await fetch(`${apiBase}/api/images/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
         body: JSON.stringify({ prompt: p }),
       });
       const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -436,7 +437,7 @@ export default function Dashboard() {
         const messages = [...history, { role: "user" as const, content: text }];
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
           body: JSON.stringify({ messages, userId, projectId: planningProjectIdRef.current ?? undefined }),
         });
         if (voiceCancelRef.current) return;
@@ -455,7 +456,7 @@ export default function Dashboard() {
           try {
             const ttsRes = await fetch(`${apiBase || ""}/api/tts`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
               body: JSON.stringify({ text: content.slice(0, 4096), voice_id: "eve" }),
             });
             if (ttsRes.status === 503) {
@@ -631,7 +632,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch(`${api}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
         body: JSON.stringify({
           messages: [...history, { role: "user", content: MIND_MAP_PROMPT }],
           userId: await getUserId(),
@@ -727,7 +728,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         setVetrProgress(`Running VETR Iteration ${iteration}/${MAX_ITERATIONS} — calling Grok…`);
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
           body: JSON.stringify({ messages, projectId: planningProjectIdRef.current ?? undefined, userId: await getUserId() }),
         });
         if (res.status === 503) {

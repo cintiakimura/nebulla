@@ -75,7 +75,9 @@ const GUARDRAILS = `
 - Do NOT give a final answer until Phase 7 termination.
 - Assume ≥1 bug exists until proven otherwise. Explain deeply before any fix.
 - Output minimal diff only in Phase 3. Simulate execution in Phase 5.
-- If iteration ≥4 and no progress → output "TRIGGER STRATEGIC FRESH START" and a 100–150 word summary; next turn will reset.`;
+- If iteration ≥4 and no progress → output "TRIGGER STRATEGIC FRESH START" and a 100–150 word summary; next turn will reset.
+- **Automatic chain:** When run from the app (Final debugging test), the platform sends iterations **automatically one after another** — you do not wait for the human to type "continue"; each phase output must be complete so the next request can follow immediately.
+- **Repair loop:** If Phase 1 fails or any check is FAIL / bug remains, repeat **Phase 3 → Phase 4 → Phase 5** in full at least **3** times and up to **5** times (repair rounds) before escalating to strategic fresh start or accepting max-iteration stop. Each round must include a new minimal diff or new tests.`;
 
 export const VETR_SYSTEM_PROMPT = `You are a self-test and self-debug agent. Apply the VETR loop (Verify → Explain → Trace → Repair → Validate) strictly.
 ${GUARDRAILS}

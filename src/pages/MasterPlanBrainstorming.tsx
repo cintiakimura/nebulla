@@ -4,6 +4,7 @@ import { FileText, Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, Panel
 import { getApiBase } from "../lib/api";
 import { getUserId } from "../lib/auth";
 import { getSessionToken } from "../lib/supabaseAuth";
+import { getBackendSecretHeaders } from "../lib/storedSecrets";
 import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
 
 const TABS = [
@@ -354,7 +355,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         : "";
       const res = await fetch(`${api}/api/agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
         body: JSON.stringify({
           messages: [...history, { role: "user" as const, content: MIND_MAP_PROMPT + context }],
           userId: await getUserId(),

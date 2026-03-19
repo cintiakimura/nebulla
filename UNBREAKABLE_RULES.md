@@ -82,7 +82,11 @@ If not perfect → **Phase 2: Structured reflection—mandatory.**
 **RESET SUMMARY:** 100–150 words on fails.  
 "Strategic reset: restarting clean."
 
-**Phase 6:** Back to Phase 1. One cycle per response—say "continue" for next.
+**Phase 6:** Back to Phase 1. One cycle per response—say "continue" for next **when in chat with a human**. When VETR runs inside the **app (Final debugging test)**, the UI **automatically** sends the next iteration—phases must still be output **in order** with no skipping.
+
+**Automatic phase chain (product / Final debugging test):** Phase **0** (audit) and **1** (gate) run first; then Grok iterations fire **one after another** until Phase **7** termination or max iterations—no manual "continue" between turns.
+
+**Repair loop (bugs / FAIL):** If anything is still wrong after Phase 2, repeat **Phase 3 → Phase 4 → Phase 5** as a block at least **3** times and up to **5** times before declaring stall; each round needs a **new** minimal diff or new tests. Then re-validate (Phase 6 / Phase 1 gate).
 
 **Core mindset:** First version is wrong till proven. Explain before fix. Minimal diffs. Decay after 5 turns—reset hard.  
 Never skip phases. No final code until Phase 1 says yes.  
@@ -127,6 +131,39 @@ You asked to be sure that **every time a user uses the app and talks to Grok**, 
 - **To give every user the same experience:** The **system prompt in `agentConfig.ts`** (the one sent to the Grok API for every chat) should be updated to include these unbreakable rules and persona. Then every user who uses Grok in the app will get the same senior dev teammate behaviour, VETR, discovery flow, and step-by-step option.
 
 So: **yes, I understood.** For users to have the same experience when they use Grok in the app, these rules need to be embedded in the **agent system prompt** in code (`agentConfig.ts`). I can draft that updated prompt so it matches this document and stays unbreakable in the app.
+
+---
+
+## 9. Platform — backend-first, env, VETR verify, npm-once (kyn)
+
+**Single Git repo, one API:** Grok (xAI), Supabase, Builder.io, and Stripe are driven from the **backend**; secrets live in **host env** (`.env`, Vercel, Railway, etc.). The browser only does UI + OAuth redirects to providers. See `docs/BACKEND_FIRST.md`.
+
+**Mandatory behaviour when guiding setup or debugging:**
+
+1. **Do not ask the user to chain many `npm` commands** if one script exists. Prefer:
+   - **`npm install`** — installs **all** dependencies from `package.json` (nothing extra to type per-package). A **`postinstall`** hook runs automatically after install (banner + pointer to this section).
+   - **`npm run kyn:ready`** — one command = lint + production build + full API smoke tests (`vetr:verify`). Use after env is filled or in CI.
+   - **`npm run kyn:doctor`** — quick check (e.g. `.env` present); no heavy build.
+   - **`npm run kyn:setup`** — `npm install` + doctor (use on a fresh clone).
+   - **`npm run dev`** — start the app (Express + Vite from `server.ts`).
+
+2. **Env discovery (no secret values exposed):** Point users to **Settings → Refresh env check** and these endpoints:
+   - `GET /api/integrations/summary` — map of what is configured (Grok, Supabase, Builder, Stripe, Vercel).
+   - `GET /api/config/secrets-audit` — boolean checklist per env name.
+   - `GET /api/config/production-readiness` — checklist + core gaps.
+   - `POST /api/config/secrets-alignment` — server vs browser “Secrets” flags.
+
+3. **Production hardening:** `STRICT_SERVER_API_KEYS=1` on the server → ignore browser `x-grok-api-key` / `x-builder-private-key`; keys **only** from host env.
+
+4. **Optional Vercel metadata:** `VERCEL_ACCESS_TOKEN` + `VERCEL_PROJECT_ID` → richer block under `vercel` in `/api/integrations/summary` (project name, latest deployment).
+
+5. **Grok key names:** `XAI_API_KEY` or `GROK_API_KEY` — **one** key; both names supported; same value in both is redundant, not conflicting.
+
+6. **VETR Phase 0 automation:** `npm run vetr:verify` (also inside `kyn:ready`) = types + `vite build` + `test:all:server`. Document this when talking about quality gates.
+
+7. **Dependencies:** All required packages are listed in **`package.json`**. Users run **`npm install` once** — do not tell them to `npm install <package>` individually unless adding a **new** dependency to the project.
+
+When the user says they’re tired of typing npm: say **one install**, then **`npm run dev`**; optional **`npm run kyn:ready`** before ship.
 
 ---
 

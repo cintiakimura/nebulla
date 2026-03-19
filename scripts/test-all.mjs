@@ -212,6 +212,44 @@ async function runTests() {
     } catch (e) {
       record("Deploy mocks", false, e.message);
     }
+
+    console.log("\n--- 8. Secrets audit & production readiness ---");
+    try {
+      const secRes = await fetch(testBase + "/api/config/secrets-audit");
+      const secData = await secRes.json().catch(() => ({}));
+      record(
+        "GET /api/config/secrets-audit",
+        secRes.ok && Array.isArray(secData.items),
+        secRes.ok ? "items=" + (secData.items?.length ?? 0) : String(secRes.status)
+      );
+      const prRes = await fetch(testBase + "/api/config/production-readiness");
+      const prData = await prRes.json().catch(() => ({}));
+      record(
+        "GET /api/config/production-readiness",
+        prRes.ok && Array.isArray(prData.productionChecklist),
+        prRes.ok ? "coreConfigured=" + !!prData.coreConfigured : String(prRes.status)
+      );
+      const alRes = await fetch(testBase + "/api/config/secrets-alignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ browserSecrets: {} }),
+      });
+      const alData = await alRes.json().catch(() => ({}));
+      record(
+        "POST /api/config/secrets-alignment",
+        alRes.ok && Array.isArray(alData.rows),
+        alRes.ok ? "rows=" + (alData.rows?.length ?? 0) : String(alRes.status)
+      );
+      const intRes = await fetch(testBase + "/api/integrations/summary");
+      const intData = await intRes.json().catch(() => ({}));
+      record(
+        "GET /api/integrations/summary",
+        intRes.ok && intData.architecture === "backend-first-monorepo",
+        intRes.ok ? "backend-first map" : String(intRes.status)
+      );
+    } catch (e) {
+      record("Secrets audit bundle", false, e.message);
+    }
   } finally {
     if (serverProcess) {
       serverProcess.kill("SIGTERM");

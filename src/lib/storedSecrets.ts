@@ -1,15 +1,18 @@
 /**
- * User-supplied API keys stored in localStorage (override .env when set).
- * Grok/XAI key is backend-only (XAI_API_KEY in env); never stored or sent from frontend.
+ * User-supplied API keys stored in localStorage. When set, they are sent to the backend as
+ * headers (x-grok-api-key, x-builder-private-key) so routes match server .env behavior.
+ * Supabase service role stays server-only; publishable key still comes from /api/config.
  */
 
 const PREFIX = "kyn_secret_";
 
-/** Keys shown in Settings → API keys & secrets. Supabase/Vercel are backend-only (profile already set). */
+/** Keys shown in Settings → Secrets. Server alignment: POST /api/config/secrets-alignment */
 export const SECRET_KEYS = [
+  "XAI_API_KEY",
+  "GROK_API_KEY",
+  "BUILDER_PRIVATE_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_PUBLIC_KEY",
-  "BUILDER_PRIVATE_KEY",
 ] as const;
 
 export type SecretKey = (typeof SECRET_KEYS)[number];
@@ -41,7 +44,18 @@ export function hasStoredSecret(key: string): boolean {
   return v.length > 0 && v !== "PLACEHOLDER";
 }
 
-/** No client-side Grok key. Backend uses XAI_API_KEY from env only. Kept for API compatibility; returns {}. */
+/** Headers for Grok / Builder when user saved keys in Settings (sent with API calls). */
+export function getBackendSecretHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
+  const grok = getStoredSecret("XAI_API_KEY") || getStoredSecret("GROK_API_KEY");
+  if (grok) h["x-grok-api-key"] = grok;
+  const builder = getStoredSecret("BUILDER_PRIVATE_KEY");
+  if (builder) h["x-builder-private-key"] = builder;
+  return h;
+}
+
+/** @deprecated Use getBackendSecretHeaders — same x-grok-api-key slice for Grok-only calls. */
 export function getGrokRequestHeaders(): Record<string, string> {
-  return {};
+  const b = getBackendSecretHeaders();
+  return b["x-grok-api-key"] ? { "x-grok-api-key": b["x-grok-api-key"] } : {};
 }

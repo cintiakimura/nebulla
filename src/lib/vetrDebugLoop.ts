@@ -1,4 +1,5 @@
 import { runQuickAudit } from "./runQuickAudit";
+import { getBackendSecretHeaders } from "./storedSecrets";
 import {
   buildVETRContinuationMessage,
   buildVETRFreshStartMessage,
@@ -59,7 +60,7 @@ export async function runVETRLoop(params: RunVETRLoopParams): Promise<RunVETRLoo
   while (iteration <= MAX_ITERATIONS && !done) {
     const res = await fetch(`${base}/api/agent/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
       body: JSON.stringify({
         messages,
         userId,
