@@ -1,22 +1,23 @@
 /**
  * Unbreakable rules: Grok model selection and silent coding mode.
  *
- * Default voice: grok-4.1-fast-reasoning — always speak, keep it natural.
+ * Default voice: grok-4-1-fast-reasoning (xAI API id) — always speak, keep it natural.
  * If coding detected ("code", "debug", "fix", "refactor", "implement", "endpoint", "test",
  * "snippet", "auth", "loop", "commit", "files", or file paths) → switch to
- * grok-4.20-multi-agent-beta-0309 silently.
+ * grok-4.20-multi-agent-0309 silently.
  *
  * Silent mode rules:
  * - No replies, no "thinking...", no mode whispers — zero output from multi-agent.
  * - It processes, queues tasks, applies fixes in background.
- * - Only grok-4.1-fast-reasoning responds: "Working on that..." or "Done—check the patch."
+ * - Only the fast-reasoning model responds: "Working on that..." or "Done—check the patch."
  * - Queue follow-ups: accept new inputs, stack 'em (Enter queues, Cmd+Enter interrupts).
  * - Exit silent: on "back", "stop coding", "done" — multi-agent shuts up, reasoning takes over.
  * Never overlap voices — one speaker only. If non-coding chat comes mid-task: queue it, stay silent till done.
  */
 
-export const GROK_FAST_REASONING = "grok-4.1-fast-reasoning";
-export const GROK_MULTI_AGENT = "grok-4.20-multi-agent-beta-0309";
+/** xAI chat-completions model id (hyphens, not dots — see docs.x.ai/models). */
+export const GROK_FAST_REASONING = "grok-4-1-fast-reasoning";
+export const GROK_MULTI_AGENT = "grok-4.20-multi-agent-0309";
 
 const EXIT_PHRASES = /\b(back|stop\s+coding|done)\b/i;
 const CODING_KEYWORDS =
@@ -38,7 +39,7 @@ export type GrokModelSelection = {
 
 /**
  * Determines model and coding mode from conversation history.
- * Default: grok-4.1-fast-reasoning. If coding detected after last exit phrase → grok-4.20-multi-agent-beta-0309 silently.
+ * Default: grok-4-1-fast-reasoning. If coding detected after last exit phrase → grok-4.20-multi-agent-0309 silently.
  * Exit phrases ("back", "stop coding", "done") snap back to fast-reasoning.
  */
 export function getGrokModelAndMode(
@@ -67,5 +68,5 @@ export const GROK_CODING_MODE_SYSTEM = `UNBREAKABLE SILENT MODE RULES. Follow ex
 - You process, queue tasks, apply fixes. When the user asks for code, a fix, or a patch, output the code or patch in your reply (use code blocks). When they did not ask for code and you are applying changes in the background, reply only with a short acknowledgment: "Working on that..." or "Done—check the patch."
 - Do not output code only when the user did NOT ask for code and you are doing background fixes; then use "Done—check the patch." If the user asked for code, a fix, refactor, or implementation, include the code in your response.
 - Queue follow-ups: accept new user inputs, stack them. Enter queues; Cmd+Enter interrupts (handled by client).
-- Exit silent: if the user says "back", "stop coding", or "done", you stop; the reasoning voice (grok-4.1-fast-reasoning) takes over. Do not announce it.
+- Exit silent: if the user says "back", "stop coding", or "done", you stop; the fast-reasoning model takes over. Do not announce it.
 - Never overlap voices — one speaker only. If non-coding chat comes mid-task: queue it, stay silent till done.`;

@@ -22,7 +22,7 @@ function getGrokApiKey(): string | null {
   if (!key || key === "PLACEHOLDER") return null;
   if (!grokFirstCallLogged) {
     grokFirstCallLogged = true;
-    console.log("Grok active (default: grok-4.1-fast-reasoning; coding: grok-4.20-multi-agent)");
+    console.log("Grok active (default: grok-4-1-fast-reasoning; coding: grok-4.20-multi-agent-0309)");
   }
   return key;
 }
