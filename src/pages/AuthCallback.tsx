@@ -37,22 +37,6 @@ export default function AuthCallback() {
         return;
       }
 
-      // OAuth (PKCE): Supabase redirects with ?code= — exchange before reading session.
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-      if (code) {
-        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeErr) {
-          console.error("[kyn auth callback] exchangeCodeForSession:", exchangeErr.message);
-          if (!cancelled) {
-            setErrorMsg(exchangeErr.message);
-            setStatus("error");
-          }
-          return;
-        }
-        window.history.replaceState({}, document.title, url.pathname + url.hash);
-      }
-
       const finishSuccess = (userId: string) => {
         if (cancelled) return;
         clearAuthTimeout();
@@ -62,8 +46,8 @@ export default function AuthCallback() {
         navigate("/builder", { replace: true });
       };
 
-      // Start timeout as soon as we're waiting on session resolution — before any async session
-      // work — so finishSuccess can always clear a real timer (avoids leaks / setState after unmount).
+      // Start timeout before PKCE exchange + getSession so a fast success always clears a real timer
+      // (no setState after unmount / leak from a timer created only after navigate).
       timeoutId = window.setTimeout(() => {
         if (!cancelled) {
           setStatus((s) => (s === "loading" ? "error" : s));
@@ -79,6 +63,23 @@ export default function AuthCallback() {
         }
       });
       subscription = sub;
+
+      // OAuth (PKCE): Supabase redirects with ?code= — exchange before reading session.
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      if (code) {
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeErr) {
+          console.error("[kyn auth callback] exchangeCodeForSession:", exchangeErr.message);
+          clearAuthTimeout();
+          if (!cancelled) {
+            setErrorMsg(exchangeErr.message);
+            setStatus("error");
+          }
+          return;
+        }
+        window.history.replaceState({}, document.title, url.pathname + url.hash);
+      }
 
       const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
       if (cancelled) return;
