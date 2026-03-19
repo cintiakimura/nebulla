@@ -183,7 +183,7 @@ export default function Settings() {
               placeholder="https://your-backend.example.com"
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
-              className="flex-1 min-w-[200px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-[#9ca3af]"
+              className="flex-1 min-w-[200px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-muted"
             />
             <button type="button" onClick={saveApiUrl} className="px-3 py-2 bg-primary text-white rounded text-sm">
               Save
@@ -228,7 +228,7 @@ export default function Settings() {
                       placeholder="optional"
                       value={secretValues[key] ?? ""}
                       onChange={(e) => setSecret(key, e.target.value)}
-                      className="flex-1 min-w-[200px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-[#9ca3af]"
+                      className="flex-1 min-w-[200px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-muted"
                       autoComplete="off"
                     />
                     <button
@@ -253,7 +253,7 @@ export default function Settings() {
               placeholder="Stripe Price ID"
               value={stripePriceId}
               onChange={(e) => setStripePriceId(e.target.value)}
-              className="px-3 py-2 bg-sidebar-bg border border-border rounded text-sm text-white placeholder-[#9ca3af] max-w-xs"
+            className="px-3 py-2 bg-sidebar-bg border border-border rounded text-sm text-white placeholder-muted max-w-xs"
             />
             <button type="button" onClick={saveStripePriceId} className="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-sm rounded">
               Save

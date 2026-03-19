@@ -356,7 +356,7 @@ export default function Dashboard() {
       const res = await fetch(`${apiBase}/api/agent/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...history, { role: "user", content: t }], userId }),
+        body: JSON.stringify({ messages: [...history, { role: "user", content: t }], userId, projectId: planningProjectIdRef.current ?? undefined }),
       });
       const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
       if (res.status === 503) setSettingsDrawerMessage("Service down—try later");
@@ -437,7 +437,7 @@ export default function Dashboard() {
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages, userId }),
+          body: JSON.stringify({ messages, userId, projectId: planningProjectIdRef.current ?? undefined }),
         });
         if (voiceCancelRef.current) return;
         const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
@@ -632,7 +632,11 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const res = await fetch(`${api}/api/agent/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...history, { role: "user", content: MIND_MAP_PROMPT }], userId: await getUserId() }),
+        body: JSON.stringify({
+          messages: [...history, { role: "user", content: MIND_MAP_PROMPT }],
+          userId: await getUserId(),
+          projectId: planningProjectIdRef.current ?? undefined,
+        }),
       });
       if (res.status === 503) {
         setSettingsDrawerMessage("Service down—try later");
@@ -724,7 +728,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         const res = await fetch(`${apiBase}/api/agent/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages }),
+          body: JSON.stringify({ messages, projectId: planningProjectIdRef.current ?? undefined, userId: await getUserId() }),
         });
         if (res.status === 503) {
           setSettingsDrawerMessage("Service down—try later");

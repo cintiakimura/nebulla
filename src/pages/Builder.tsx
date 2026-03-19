@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams, useLocation, Link } from "reac
 import { 
   Play, Square, Terminal as TerminalIcon, Layout, 
   Mic, MicOff, Settings, FileCode, Github,
-  X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Paperclip, Send, Volume2, VolumeX, Download, AlertCircle,
+  X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Paperclip, Send, Volume2, VolumeX, Download, AlertCircle, FileText,
   Plus, FolderOpen,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
@@ -90,6 +90,7 @@ export default function Builder() {
   );
   const [setupComplete, setSetupCompleteState] = useState(getSetupComplete());
   const [chatInput, setChatInput] = useState("");
+  const chatInputDomRef = useRef<HTMLInputElement | null>(null);
   const [grokSpeaks, setGrokSpeaks] = useState(() => {
     try { return localStorage.getItem("kyn_grok_speaks") !== "false"; } catch { return true; }
   });
@@ -192,9 +193,18 @@ export default function Builder() {
             if (project.code) setCode(project.code);
             if (project.package_json) setPackageJsonContent(project.package_json);
             try {
-              let msgs: { id: string; role: string; content: string; images?: string[] }[] = typeof project.chat_messages === "string" ? JSON.parse(project.chat_messages || "[]") : project.chat_messages || [];
+              let msgs: { id: string; role: string; content: string; images?: string[] }[] =
+                typeof project.chat_messages === "string" ? JSON.parse(project.chat_messages || "[]") : project.chat_messages || [];
               if (Array.isArray(msgs) && msgs.length > 0) {
-                setChatMessages(msgs);
+                const normalized = msgs
+                  .filter((m) => m && typeof m.content === "string")
+                  .map((m) => ({
+                    id: typeof m.id === "string" ? m.id : crypto.randomUUID(),
+                    role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+                    content: m.content,
+                    images: Array.isArray(m.images) ? m.images : undefined,
+                  }));
+                setChatMessages(normalized);
               } else if (project.plan) {
                 try {
                   const plan = typeof project.plan === "string" ? JSON.parse(project.plan) : project.plan;
@@ -446,7 +456,7 @@ export default function Builder() {
       const res = await fetch(`${getApiBase() || ""}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, userId }),
+        body: JSON.stringify({ messages, userId, projectId: projectId ?? undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -581,6 +591,7 @@ export default function Builder() {
 
   const handleMicToggle = () => {
     if (readOnly) return;
+    if (browserSupportsSpeechRecognition === false) return;
     if (listening) {
       SpeechRecognition.stopListening();
       if (transcript) {
@@ -930,7 +941,44 @@ export default function Builder() {
           /* Project list / welcome - no project selected */
           <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center">
             <div className="max-w-lg w-full space-y-6">
-              <h1 className="text-xl font-medium text-white text-center">Build with Grok</h1>
+              <h1 className="text-xl font-medium text-white text-center">Start project brainstorming</h1>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate("/master-plan-brainstorming")}
+                  className="flex-1 py-3 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  Brainstorm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/settings")}
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg border border-border hover:bg-editor-bg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  Clone from Github
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg border border-border hover:bg-editor-bg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  Open folder
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (readOnly) {
+                      setProModalAction("read_only");
+                      setProModalOpen(true);
+                      return;
+                    }
+                    chatInputDomRef.current?.focus();
+                  }}
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg border border-border hover:bg-editor-bg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  Write prompt
+                </button>
+              </div>
               <p className="text-sm text-muted text-center">Create a project and start coding. Chat with Grok on the right to plan or generate code.</p>
               {createError && (
                 <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-300">{createError}</div>
@@ -1169,10 +1217,18 @@ export default function Builder() {
 
       {/* Chat Panel - same width as Explorer */}
       <div className="w-64 bg-sidebar-bg border-l border-border flex flex-col flex-shrink-0">
-        <div className="p-3 text-xs font-semibold tracking-wider text-primary uppercase border-b border-border">Chat</div>
+        <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold tracking-wider text-white uppercase">CHAT</span>
+          <span
+            className="text-[11px] font-medium text-white bg-primary/20 border border-primary/60 px-3 py-1 rounded-full"
+            title="Fast reasoning model"
+          >
+            Powered by Grok 4.1 Fast
+          </span>
+        </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
-          <input ref={fileInputRef} type="file" className="hidden" accept="image/*,*" onChange={handleFileSelect} />
+          <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={handleFileSelect} />
           <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? 'bg-primary/10 ring-1 ring-primary/50 rounded' : ''}`}>
             {chatMessages.map((msg) => (
               <div key={msg.id} className="group">
@@ -1224,7 +1280,7 @@ export default function Builder() {
               <div className="text-sm text-muted italic select-text">{transcript || '...'}</div>
             </div>
           )}
-          {/* Text input + Mic + Send. Fallback: no mic if browser doesn't support speech recognition. */}
+          {/* Text input + Send. Voice/more controls live in the bottom toolbar */}
           <div className="flex-shrink-0 p-2 border-t border-border bg-sidebar-bg" onClick={e => e.stopPropagation()}>
             {listening && (
               <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
@@ -1239,31 +1295,15 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg border border-border text-sm text-white placeholder-[#6b7280] focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg border border-white/50 text-sm text-white placeholder-muted focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
+                ref={chatInputDomRef}
               />
-              <span
-                className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#1e3a5f] text-primary border border-border cursor-help"
-                title="Fast reasoning model — unlimited chats on Pro"
-              >
-                Powered by Grok 4.1 Fast
-              </span>
-              {browserSupportsSpeechRecognition !== false && (
-                <button
-                  type="button"
-                  onClick={handleMicToggle}
-                  disabled={readOnly}
-                  className={`p-1.5 rounded transition-colors shrink-0 ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'bg-red-500/20 text-red-400' : 'text-muted hover:text-white hover:bg-[#2d3f4f]'}`}
-                  title={readOnly ? "Upgrade for full access" : (listening ? 'Stop and send' : 'Voice input')}
-                >
-                  {listening ? <MicOff size={14} /> : <Mic size={14} />}
-                </button>
-              )}
               <button
                 onClick={handleSendText}
                 disabled={!chatInput.trim() || readOnly}
-                className="p-1.5 rounded bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                 title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={14} />
@@ -1271,13 +1311,25 @@ export default function Builder() {
             </div>
           </div>
         </div>
-        {/* Bottom toolbar: voice (small icon), Grok speaks (icon), paperclip, copy */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-1 py-1.5 px-2 border-t border-border bg-sidebar-bg">
+        {/* Bottom toolbar: mic, Grok reads aloud, upload, copy */}
+        <div className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3 border-t border-border bg-sidebar-bg">
           <button
             onClick={handleMicToggle}
-            disabled={readOnly}
-            className={`p-2 rounded transition-colors ${readOnly ? "opacity-60 cursor-not-allowed" : ""} ${listening ? 'text-red-400' : 'text-muted hover:text-white hover:bg-[#2d3f4f]'}`}
-            title={readOnly ? "Upgrade for full access" : (listening ? "Listening…" : "Open talk")}
+            disabled={readOnly || browserSupportsSpeechRecognition === false}
+            className={`p-2 rounded-md transition-colors shrink-0 ${
+              readOnly || browserSupportsSpeechRecognition === false
+                ? "opacity-60 cursor-not-allowed"
+                : ""
+            } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : "text-white/70 hover:text-white hover:bg-border/40"}`}
+            title={
+              readOnly
+                ? "Upgrade for full access"
+                : browserSupportsSpeechRecognition === false
+                  ? "Speech recognition not supported in this browser"
+                  : listening
+                    ? "Listening…"
+                    : "Open talk"
+            }
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
@@ -1287,27 +1339,39 @@ export default function Builder() {
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
               return next;
             })}
-            className={`p-2 rounded transition-colors ${grokSpeaks ? 'text-[#4fc3f7] bg-[#094771]' : 'text-muted hover:text-white hover:bg-[#2d3f4f]'}`}
+            className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? 'text-white bg-primary/15 border border-primary/30' : 'text-white/70 hover:text-white hover:bg-border/40'}`}
             title="Grok reads replies aloud (browser TTS)"
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-            className="p-2 rounded text-muted hover:text-white hover:bg-[#2d3f4f] transition-colors"
+            className="p-2 rounded-md text-white/70 hover:text-white hover:bg-border/40 transition-colors shrink-0"
             title="Upload file"
           >
             <Paperclip size={16} />
           </button>
-          {paidStatus.paid && (
+          {projectId ? (
+            <Link
+              to={`/project/${projectId}/locked-summary`}
+              className="p-2 rounded-md text-white/70 hover:text-white hover:bg-border/40 transition-colors shrink-0"
+              title="Locked Spec"
+            >
+              <FileText size={16} />
+            </Link>
+          ) : null}
           <button
             onClick={handleCopyLast}
-            className="p-2 rounded text-muted hover:text-white hover:bg-[#2d3f4f] transition-colors"
-            title="Copy last reply"
+            disabled={!paidStatus.paid}
+            className={`p-2 rounded-md transition-colors shrink-0 ${
+              paidStatus.paid
+                ? "text-white/70 hover:text-white hover:bg-border/40"
+                : "opacity-60 cursor-not-allowed text-white/60"
+            }`}
+            title={paidStatus.paid ? "Copy last reply" : "Upgrade to Pro to copy last reply"}
           >
             <Copy size={16} />
           </button>
-          )}
         </div>
       </div>
 

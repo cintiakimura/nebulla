@@ -4,9 +4,10 @@
  */
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronDown, ChevronRight } from "lucide-react";
+import { X, ChevronDown, ChevronRight, HelpCircle } from "lucide-react";
 import {
   getStoredSecret,
+  hasStoredSecret,
   setStoredSecret,
   SECRET_KEYS,
   type SecretKey,
@@ -14,6 +15,8 @@ import {
 
 const KEY_USE_LOCAL_FIRST = "kyn_use_local_keys_first";
 const KEY_DEBUG_MODE = "kyn_debug_mode";
+const GROK_LABEL = "Grok / XAI API Key";
+const GROK_HELPER = "Backend-only: set `XAI_API_KEY` (or `GROK_API_KEY`) in your server .env. This UI is kept for compatibility.";
 
 type Props = {
   open: boolean;
@@ -34,6 +37,22 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
   const [secretValues, setSecretValues] = useState<Record<string, string>>({});
   const [useLocalFirst, setUseLocalFirst] = useState(true);
   const [debugMode, setDebugMode] = useState(false);
+
+  const handleSaveGrok = () => {
+    // Grok keys are expected to be set server-side; keep client flow non-destructive.
+    // We still persist to localStorage for local dev compatibility, but backend won’t use it.
+    setGrokStatus("saving");
+    try {
+      setStoredSecret("GROK_API_KEY", grokInput);
+      setGrokStatus(hasStoredSecret("GROK_API_KEY") ? "valid" : "invalid");
+      setGrokError(hasStoredSecret("GROK_API_KEY")
+        ? "Saved locally, but you still need to set XAI_API_KEY/GROK_API_KEY in the backend .env."
+        : "Grok key looks empty.");
+      setToast(hasStoredSecret("GROK_API_KEY") ? "saved" : "invalid");
+    } finally {
+      setTimeout(() => onRetry?.(), 0);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -143,7 +162,7 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
             )}
             {grokError && <p className="mt-2 text-xs text-amber-500">{grokError}</p>}
             <p className="mt-2 text-xs text-vs-muted flex items-start gap-1">
-              <HelpCircle size={14} className="shrink-0 mt-0.5" title="Stored only in your browser (localStorage)." />
+              <HelpCircle size={14} className="shrink-0 mt-0.5" aria-label="Stored only in your browser (localStorage)." />
               {GROK_HELPER}
             </p>
           </section>
@@ -160,7 +179,7 @@ export default function SettingsDrawer({ open, onClose, initialMessage, onRetry 
             </button>
             {otherKeysOpen && (
               <div className="mt-3 space-y-3 pl-4 border-l border-vs-border">
-                {SECRET_KEYS.filter((k) => k !== "GROK_API_KEY").map((key) => (
+                {SECRET_KEYS.map((key) => (
                   <div key={key} className="flex flex-wrap items-center gap-2">
                     <label className="text-xs text-vs-muted w-40 shrink-0">{key}</label>
                     <input

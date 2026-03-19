@@ -4,6 +4,10 @@ import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
 import { handleExportProject } from "./src/api/export-project.js";
 import { AGENT_ID, AGENT_SYSTEM_PROMPT, AGENT_PRE_CODE_QUESTIONS } from "./src/config/agentConfig.js";
+import {
+  getGrokModelAndMode,
+  GROK_CODING_MODE_SYSTEM,
+} from "./src/lib/grokModelSelection.js";
 import * as db from "./db.js";
 import {
   isSupabaseConfigured,
@@ -86,7 +90,6 @@ function requireMatchUserId(req: RequestWithUserId, res: express.Response, next:
   next();
 }
 
-const GROK_MODEL_DEFAULT = "grok-4.2-multi-agent-beta-0309";
 let grokFirstCallLogged = false;
 
 /** Backend-only Grok key (XAI_API_KEY or GROK_API_KEY). Logs once on first use. Returns null if missing. */
@@ -95,7 +98,7 @@ function getGrokApiKey(): string | null {
   if (!key || key === "PLACEHOLDER") return null;
   if (!grokFirstCallLogged) {
     grokFirstCallLogged = true;
-    console.log("Grok 4.2 multi-agent beta active, using env key");
+    console.log("Grok active (default: grok-4.1-fast-reasoning; coding: grok-4.20-multi-agent)");
   }
   return key;
 }
@@ -395,20 +398,24 @@ async function startServer() {
     try {
       const userId = (req as RequestWithUserId).userId!;
       const { projectId } = req.params;
-      const { code, package_json, chat_messages, name, status, last_edited, specs, plan, code_versions, deployment_status, live_url } = req.body as {
+      const { code, package_json, chat_messages, name, status, last_edited, specs, plan, code_versions, deployment_status, live_url, locked_summary_md, branding_assets, brainstorm_complete } = req.body as {
         code?: string;
         package_json?: string;
         chat_messages?: string;
         name?: string;
         status?: string;
         last_edited?: string;
-        specs?: string | Record<string, string>;
+        specs?: string | Record<string, unknown>;
         plan?: Record<string, unknown> | string;
         code_versions?: unknown[] | string;
         deployment_status?: string;
         live_url?: string | null;
+        locked_summary_md?: string;
+        branding_assets?: string[] | string;
+        brainstorm_complete?: boolean | number;
       };
       const specsStr = specs === undefined ? undefined : typeof specs === "string" ? specs : JSON.stringify(specs);
+      const brandingAssetsStr = branding_assets === undefined ? undefined : Array.isArray(branding_assets) ? JSON.stringify(branding_assets) : branding_assets;
       const baseUpdates = {
         code,
         package_json,
@@ -417,6 +424,9 @@ async function startServer() {
         status,
         last_edited,
         specs: specsStr,
+        locked_summary_md,
+        branding_assets: brandingAssetsStr,
+        brainstorm_complete,
       };
       if (isSupabaseConfigured()) {
         const supabaseUpdates = { ...baseUpdates } as Parameters<typeof supabaseUpdateProject>[2];
@@ -424,7 +434,17 @@ async function startServer() {
         if (code_versions !== undefined) supabaseUpdates.code_versions = typeof code_versions === "string" ? code_versions : JSON.stringify(code_versions ?? []);
         if (deployment_status !== undefined) supabaseUpdates.deployment_status = deployment_status;
         if (live_url !== undefined) supabaseUpdates.live_url = live_url;
-        const ok = await supabaseUpdateProject(userId, projectId, supabaseUpdates);
+        let ok = await supabaseUpdateProject(userId, projectId, supabaseUpdates);
+        if (!ok) {
+          // Fallback: if the Supabase schema hasn't been migrated yet for locked summary/branding fields,
+          // retry with only safe updates (e.g. specs) so the UI can still work via specs fallback keys.
+          const { locked_summary_md: _ls, branding_assets: _ba, brainstorm_complete: _bc, ...safeUpdates } = supabaseUpdates as unknown as {
+            locked_summary_md?: unknown;
+            branding_assets?: unknown;
+            brainstorm_complete?: unknown;
+          };
+          ok = await supabaseUpdateProject(userId, projectId, safeUpdates as Parameters<typeof supabaseUpdateProject>[2]);
+        }
         if (!ok) {
           res.status(404).json({ error: "Project not found" });
           return;
@@ -443,6 +463,164 @@ async function startServer() {
       res.status(500).json({ error: "Failed to update project" });
     }
   });
+
+  // Branding assets upload — stores uploaded file paths in project.branding_assets
+  app.post(
+    "/api/users/:userId/projects/:projectId/branding-assets",
+    resolveUserId,
+    requireAuth,
+    requireMatchUserId,
+    async (req, res) => {
+      const userId = (req as RequestWithUserId).userId!;
+      const { projectId } = req.params;
+
+      const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+      const bucket = (process.env.SUPABASE_BRANDING_ASSETS_BUCKET ?? "branding-assets").trim();
+      const fallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
+      const isOpenModeUser = userId === "open-dev-user" || (!!fallbackUserId && userId === fallbackUserId);
+
+      try {
+        // Use busboy for multipart/form-data.
+        const busboyMod = await import("busboy");
+        const Busboy = (busboyMod as any).default ?? busboyMod;
+
+        const contentType = req.headers["content-type"] ?? "";
+        if (!String(contentType).includes("multipart/form-data")) {
+          res.status(400).json({ error: "Expected multipart/form-data" });
+          return;
+        }
+
+        const files: Array<{ filename: string; contentType: string; buffer: Buffer; size: number }> = [];
+        let totalBytes = 0;
+
+        const bb = new Busboy({ headers: req.headers });
+
+        const fileUploadPromise = new Promise<void>((resolve, reject) => {
+          bb.on("file", (fieldname, file, filename, _encoding, mimetype) => {
+            if (fieldname !== "files") {
+              // drain unknown fields
+              file.resume();
+              return;
+            }
+            const safeName = String(filename || "upload")
+              .replace(/[^\w.-]+/g, "_")
+              .slice(0, 160);
+
+            const chunks: Buffer[] = [];
+            let fileBytes = 0;
+            file.on("data", (d: Buffer) => {
+              fileBytes += d.length;
+              totalBytes += d.length;
+              if (totalBytes > MAX_TOTAL_BYTES) {
+                // stop buffering; drain the stream
+                file.resume();
+                reject(new Error("Branding assets too large (max 100MB total)."));
+              } else {
+                chunks.push(d);
+              }
+            });
+            file.on("limit", () => reject(new Error("Branding assets too large.")));
+            file.on("end", () => {
+              if (totalBytes <= MAX_TOTAL_BYTES) {
+                files.push({
+                  filename: safeName,
+                  contentType: String(mimetype || "application/octet-stream"),
+                  buffer: Buffer.concat(chunks),
+                  size: fileBytes,
+                });
+              }
+            });
+          });
+
+          bb.on("error", (err) => reject(err));
+          bb.on("finish", () => resolve());
+        });
+
+        req.pipe(bb);
+        await fileUploadPromise;
+
+        const brandingPaths =
+          files.length === 0
+            ? []
+            : isSupabaseConfigured() && !isOpenModeUser
+              ? await (async () => {
+                  const { createClient } = await import("@supabase/supabase-js");
+                  const supabaseUrl = process.env.SUPABASE_URL?.trim();
+                  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+                  if (!supabaseUrl || !serviceRoleKey || supabaseUrl === "PLACEHOLDER" || serviceRoleKey === "PLACEHOLDER") {
+                    throw new Error("Supabase service role key not configured; cannot upload branding assets.");
+                  }
+                  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+
+                  const now = Date.now();
+                  const uploaded: string[] = [];
+                  for (let i = 0; i < files.length; i++) {
+                    const f = files[i];
+                    const storagePath = `${userId}/${projectId}/branding/${now}-${i}-${f.filename}`;
+                    const up = await supabase.storage.from(bucket).upload(storagePath, f.buffer, {
+                      contentType: f.contentType,
+                      upsert: true,
+                    });
+                    if (up.error) throw up.error;
+                    uploaded.push(storagePath);
+                  }
+                  return uploaded;
+                })()
+              : files.map((f) => `${userId}/${projectId}/branding/${f.filename}`);
+
+        // Update project record with specs fallback keys (works even before Supabase migration).
+        let existingSpecs: Record<string, unknown> = {};
+        if (isSupabaseConfigured() && !isOpenModeUser) {
+          const p = await supabaseGetProject(userId, projectId);
+          try {
+            existingSpecs = JSON.parse(p?.specs ?? "{}") as Record<string, unknown>;
+          } catch (_) {}
+        } else {
+          const p = db.getProject(userId, projectId);
+          try {
+            existingSpecs = JSON.parse(p?.specs ?? "{}") as Record<string, unknown>;
+          } catch (_) {}
+        }
+
+        const prevBranding = Array.isArray((existingSpecs?.__branding_assets as unknown)) ? (existingSpecs?.__branding_assets as string[]) : [];
+        const nextBranding = [...prevBranding, ...brandingPaths];
+        const nextSpecs = { ...existingSpecs, __branding_assets: nextBranding };
+        const brandingAssetsSerialized = JSON.stringify(nextBranding);
+
+        // Try updating dedicated branding_assets column when present; always store fallback in specs.
+        if (isSupabaseConfigured() && !isOpenModeUser) {
+          let ok = await supabaseUpdateProject(userId, projectId, {
+            specs: JSON.stringify(nextSpecs),
+            branding_assets: brandingAssetsSerialized,
+          } as any);
+          if (!ok) {
+            ok = await supabaseUpdateProject(userId, projectId, {
+              specs: JSON.stringify(nextSpecs),
+            } as any);
+          }
+          if (!ok) {
+            res.status(404).json({ error: "Project not found" });
+            return;
+          }
+        } else {
+          const ok = db.updateProject(userId, projectId, {
+            specs: JSON.stringify(nextSpecs),
+            branding_assets: brandingAssetsSerialized,
+          } as any);
+          if (!ok) {
+            res.status(404).json({ error: "Project not found" });
+            return;
+          }
+        }
+
+        res.json({ ok: true, branding_assets: nextBranding });
+      } catch (e) {
+        console.error("[branding-assets upload]", e);
+        const msg = e instanceof Error ? e.message : String(e);
+        res.status(400).json({ error: msg });
+      }
+    }
+  );
 
   // Export project as zip (auth required)
   app.get("/api/export/:id", resolveUserId, requireAuth, handleExportProject);
@@ -482,12 +660,12 @@ async function startServer() {
       if (isSupabaseConfigured()) {
         isPaid = await hasWriteAccess(userId);
       } else {
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-        if (supabaseUrl && supabaseKey && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER") {
-          try {
-            const { createClient } = await import("@supabase/supabase-js");
-            const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (supabaseUrl && supabaseKey && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER") {
+        try {
+          const { createClient } = await import("@supabase/supabase-js");
+          const supabase = createClient(supabaseUrl, supabaseKey);
             const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
             isPaid = row?.paid === true || row?.is_pro === true;
           } catch (_) {}
@@ -614,13 +792,18 @@ async function startServer() {
       return;
     }
     try {
-      const { messages, userId: bodyUserId } = req.body as { messages?: { role: string; content: string }[]; userId?: string };
+      const { messages, userId: bodyUserId, projectId: bodyProjectId } = req.body as {
+        messages?: { role: string; content: string }[];
+        userId?: string;
+        projectId?: string;
+      };
       const authUserId = (req as RequestWithUserId).userId;
       if (isSupabaseConfigured() && !authUserId) {
         res.status(401).json({ error: "Unauthorized. Sign in or use the app from the open-mode origin." });
         return;
       }
       const userId = authUserId ?? bodyUserId;
+      const projectId = typeof bodyProjectId === "string" ? bodyProjectId.trim() : "";
       const fallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
       const isOpenModeUser = userId === "open-dev-user" || (!!fallbackUserId && userId === fallbackUserId);
       if (userId && isSupabaseConfigured() && !isOpenModeUser) {
@@ -643,11 +826,50 @@ async function startServer() {
         res.status(400).json({ error: "messages array required" });
         return;
       }
-      const model = (process.env.GROK_MODEL || GROK_MODEL_DEFAULT).trim();
+      const { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
+      const grokModelEnv = process.env.GROK_MODEL;
+      const model =
+        typeof grokModelEnv === "string" && grokModelEnv.trim() !== "" ? grokModelEnv.trim() : selectedModel;
+
+      // If project has a locked summary, prepend it as the single source-of-truth.
+      let lockedSpecMd = "";
+      if (projectId && userId) {
+        try {
+          if (isSupabaseConfigured() && !isOpenModeUser) {
+            const p = await supabaseGetProject(userId, projectId);
+            lockedSpecMd = p?.locked_summary_md ?? "";
+            if (!lockedSpecMd) {
+              try {
+                const specsObj = JSON.parse(p?.specs ?? "{}") as Record<string, unknown>;
+                lockedSpecMd = (specsObj?.__locked_summary_md as string) ?? "";
+              } catch (_) {}
+            }
+          } else {
+            const p = db.getProject(userId, projectId);
+            lockedSpecMd = p?.locked_summary_md ?? "";
+            if (!lockedSpecMd) {
+              try {
+                const specsObj = JSON.parse(p?.specs ?? "{}") as Record<string, unknown>;
+                lockedSpecMd = (specsObj?.__locked_summary_md as string) ?? "";
+              } catch (_) {}
+            }
+          }
+        } catch (e) {
+          console.error("[Grok chat] failed to load locked spec", e);
+        }
+      }
+
+      const systemLockedSpec =
+        lockedSpecMd && lockedSpecMd.trim()
+          ? `You are building the user's app. ALWAYS base your responses, code generation, and suggestions on this LOCKED SPEC as the single source of truth. Do NOT contradict or ignore it unless the user explicitly says to revise and re-lock.\n\nLocked Spec:\n\n${lockedSpecMd.trim()}`
+          : null;
+
       const body = {
         model,
         messages: [
           { role: "system", content: AGENT_SYSTEM_PROMPT },
+          ...(systemLockedSpec ? [{ role: "system", content: systemLockedSpec }] : []),
+          ...(codingMode ? [{ role: "system", content: GROK_CODING_MODE_SYSTEM }] : []),
           ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
         ],
         stream: false,
@@ -934,14 +1156,14 @@ export async function createApp(): Promise<express.Express> {
 if (typeof process.env.VERCEL === "undefined" || process.env.VERCEL !== "1") {
   const PORT = Number(process.env.PORT) || 3000;
   createApp().then((app) => {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
       const grokKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY;
-      if (!grokKey || grokKey === "PLACEHOLDER") {
+    if (!grokKey || grokKey === "PLACEHOLDER") {
         console.error("Grok: XAI_API_KEY not set — chat/TTS/realtime will return 503. Set XAI_API_KEY in .env.");
-      } else {
-        console.log("Grok 4.2 multi-agent beta: env key loaded — chat is enabled.");
-      }
+    } else {
+        console.log("Grok: env key loaded — chat enabled (default: grok-4.1-fast-reasoning; coding: grok-4.20-multi-agent).");
+    }
     });
   });
 }

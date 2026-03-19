@@ -28,6 +28,9 @@ export type ProjectRow = {
   name: string;
   status: string;
   last_edited: string;
+  locked_summary_md: string;
+  branding_assets: string[];
+  brainstorm_complete: boolean;
   code: string;
   package_json: string;
   chat_messages: string;
@@ -48,7 +51,18 @@ export type UserMetadataRow = {
   stripe_subscription_id: string | null;
 };
 
-export async function listProjects(userId: string): Promise<Omit<ProjectRow, "code" | "package_json" | "chat_messages" | "specs">[]> {
+export async function listProjects(userId: string): Promise<
+  Omit<
+    ProjectRow,
+    | "code"
+    | "package_json"
+    | "chat_messages"
+    | "specs"
+    | "locked_summary_md"
+    | "branding_assets"
+    | "brainstorm_complete"
+  >[]
+> {
   const supabase = getAdminClient();
   if (!supabase) return [];
   const { data, error } = await supabase
@@ -105,6 +119,9 @@ export async function getProject(userId: string, projectId: string): Promise<Pro
     name: data.name ?? "Untitled",
     status: data.status ?? "Draft",
     last_edited: data.last_edited ?? "",
+    locked_summary_md: (data.locked_summary_md ?? "") as string,
+    branding_assets: Array.isArray(data.branding_assets) ? (data.branding_assets as string[]) : [],
+    brainstorm_complete: data.brainstorm_complete === true,
     code: data.code ?? "",
     package_json: data.package_json ?? "{}",
     chat_messages: data.chat_messages ?? "[]",
@@ -157,6 +174,9 @@ export async function updateProject(
     name?: string;
     status?: string;
     last_edited?: string;
+    locked_summary_md?: string;
+    branding_assets?: string[] | string;
+    brainstorm_complete?: boolean | number;
     code?: string;
     package_json?: string;
     chat_messages?: string;
@@ -171,12 +191,28 @@ export async function updateProject(
   if (!supabase) return false;
   const planVal = updates.plan === undefined ? undefined : typeof updates.plan === "string" ? updates.plan : JSON.stringify(updates.plan);
   const codeVersionsVal = updates.code_versions === undefined ? undefined : typeof updates.code_versions === "string" ? updates.code_versions : JSON.stringify(updates.code_versions ?? []);
+  const brandingAssetsVal =
+    updates.branding_assets === undefined
+      ? undefined
+      : Array.isArray(updates.branding_assets)
+        ? (updates.branding_assets as string[])
+        : ((): string[] => {
+            try {
+              const v = JSON.parse(updates.branding_assets as string);
+              return Array.isArray(v) ? (v as string[]) : [];
+            } catch {
+              return [];
+            }
+          })();
   const { error } = await supabase
     .from("projects")
     .update({
       ...(updates.name !== undefined && { name: updates.name }),
       ...(updates.status !== undefined && { status: updates.status }),
       ...(updates.last_edited !== undefined && { last_edited: updates.last_edited }),
+      ...(updates.locked_summary_md !== undefined && { locked_summary_md: updates.locked_summary_md }),
+      ...(updates.branding_assets !== undefined && { branding_assets: brandingAssetsVal }),
+      ...(updates.brainstorm_complete !== undefined && { brainstorm_complete: typeof updates.brainstorm_complete === "boolean" ? updates.brainstorm_complete : updates.brainstorm_complete === 1 }),
       ...(updates.code !== undefined && { code: updates.code }),
       ...(updates.package_json !== undefined && { package_json: updates.package_json }),
       ...(updates.chat_messages !== undefined && { chat_messages: updates.chat_messages }),

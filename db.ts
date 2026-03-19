@@ -20,6 +20,9 @@ db.exec(`
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Draft',
     last_edited TEXT NOT NULL DEFAULT '',
+    locked_summary_md TEXT NOT NULL DEFAULT '',
+    branding_assets TEXT NOT NULL DEFAULT '[]',
+    brainstorm_complete INTEGER NOT NULL DEFAULT 0,
     code TEXT NOT NULL DEFAULT '',
     package_json TEXT NOT NULL DEFAULT '{}',
     chat_messages TEXT NOT NULL DEFAULT '[]',
@@ -34,12 +37,33 @@ try {
   /* column may already exist */
 }
 
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN locked_summary_md TEXT NOT NULL DEFAULT ''");
+} catch (_) {
+  /* column may already exist */
+}
+
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN branding_assets TEXT NOT NULL DEFAULT '[]'");
+} catch (_) {
+  /* column may already exist */
+}
+
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN brainstorm_complete INTEGER NOT NULL DEFAULT 0");
+} catch (_) {
+  /* column may already exist */
+}
+
 export type ProjectRow = {
   id: string;
   user_id: string;
   name: string;
   status: string;
   last_edited: string;
+  locked_summary_md: string;
+  branding_assets: string;
+  brainstorm_complete: number;
   code: string;
   package_json: string;
   chat_messages: string;
@@ -47,10 +71,15 @@ export type ProjectRow = {
   created_at: number;
 };
 
-export function listProjects(userId: string): Omit<ProjectRow, "code" | "package_json" | "chat_messages" | "specs">[] {
+export function listProjects(
+  userId: string
+): Omit<ProjectRow, "code" | "package_json" | "chat_messages" | "specs" | "locked_summary_md" | "branding_assets" | "brainstorm_complete">[] {
   const rows = db.prepare(
     "SELECT id, user_id, name, status, last_edited, created_at FROM projects WHERE user_id = ? ORDER BY created_at DESC"
-  ).all(userId) as Omit<ProjectRow, "code" | "package_json" | "chat_messages" | "specs">[];
+  ).all(userId) as Omit<
+    ProjectRow,
+    "code" | "package_json" | "chat_messages" | "specs" | "locked_summary_md" | "branding_assets" | "brainstorm_complete"
+  >[];
   return rows;
 }
 
@@ -79,8 +108,8 @@ export function createProject(userId: string, name: string): ProjectRow {
   const defaultPackageJson = JSON.stringify({ name: "kyn-app", private: true, version: "0.0.0" }, null, 2);
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO projects (id, user_id, name, status, last_edited, code, package_json, chat_messages, specs, created_at)
-     VALUES (?, ?, ?, 'Draft', ?, ?, ?, '[]', '{}', unixepoch())`
+    `INSERT INTO projects (id, user_id, name, status, last_edited, locked_summary_md, branding_assets, brainstorm_complete, code, package_json, chat_messages, specs, created_at)
+     VALUES (?, ?, ?, 'Draft', ?, '', '[]', 0, ?, ?, '[]', '{}', unixepoch())`
   ).run(id, userId, name, now, defaultCode, defaultPackageJson);
   const row = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow;
   return row;
@@ -93,6 +122,9 @@ export function updateProject(
     name?: string;
     status?: string;
     last_edited?: string;
+    locked_summary_md?: string;
+    branding_assets?: string;
+    brainstorm_complete?: number | boolean;
     code?: string;
     package_json?: string;
     chat_messages?: string;
@@ -104,12 +136,19 @@ export function updateProject(
   const name = updates.name ?? project.name;
   const status = updates.status ?? project.status;
   const last_edited = updates.last_edited ?? project.last_edited;
+  const locked_summary_md = updates.locked_summary_md ?? project.locked_summary_md;
+  const branding_assets =
+    updates.branding_assets ?? project.branding_assets ?? "[]";
+  const brainstorm_complete =
+    updates.brainstorm_complete === undefined ? project.brainstorm_complete : (typeof updates.brainstorm_complete === "boolean" ? (updates.brainstorm_complete ? 1 : 0) : updates.brainstorm_complete);
   const code = updates.code ?? project.code;
   const package_json = updates.package_json ?? project.package_json;
   const chat_messages = updates.chat_messages ?? project.chat_messages;
   const specs = updates.specs ?? ("specs" in project ? (project as { specs?: string }).specs : undefined) ?? "{}";
   db.prepare(
-    `UPDATE projects SET name = ?, status = ?, last_edited = ?, code = ?, package_json = ?, chat_messages = ?, specs = ? WHERE id = ? AND user_id = ?`
-  ).run(name, status, last_edited, code, package_json, chat_messages, specs, projectId, userId);
+    `UPDATE projects
+     SET name = ?, status = ?, last_edited = ?, locked_summary_md = ?, branding_assets = ?, brainstorm_complete = ?, code = ?, package_json = ?, chat_messages = ?, specs = ?
+     WHERE id = ? AND user_id = ?`
+  ).run(name, status, last_edited, locked_summary_md, branding_assets, brainstorm_complete, code, package_json, chat_messages, specs, projectId, userId);
   return true;
 }

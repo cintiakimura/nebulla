@@ -7,14 +7,14 @@ import { getSessionToken } from "../lib/supabaseAuth";
 import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
 
 const TABS = [
-  "Objective",
-  "Users & Roles",
-  "Data & Models",
+  "Objective (Goal + Scope)",
+  "Users & Roles (Actor + Access)",
+  "Data & Models (Database Shape)",
   "Constraints & Edges",
-  "Branding System",
+  "Branding System (Full Upload)",
   "Pages & Navigation",
-  "Integrations/APIs",
-  "Done State",
+  "Competition Analysis (optional)",
+  "Pricing (Suggest how to price – optional)",
 ] as const;
 type TabId = (typeof TABS)[number];
 
@@ -22,25 +22,25 @@ const OPENING_LINE =
   "Ready to brainstorm your app? We'll front-load architecture in 7–8 steps so Grok can generate clean Next.js + Supabase code, Sandpack preview, and one-click Vercel deploy. This locks rules for all future code—no guesswork.";
 
 const QUESTIONS: { tab: TabId; text: string }[] = [
-  { tab: "Objective", text: "What's the app purpose and core flows? (e.g. login → dashboard → main action.)" },
-  { tab: "Users & Roles", text: "Who are the actors? What dashboards and permissions do they need? (We'll auto-generate RLS.)" },
-  { tab: "Data & Models", text: "What tables and relations? Any sensitive data (PII, payments)?" },
-  { tab: "Constraints & Edges", text: "Limits: offline support, GDPR, budget, max users, copyright, or other constraints?" },
-  { tab: "Branding System", text: "Branding: colors, fonts, vibe. (Later: upload assets → auto-Tailwind config.)" },
-  { tab: "Pages & Navigation", text: "Core screens and nav style? Mobile-first or desktop-first?" },
-  { tab: "Integrations/APIs", text: "Integrations: Stripe, Google Calendar, etc.? (We'll stub env vars.)" },
-  { tab: "Done State", text: "Success criteria: live URL, test users, zero crashes—anything else?" },
+  { tab: "Objective (Goal + Scope)", text: "What's the app really for? Who wins? E.g., 'Students check grades, book tutors—nothing else.' Include must-have flows: login → dashboard → action." },
+  { tab: "Users & Roles (Actor + Access)", text: "List every person: Student, Teacher, Admin... For each: What dashboard? What pages can they see/edit? (e.g., Student: own grades only, no approvals.)" },
+  { tab: "Data & Models (Database Shape)", text: "What things exist? Tables: Users, Courses, Grades... Relations? (one-to-many?) Sensitive stuff? (PII? Payments?)" },
+  { tab: "Constraints & Edges", text: "Any killers? Offline mode? GDPR? Budget under $50/mo? Max users? Copyrighted content?" },
+  { tab: "Branding System (Full Upload)", text: "Let's define the look & feel. Preferred layout style (minimal, dashboard-heavy, playful…)? Main colors, fonts, tone of voice, logo variants, image style?\nYou can upload files now (logo, brand kit, inspirations — up to 100MB total) or I can generate solid branding suggestions later based on the objective, vibe, and industry once we finish brainstorming.\nNo problem — I can generate a solid branding system later using the app objective, vibe, and industry once we finish brainstorming." },
+  { tab: "Pages & Navigation", text: "Core screens: Login, Dashboard X, Reports... Public/private? Nav bar or sidebar? Mobile-first?" },
+  { tab: "Competition Analysis (optional)", text: "Would you like me to do a quick competition analysis? I can look up similar apps: number of users, estimated revenue/year, pricing models, etc." },
+  { tab: "Pricing (Suggest how to price – optional)", text: "Do you want pricing suggestions? I can recommend tiers based on industry standards — tell me: what similar solutions charge, what features go in each tier, target customer budget… Then I'll propose what feels accurate. Agree?" },
 ];
 
 const MASTER_PLAN_PROJECT_NAME = "Master Plan";
 const MASTER_PLAN_INSTRUCTION =
-  "You are in master-plan mode for a SaaS prototype builder. Input is a structured wizard (7–8 steps). Output will be full Next.js + Supabase code, Sandpack preview, and Vercel deploy. After the user answers each step, summarize in 1–3 sentences and end with: So, [summary]. Lock this? If they say yes, reply briefly confirming. If they say no, skip, or I don't know, reply: No problem—I'll auto-generate when coding. If they say Generate, fill in missing bits from prior answers. When all steps are locked, say: Everything locked. Ready to build?";
+  "You are in master-plan mode for a SaaS prototype builder. Input is a structured wizard (7–8 steps). After the user answers each step, summarize in 1–3 sentences and end with: So, [summary]. Lock this? If they say yes, reply briefly confirming. If they say no, skip, or I don't know, reply: No problem—I'll auto-generate when coding. If they say Generate, fill in missing bits from prior answers. When all steps are locked (or after optional steps are skipped), summarize everything in a single clean locked-spec markdown and end with: Does this capture your vision? Any final changes before we lock it?";
 
 export default function MasterPlanBrainstorming() {
   const navigate = useNavigate();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [specs, setSpecs] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<TabId>("Objective");
+  const [activeTab, setActiveTab] = useState<TabId>("Objective (Goal + Scope)");
   const [content, setContent] = useState("");
   const [messages, setMessages] = useState<{ id: string; role: "user" | "assistant"; content: string }[]>([]);
   const [input, setInput] = useState("");
@@ -57,7 +57,7 @@ export default function MasterPlanBrainstorming() {
   const [chatOpen, setChatOpen] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const MIND_MAP_PROMPT = `Based on our planning conversation and the summarized document sections (objective, users, data, constraints, branding, pages, integrations, done state), output a mind map as a single JSON object with this exact shape (no other text):
+  const MIND_MAP_PROMPT = `Based on our planning conversation and the summarized document sections (objective, users, data, constraints, branding, pages, competition, pricing), output a mind map as a single JSON object with this exact shape (no other text):
 {"nodes":[{"id":"1","label":"App Idea","type":"central"},{"id":"2","label":"Objective","type":"branch"},{"id":"3","label":"Users","type":"branch"}],"edges":[{"source":"1","target":"2"},{"source":"1","target":"3"}]}
 Use one central node "App Idea" and branch nodes for each planning theme we covered. Label branches with short titles. Output only the JSON.`;
 
@@ -182,9 +182,14 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
     });
   };
 
-  const sendToGrok = async (userContent: string) => {
+  const sendToGrok = async (
+    userContent: string,
+    baseMessagesOverride?: typeof messages,
+    specsOverride?: Record<string, string>
+  ) => {
     const apiBase = getApiBase();
-    const nextMessages: typeof messages = [...messages, { id: crypto.randomUUID(), role: "user", content: userContent }];
+    const base = baseMessagesOverride ?? messages;
+    const nextMessages: typeof messages = [...base, { id: crypto.randomUUID(), role: "user", content: userContent }];
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
@@ -196,24 +201,80 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       const res = await fetch(`${apiBase || ""}/api/agent/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({ messages: apiMessages, projectId }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 503) setShowGrokKeyModal(true);
       const reply = res.ok && data?.message?.content ? data.message.content : res.status === 503 ? "Grok isn’t available right now." : "Sorry, I couldn’t reply.";
       const withReply = [...nextMessages, { id: crypto.randomUUID(), role: "assistant" as const, content: reply }];
       setMessages(withReply);
-      setAwaitingLock(reply.toLowerCase().includes("lock this?"));
+      const replyLower = reply.toLowerCase();
+      const shouldAwaitLock =
+        replyLower.includes("lock this?") ||
+        replyLower.includes("does this capture your vision") ||
+        replyLower.includes("before we lock it");
+      setAwaitingLock(shouldAwaitLock);
       setPendingSummary(reply);
-      await saveProject(specs, withReply);
+      await saveProject(specsOverride ?? specs, withReply);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLock = (action: "yes" | "no" | "skip" | "generate") => {
-    const tab = QUESTIONS[stepIndex]?.tab ?? "Objective";
+    const tab = QUESTIONS[stepIndex]?.tab ?? "Objective (Goal + Scope)";
     if (action === "yes" && pendingSummary) {
+      const pendingLower = pendingSummary.toLowerCase();
+      const isFinalVisionLock =
+        pendingLower.includes("does this capture your vision") || pendingLower.includes("before we lock it");
+
+      // Stage 2: user confirms final "lock the whole spec".
+      if (isFinalVisionLock) {
+        const lockedMd = pendingSummary
+          .replace(/\s*does this capture your vision[\s\S]*/i, "")
+          .replace(/\s*before we lock it[\s\S]*/i, "")
+          .trim();
+
+        (async () => {
+          const userId = await getUserId();
+          const apiBase = getApiBase();
+          const token = await getSessionToken();
+          if (!apiBase || !projectId) return;
+          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+
+          const nextSpecs = {
+            ...specs,
+            __locked_summary_md: lockedMd || pendingSummary,
+            __brainstorm_complete: true,
+          } as unknown as Record<string, string>;
+
+          const nextMessages = [
+            ...messages,
+            { id: crypto.randomUUID(), role: "user" as const, content: "yes" },
+            { id: crypto.randomUUID(), role: "assistant" as const, content: "Locked. Ready to build." },
+          ];
+
+          await fetch(`${apiBase}/api/users/${userId}/projects/${projectId}`, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({
+              locked_summary_md: lockedMd || pendingSummary,
+              brainstorm_complete: true,
+              specs: nextSpecs,
+              chat_messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+            }),
+          });
+
+          setMessages(nextMessages);
+          setAwaitingLock(false);
+          setPendingSummary("");
+        })();
+
+        return;
+      }
+
+      // Stage 1: lock the answer for the current step.
       const summary = pendingSummary.replace(/\s*So,?\s*/i, "").replace(/\s*Lock this\?.*/i, "").trim();
       const nextSpecs = { ...specs };
       nextSpecs[tab] = (nextSpecs[tab] || "") + (nextSpecs[tab] ? "\n\n" : "") + summary;
@@ -222,20 +283,29 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       setPendingSummary("");
       setStepIndex((i) => Math.min(i + 1, QUESTIONS.length));
       saveSpecsToProject(nextSpecs);
+
       const nextMessages = [
         ...messages,
         { id: crypto.randomUUID(), role: "user" as const, content: "yes" },
         { id: crypto.randomUUID(), role: "assistant" as const, content: "Locked." },
       ];
-      if (stepIndex + 1 < QUESTIONS.length) {
-        nextMessages.push({
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: QUESTIONS[stepIndex + 1]?.text ?? "",
-        });
-      } else {
-        nextMessages.push({ id: crypto.randomUUID(), role: "assistant", content: "Everything locked. Ready to build?" });
+
+      // If we just locked the last step, ask Grok for the final spec confirmation.
+      if (stepIndex + 1 >= QUESTIONS.length) {
+        sendToGrok(
+          "All steps are now locked. Summarize everything in clean locked-spec markdown and end with: Does this capture your vision? Any final changes before we lock it?",
+          nextMessages,
+          nextSpecs
+        );
+        return;
       }
+
+      nextMessages.push({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: QUESTIONS[stepIndex + 1]?.text ?? "",
+      });
+
       setMessages(nextMessages);
       saveProject(nextSpecs, nextMessages);
       return;
@@ -288,6 +358,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         body: JSON.stringify({
           messages: [...history, { role: "user" as const, content: MIND_MAP_PROMPT + context }],
           userId: await getUserId(),
+          projectId,
         }),
       });
       if (res.status === 503) setShowGrokKeyModal(true);
@@ -310,7 +381,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
 
   if (loadError) {
     return (
-      <div style={{ padding: 24, background: "#1E1E1E", color: "#D4D4D4", fontFamily: "Segoe UI, system-ui, sans-serif" }}>
+      <div style={{ padding: 24, background: "#06061F", color: "#ffffff", fontFamily: "Segoe UI, system-ui, sans-serif" }}>
         <p style={{ color: "#f59e0b" }}>{loadError}</p>
         <p style={{ marginTop: 8, fontSize: 14 }}>Check Settings → Backend URL and try again.</p>
       </div>
@@ -318,7 +389,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
   }
   if (!projectId) {
     return (
-      <div style={{ padding: 24, background: "#1E1E1E", color: "#D4D4D4", fontFamily: "Segoe UI, system-ui, sans-serif" }}>
+      <div style={{ padding: 24, background: "#06061F", color: "#ffffff", fontFamily: "Segoe UI, system-ui, sans-serif" }}>
         Loading…
       </div>
     );
@@ -330,8 +401,8 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         display: "flex",
         height: "100vh",
         overflow: "hidden",
-        background: "#1E1E1E",
-        color: "#D4D4D4",
+        background: "#06061F",
+        color: "#ffffff",
         fontFamily: "Segoe UI, system-ui, sans-serif",
       }}
     >
@@ -341,7 +412,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           style={{
             width: 180,
             flexShrink: 0,
-            background: "#252526",
+            background: "#06061F",
             borderRight: "1px solid #2d3f4f",
             overflow: "auto",
             padding: "12px 0",
@@ -350,11 +421,11 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sections</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#6F748A", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sections</span>
             <button
               type="button"
               onClick={() => setSectionsOpen(false)}
-              style={{ padding: 4, background: "transparent", border: "none", color: "#9ca3af", cursor: "pointer", borderRadius: 4 }}
+              style={{ padding: 4, background: "transparent", border: "none", color: "#6F748A", cursor: "pointer", borderRadius: 4 }}
               title="Hide sections"
             >
               <PanelLeftClose size={14} />
@@ -395,12 +466,12 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           style={{
             width: 28,
             flexShrink: 0,
-            background: "#252526",
+            background: "#06061F",
             borderRight: "1px solid #2d3f4f",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#9ca3af",
+            color: "#6F748A",
             cursor: "pointer",
             border: "none",
           }}
@@ -416,7 +487,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
-          background: "#1e1e1e",
+          background: "#06061F",
         }}
       >
         {/* Toolbar */}
@@ -425,7 +496,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             flexShrink: 0,
             height: 48,
             padding: "0 16px",
-            background: "#252526",
+            background: "#06061F",
             borderBottom: "1px solid #2d3f4f",
             display: "flex",
             alignItems: "center",
@@ -435,7 +506,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <FileText size={18} style={{ color: "#007acc" }} />
-            <span style={{ fontSize: 14, color: "#d4d4d4", fontWeight: 500 }}>Brainstorming doc</span>
+            <span style={{ fontSize: 14, color: "#ffffff", fontWeight: 500 }}>Brainstorming doc</span>
             <button
               type="button"
               onClick={() => setSectionsOpen((o) => !o)}
@@ -444,7 +515,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 background: sectionsOpen ? "#2d3f4f" : "transparent",
                 border: "1px solid #2d3f4f",
                 borderRadius: 4,
-                color: "#9ca3af",
+                color: "#6F748A",
                 cursor: "pointer",
                 fontSize: 12,
                 display: "flex",
@@ -464,7 +535,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 background: chatOpen ? "#2d3f4f" : "transparent",
                 border: "1px solid #2d3f4f",
                 borderRadius: 4,
-                color: "#9ca3af",
+                color: "#6F748A",
                 cursor: "pointer",
                 fontSize: 12,
                 display: "flex",
@@ -498,6 +569,28 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             <Map size={16} />
             {mindMapLoading ? "Generating…" : "Open mind map"}
           </button>
+          {projectId && activeTab === "Branding System (Full Upload)" ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/project/${projectId}/locked-summary`)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                background: "#2d3f4f",
+                color: "#fff",
+                border: "1px solid #2d3f4f",
+                borderRadius: 4,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+              title="Upload branding assets (logos, brand kit, inspiration files)"
+            >
+              <FileText size={16} />
+              Upload Branding
+            </button>
+          ) : null}
         </div>
         {/* Document body */}
         <div
@@ -515,7 +608,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               width: "100%",
               maxWidth: 720,
               minHeight: 400,
-              background: "#252526",
+              background: "#06061F",
               borderRadius: 4,
               boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
               padding: "32px 40px",
@@ -574,51 +667,51 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             width: "35%",
             minWidth: 320,
             flexShrink: 0,
-            background: "#252526",
+            background: "#06061F",
             borderLeft: "1px solid #2d3f4f",
             display: "flex",
             flexDirection: "column",
           }}
         >
           <div style={{ flexShrink: 0, padding: "8px 12px", borderBottom: "1px solid #2d3f4f", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chat</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#6F748A", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chat</span>
             <button
               type="button"
               onClick={() => setChatOpen(false)}
-              style={{ padding: 4, background: "transparent", border: "none", color: "#9ca3af", cursor: "pointer", borderRadius: 4 }}
+              style={{ padding: 4, background: "transparent", border: "none", color: "#6F748A", cursor: "pointer", borderRadius: 4 }}
               title="Hide chat"
             >
               <PanelRightClose size={14} />
             </button>
           </div>
-          <div style={{ flex: 1, overflow: "auto", padding: 12, color: "#D4D4D4" }}>
+          <div style={{ flex: 1, overflow: "auto", padding: 12, color: "#ffffff" }}>
             {messages.map((m) => (
               <div key={m.id} style={{ marginBottom: 12 }}>
-                <strong style={{ color: m.role === "user" ? "#D4D4D4" : "#007ACC" }}>
+                <strong style={{ color: m.role === "user" ? "#ffffff" : "#007ACC" }}>
                   {m.role === "user" ? "You" : "Grok"}:
                 </strong>
-                <div style={{ whiteSpace: "pre-wrap", marginTop: 4, color: "#D4D4D4" }}>{m.content}</div>
+                <div style={{ whiteSpace: "pre-wrap", marginTop: 4, color: "#ffffff" }}>{m.content}</div>
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
           {awaitingLock && (
-            <div style={{ padding: 8, borderTop: "1px solid #2d3f4f", background: "#252526" }}>
+            <div style={{ padding: 8, borderTop: "1px solid #2d3f4f", background: "#06061F" }}>
               <button type="button" onClick={() => handleLock("yes")} style={{ marginRight: 8, padding: "6px 12px", background: "#007ACC", color: "#fff", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Lock
               </button>
-              <button type="button" onClick={() => handleLock("no")} style={{ marginRight: 8, padding: "6px 12px", background: "#2d3f4f", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+              <button type="button" onClick={() => handleLock("no")} style={{ marginRight: 8, padding: "6px 12px", background: "#2d3f4f", color: "#ffffff", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Edit
               </button>
-              <button type="button" onClick={() => handleLock("skip")} style={{ marginRight: 8, padding: "6px 12px", background: "#2d3f4f", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+              <button type="button" onClick={() => handleLock("skip")} style={{ marginRight: 8, padding: "6px 12px", background: "#2d3f4f", color: "#ffffff", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Skip
               </button>
-              <button type="button" onClick={() => handleLock("generate")} style={{ padding: "6px 12px", background: "#2d3f4f", color: "#D4D4D4", border: "none", cursor: "pointer", borderRadius: 4 }}>
+              <button type="button" onClick={() => handleLock("generate")} style={{ padding: "6px 12px", background: "#2d3f4f", color: "#ffffff", border: "none", cursor: "pointer", borderRadius: 4 }}>
                 Generate
               </button>
             </div>
           )}
-          <div style={{ padding: 8, borderTop: "1px solid #2d3f4f", background: "#252526" }}>
+          <div style={{ padding: 8, borderTop: "1px solid #2d3f4f", background: "#06061F" }}>
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -628,8 +721,8 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 width: "100%",
                 padding: 8,
                 marginBottom: 8,
-                background: "#1E1E1E",
-                color: "#D4D4D4",
+                background: "#06061F",
+                color: "#ffffff",
                 border: "1px solid #2d3f4f",
                 borderRadius: 4,
               }}
@@ -651,12 +744,12 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
           style={{
             width: 28,
             flexShrink: 0,
-            background: "#252526",
+            background: "#06061F",
             borderLeft: "1px solid #2d3f4f",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#9ca3af",
+            color: "#6F748A",
             cursor: "pointer",
             border: "none",
           }}
@@ -686,7 +779,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
               width: "90vw",
               maxWidth: 900,
               height: "80vh",
-              background: "#1e1e1e",
+              background: "#06061F",
               borderRadius: 8,
               border: "1px solid #2d3f4f",
               display: "flex",
@@ -703,10 +796,10 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                background: "#252526",
+                background: "#06061F",
               }}
             >
-              <span style={{ fontSize: 14, fontWeight: 500, color: "#d4d4d4" }}>Interactive mind map</span>
+              <span style={{ fontSize: 14, fontWeight: 500, color: "#ffffff" }}>Interactive mind map</span>
               <button
                 type="button"
                 onClick={() => setMindMapOpen(false)}
@@ -714,7 +807,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
                   padding: 6,
                   background: "transparent",
                   border: "none",
-                  color: "#9ca3af",
+                  color: "#6F748A",
                   cursor: "pointer",
                   borderRadius: 4,
                 }}
@@ -724,7 +817,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               {mindMapLoading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9ca3af" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#6F748A" }}>
                   Generating mind map…
                 </div>
               ) : (
@@ -736,11 +829,11 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       )}
 
       {showGrokKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1e1e1e]/80" onClick={() => setShowGrokKeyModal(false)}>
-          <div className="bg-[#252526] border border-[#2d3f4f] rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm text-[#d4d4d4] mb-3">Add your Grok API key in Settings to use chat.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80" onClick={() => setShowGrokKeyModal(false)}>
+          <div className="bg-sidebar-bg border border-border rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-muted mb-3">Add your Grok API key in Settings to use chat.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-[#2d3f4f] text-[#d4d4d4] text-sm">Close</button>
+              <button type="button" onClick={() => setShowGrokKeyModal(false)} className="px-3 py-2 rounded border border-border text-muted text-sm">Close</button>
               <button type="button" onClick={() => { setShowGrokKeyModal(false); navigate("/settings"); }} className="px-3 py-2 rounded bg-[#007ACC] text-white text-sm">Open Settings</button>
             </div>
           </div>

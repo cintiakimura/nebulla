@@ -10,6 +10,7 @@ import Builder from "./pages/Builder";
 import Setup from "./pages/Setup";
 import Settings from "./pages/Settings";
 import MasterPlanBrainstorming from "./pages/MasterPlanBrainstorming";
+import LockedSummary from "./pages/LockedSummary";
 import { ensureSupabaseConfig } from "./lib/supabaseAuth";
 import { isOpenMode } from "./lib/auth";
 
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/master-plan-brainstorming" element={<MasterPlanBrainstorming />} />
+          <Route path="/project/:projectId/locked-summary" element={<LockedSummary />} />
         </Routes>
       </div>
     </BrowserRouter>

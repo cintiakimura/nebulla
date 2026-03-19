@@ -1,35 +1,35 @@
 @import "tailwindcss";
 
-/* Dark blue theme — #1A1A2B background, white text, #007ACC strong blue accent. */
+/* Blue theme — #06061F background, white text, #007ACC accent, #6F748A secondary. */
 @theme inline {
-  --color-vs-bg: #1A1A2B;
-  --color-vs-editor: #1e1e32;
+  --color-vs-bg: #06061F;
+  --color-vs-editor: #06061F;
   --color-vs-accent: #007ACC;
   --color-vs-foreground: #ffffff;
-  --color-vs-muted: #9ca3af;
-  --color-vs-hover: #2B3040;
-  --color-vs-border: #2d3f4f;
-  --color-vs-status: #1A1A2B;
+  --color-vs-muted: #6F748A;
+  --color-vs-hover: #0B0B2A;
+  --color-vs-border: #1F213C;
+  --color-vs-status: #06061F;
   --color-vs-secondary: #007ACC;
 }
 
 @layer base {
   :root {
     --color-primary: #007ACC;
-    --color-background: #1A1A2B;
+    --color-background: #06061F;
     --color-text: #ffffff;
-    --bg-primary: #1A1A2B;
-    --bg-editor: #1e1e32;
-    --bg-sidebar: #252538;
+    --bg-primary: #06061F;
+    --bg-editor: #06061F;
+    --bg-sidebar: #06061F;
     --accent: #007ACC;
     --accent-hover: #1a8ad4;
     --secondary: #007ACC;
     --text-primary: #ffffff;
-    --text-secondary: #9ca3af;
-    --hover: #2B3040;
-    --status-bg: #1A1A2B;
-    --border: #2d3f4f;
-    --border-subtle: #1e1e32;
+    --text-secondary: #6F748A;
+    --hover: #0B0B2A;
+    --status-bg: #06061F;
+    --border: #1F213C;
+    --border-subtle: #06061F;
     --syntax-string: #ce9178;
     --syntax-keyword: #569cd6;
     --syntax-function: #dcdcaa;

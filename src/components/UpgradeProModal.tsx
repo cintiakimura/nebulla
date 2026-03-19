@@ -39,33 +39,33 @@ export default function UpgradeProModal({
       onClick={onClose}
     >
       <div
-        className="bg-[#252536] border border-[#3d3d4d] rounded-lg p-4 w-72 shadow-xl"
+        className="bg-sidebar-bg border border-border rounded-lg p-4 w-72 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-3">
           <span className="text-sm font-medium text-white">{title}</span>
           <button
             onClick={onClose}
-            className="p-1 rounded text-[#9ca3af] hover:text-white hover:bg-[#2d2d3d]"
+            className="p-1 rounded text-muted hover:text-white hover:bg-border/40"
           >
             <X size={16} />
           </button>
         </div>
-        <p className="text-sm text-[#d4d4d4] mb-3">
+        <p className="text-sm text-muted mb-3">
           {message}
         </p>
         {ctaToPricing ? (
           <Link
             to="/pricing"
             onClick={onClose}
-            className="block w-full py-2 px-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-white text-sm rounded-lg transition-colors text-center"
+            className="block w-full py-2 px-3 bg-primary hover:bg-primary/90 text-white text-sm rounded-lg transition-colors text-center"
           >
             {ctaLabel}
           </Link>
         ) : (
           <button
             onClick={onClose}
-            className="w-full py-2 px-3 bg-[#00BFFF] hover:bg-[#40d4ff] text-white text-sm rounded-lg transition-colors"
+            className="w-full py-2 px-3 bg-primary hover:bg-primary/90 text-white text-sm rounded-lg transition-colors"
           >
             {ctaLabel}
           </button>

@@ -143,7 +143,7 @@ export default function Login() {
         Back
       </button>
 
-      <div className="w-full max-w-md bg-[#252526] border border-[#2d3f4f] rounded-2xl p-8 shadow-2xl">
+      <div className="w-full max-w-md bg-sidebar-bg border border-border rounded-2xl p-8 shadow-2xl">
         <div className="text-3xl font-bold text-primary tracking-tighter mb-2">kyn.</div>
         <p className="text-muted mb-6">Sign in to your account</p>
 

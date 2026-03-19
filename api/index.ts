@@ -7,7 +7,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
 const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
-const GROK_MODEL_DEFAULT = "grok-4.2-multi-agent-beta-0309";
 // Client Grok modal expects the error message to mention "grok".
 const SERVICE_UNAVAILABLE_MSG = "Grok service unavailable—try later";
 let grokFirstCallLogged = false;
@@ -17,7 +16,7 @@ function getGrokApiKey(): string | null {
   if (!key || key === "PLACEHOLDER") return null;
   if (!grokFirstCallLogged) {
     grokFirstCallLogged = true;
-    console.log("Grok 4.2 multi-agent beta active, using env key");
+    console.log("Grok active (default: grok-4.1-fast-reasoning; coding: grok-4.20-multi-agent)");
   }
   return key;
 }
@@ -243,17 +242,69 @@ async function handleGrok(
 
   if (method === "POST" && pathname === "/api/agent/chat") {
     try {
-      const { messages, userId: _bodyUserId } = (typeof req.body === "object" && req.body ? req.body : {}) as { messages?: { role: string; content: string }[]; userId?: string };
+      const { messages, userId: _bodyUserId, projectId: _bodyProjectId } = (typeof req.body === "object" && req.body ? req.body : {}) as {
+        messages?: { role: string; content: string }[];
+        userId?: string;
+        projectId?: string;
+      };
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: "messages array required" });
         return true;
       }
       const { AGENT_SYSTEM_PROMPT } = await import("../src/config/agentConfig");
-      const model = (process.env.GROK_MODEL || GROK_MODEL_DEFAULT).trim();
+      const { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } = await import("../src/lib/grokModelSelection");
+      const projectId = typeof _bodyProjectId === "string" ? _bodyProjectId.trim() : "";
+
+      // Best-effort locked spec injection (Vercel serverless Grok handler).
+      let lockedSpecMd = "";
+      if (projectId && typeof _bodyUserId === "string" && _bodyUserId.trim()) {
+        const uid = _bodyUserId.trim();
+        try {
+          const { getProject: supabaseGetProject, isSupabaseConfigured: supabaseIsConfigured } = await import("../src/lib/supabase-multi-tenant");
+          if (supabaseIsConfigured()) {
+            const p = await supabaseGetProject(uid, projectId);
+            lockedSpecMd = p?.locked_summary_md ?? "";
+            if (!lockedSpecMd) {
+              try {
+                const specsObj = JSON.parse(p?.specs ?? "{}") as Record<string, unknown>;
+                lockedSpecMd = (specsObj?.__locked_summary_md as string) ?? "";
+              } catch (_) {}
+            }
+          } else {
+            try {
+              const db = await import("../db");
+              const p = db.getProject(uid, projectId);
+              lockedSpecMd = p?.locked_summary_md ?? "";
+              if (!lockedSpecMd) {
+                try {
+                  const specsObj = JSON.parse(p?.specs ?? "{}") as Record<string, unknown>;
+                  lockedSpecMd = (specsObj?.__locked_summary_md as string) ?? "";
+                } catch (_) {}
+              }
+            } catch (_) {
+              // SQLite not available (e.g. Vercel serverless); leave lockedSpecMd empty
+            }
+          }
+        } catch (e) {
+          console.error("[api/index locked spec injection] failed", e);
+        }
+      }
+
+      const systemLockedSpec =
+        lockedSpecMd && lockedSpecMd.trim()
+          ? `You are building the user's app. ALWAYS base your responses, code generation, and suggestions on this LOCKED SPEC as the single source of truth. Do NOT contradict or ignore it unless the user explicitly says to revise and re-lock.\n\nLocked Spec:\n\n${lockedSpecMd.trim()}`
+          : null;
+
+      const { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
+      const grokModelEnv = process.env.GROK_MODEL;
+      const model =
+        typeof grokModelEnv === "string" && grokModelEnv.trim() !== "" ? grokModelEnv.trim() : selectedModel;
       const body = {
         model,
         messages: [
           { role: "system", content: AGENT_SYSTEM_PROMPT },
+          ...(systemLockedSpec ? [{ role: "system", content: systemLockedSpec }] : []),
+          ...(codingMode ? [{ role: "system", content: GROK_CODING_MODE_SYSTEM }] : []),
           ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
         ],
         stream: false,

@@ -17,6 +17,17 @@ function record(name, ok, detail) {
   console.log("  [" + (ok ? "PASS" : "FAIL") + "] " + name + (detail ? " — " + detail : ""));
 }
 
+/** When START_SERVER=1, requests need Origin so server treats as open-mode (localhost) and applies OPEN_MODE_FALLBACK_USER_ID. */
+function openModeHeaders(base) {
+  if (!START_SERVER || !base) return {};
+  try {
+    const u = new URL(base);
+    return { Origin: u.origin };
+  } catch (_) {
+    return {};
+  }
+}
+
 async function waitForServer(url, maxWait) {
   const start = Date.now();
   while (Date.now() - start < maxWait) {
@@ -84,18 +95,19 @@ async function runTests() {
 
     console.log("\n--- 2. Projects ---");
     const userId = START_SERVER ? "test-open-mode-user" : "test-user-" + Date.now();
+    const omHeaders = openModeHeaders(testBase);
     try {
-      const listRes = await fetch(testBase + "/api/users/" + userId + "/projects");
+      const listRes = await fetch(testBase + "/api/users/" + userId + "/projects", { headers: omHeaders });
       const listJson = await listRes.json().catch(() => null);
       record("GET /api/users/:userId/projects", listRes.ok && Array.isArray(listJson), listRes.ok ? "" : String(listRes.status));
 
-      const limitsRes = await fetch(testBase + "/api/users/" + userId + "/limits");
+      const limitsRes = await fetch(testBase + "/api/users/" + userId + "/limits", { headers: omHeaders });
       const limitsData = await limitsRes.json().catch(() => ({}));
       record("GET /api/users/:userId/limits", limitsRes.ok && typeof limitsData.projectLimit === "number", limitsRes.ok ? "limit=" + limitsData.projectLimit : String(limitsRes.status));
 
       const createRes = await fetch(testBase + "/api/users/" + userId + "/projects", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...omHeaders },
         body: JSON.stringify({ name: "Test Project" }),
       });
       const createData = await createRes.json().catch(() => ({}));
@@ -104,13 +116,13 @@ async function runTests() {
 
       const projectId = createData && createData.id;
       if (projectId) {
-        const getRes = await fetch(testBase + "/api/users/" + userId + "/projects/" + projectId);
+        const getRes = await fetch(testBase + "/api/users/" + userId + "/projects/" + projectId, { headers: omHeaders });
         const getData = await getRes.json().catch(() => ({}));
         record("GET /api/users/:userId/projects/:id", getRes.ok && getData.id, getRes.ok ? "" : String(getRes.status));
 
         const updateRes = await fetch(testBase + "/api/users/" + userId + "/projects/" + projectId, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...omHeaders },
           body: JSON.stringify({ name: "Updated", last_edited: new Date().toISOString() }),
         });
         const updateData = await updateRes.json().catch(() => ({}));
@@ -139,8 +151,10 @@ async function runTests() {
       const chatData = await chatRes.json().catch(() => ({}));
       const chatOk = chatRes.ok && chatData.message && typeof chatData.message.content === "string";
       const chat503 = chatRes.status === 503;
+      const chat400 = chatRes.status === 400 && (chatData?.error === "Grok API error" || (chatData?.error && String(chatData.error).toLowerCase().includes("grok")));
       if (chatOk) record("POST /api/agent/chat", true, "reply received");
       else if (chat503) record("POST /api/agent/chat", true, "503 (GROK_API_KEY not set)");
+      else if (chat400) record("POST /api/agent/chat", true, "400 (Grok API error, key set)");
       else record("POST /api/agent/chat", false, chatRes.status + " " + JSON.stringify(chatData).slice(0, 60));
     } catch (e) {
       record("Agent chat", false, e.message);

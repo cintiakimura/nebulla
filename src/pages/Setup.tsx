@@ -51,7 +51,7 @@ export default function Setup() {
       </div>
 
       {/* Sidebar - minimal when on setup */}
-      <div className="w-64 bg-[#252526] border-r border-border flex flex-col">
+      <div className="w-64 bg-sidebar-bg border-r border-border flex flex-col">
         <div className="p-3 text-xs font-semibold tracking-wider text-primary uppercase">
           Setup
         </div>
@@ -79,7 +79,7 @@ export default function Setup() {
       </div>
 
       {/* Chat Panel - same width as Explorer */}
-      <div className="w-64 bg-[#252526] border-l border-border flex flex-col flex-shrink-0">
+      <div className="w-64 bg-sidebar-bg border-l border-border flex flex-col flex-shrink-0">
         <div className="p-3 text-xs font-semibold tracking-wider text-primary uppercase border-b border-border">
           Chat
         </div>

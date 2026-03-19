@@ -1,4 +1,4 @@
-/** Dark blue theme: #1A1A2B background, white text, #007ACC strong blue accent. */
+/** Blue theme: #06061F background, white text, #007ACC strong blue accent. */
 export default {
   darkMode: "class",
   theme: {
@@ -6,22 +6,22 @@ export default {
       colors: {
         primary: "#007ACC",
         secondary: "#007ACC",
-        background: "#1A1A2B",
-        "editor-bg": "#1e1e32",
-        "sidebar-bg": "#252538",
+        background: "#06061F",
+        "editor-bg": "#06061F",
+        "sidebar-bg": "#06061F",
         text: "#ffffff",
-        muted: "#9ca3af",
-        border: "#2d3f4f",
+        muted: "#6F748A",
+        border: "#1F213C",
         abyss: {
-          bg: "#1A1A2B",
-          "editor-bg": "#1e1e32",
+          bg: "#06061F",
+          "editor-bg": "#06061F",
           text: "#ffffff",
           accent: "#007ACC",
           "accent-hover": "#1a8ad4",
           secondary: "#007ACC",
-          muted: "#9ca3af",
-          border: "#2d3f4f",
-          hover: "#2B3040",
+          muted: "#6F748A",
+          border: "#1F213C",
+          hover: "#0B0B2A",
         },
       },
       fontFamily: {

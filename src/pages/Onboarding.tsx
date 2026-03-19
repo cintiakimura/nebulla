@@ -80,18 +80,18 @@ export default function Onboarding() {
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-white mb-2">New Project Setup</h1>
           <div className="flex items-center gap-4 text-sm mt-4">
-            <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-[#9ca3af]'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 1 ? 'border-primary bg-primary/15' : 'border-[#2d3f4f]'}`}>1</div>
+            <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-muted'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 1 ? 'border-primary bg-primary/15' : 'border-border'}`}>1</div>
               <span>Architecture</span>
             </div>
             <div className="w-12 h-px bg-border"></div>
-            <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-[#9ca3af]'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 2 ? 'border-primary bg-primary/15' : 'border-[#2d3f4f]'}`}>2</div>
+            <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-muted'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 2 ? 'border-primary bg-primary/15' : 'border-border'}`}>2</div>
               <span>Mind Map</span>
             </div>
             <div className="w-12 h-px bg-border"></div>
-            <div className={`flex items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-[#9ca3af]'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 3 ? 'border-primary bg-primary/15' : 'border-[#2d3f4f]'}`}>3</div>
+            <div className={`flex items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-muted'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 3 ? 'border-primary bg-primary/15' : 'border-border'}`}>3</div>
               <span>Export & Build</span>
             </div>
           </div>
@@ -104,36 +104,36 @@ export default function Onboarding() {
               <h2 className="text-xl text-white font-medium mb-4">Define Architecture</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Objective (What's the app for? Who wins?)</label>
-                  <textarea name="objective" value={formData.objective} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. A SaaS for teachers to manage grades..." />
+                  <label className="text-sm font-medium text-muted">Objective (What's the app for? Who wins?)</label>
+                  <textarea name="objective" value={formData.objective} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. A SaaS for teachers to manage grades..." />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Users & Roles (Student/Teacher/Admin)</label>
-                  <textarea name="usersRoles" value={formData.usersRoles} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Admin (full access), Teacher (edit grades), Student (read only)" />
+                  <label className="text-sm font-medium text-muted">Users & Roles (Student/Teacher/Admin)</label>
+                  <textarea name="usersRoles" value={formData.usersRoles} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Admin (full access), Teacher (edit grades), Student (read only)" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Data & Models (Tables, relations)</label>
-                  <textarea name="dataModels" value={formData.dataModels} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Users, Classes, Grades. Users 1:N Grades." />
+                  <label className="text-sm font-medium text-muted">Data & Models (Tables, relations)</label>
+                  <textarea name="dataModels" value={formData.dataModels} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Users, Classes, Grades. Users 1:N Grades." />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Constraints (Budget, GDPR, offline)</label>
-                  <textarea name="constraints" value={formData.constraints} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Must be GDPR compliant, mobile-first." />
+                  <label className="text-sm font-medium text-muted">Constraints (Budget, GDPR, offline)</label>
+                  <textarea name="constraints" value={formData.constraints} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Must be GDPR compliant, mobile-first." />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Branding (Colors, fonts, tone)</label>
-                  <textarea name="branding" value={formData.branding} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Dark mode, blue accents, professional tone." />
+                  <label className="text-sm font-medium text-muted">Branding (Colors, fonts, tone)</label>
+                  <textarea name="branding" value={formData.branding} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Dark mode, blue accents, professional tone." />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Pages & Navigation (Core screens)</label>
-                  <textarea name="pagesNav" value={formData.pagesNav} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. /login, /dashboard, /settings. Sidebar nav." />
+                  <label className="text-sm font-medium text-muted">Pages & Navigation (Core screens)</label>
+                  <textarea name="pagesNav" value={formData.pagesNav} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. /login, /dashboard, /settings. Sidebar nav." />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Integrations (Stripe, Calendar)</label>
-                  <textarea name="integrations" value={formData.integrations} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Stripe for payments, Google Calendar." />
+                  <label className="text-sm font-medium text-muted">Integrations (Stripe, Calendar)</label>
+                  <textarea name="integrations" value={formData.integrations} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Stripe for payments, Google Calendar." />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#9ca3af]">Done State (Live URL, zero crashes)</label>
-                  <textarea name="doneState" value={formData.doneState} onChange={handleChange} className="w-full h-24 bg-[#1e1e1e] border border-[#2d3f4f] rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Deployed to Vercel, 0 console errors." />
+                  <label className="text-sm font-medium text-muted">Done State (Live URL, zero crashes)</label>
+                  <textarea name="doneState" value={formData.doneState} onChange={handleChange} className="w-full h-24 bg-editor-bg border border-border rounded-md p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="e.g. Deployed to Vercel, 0 console errors." />
                 </div>
               </div>
             </div>
@@ -143,7 +143,7 @@ export default function Onboarding() {
             <div className="h-full flex flex-col">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl text-white font-medium">Auto-Generated Mind Map</h2>
-                <p className="text-sm text-[#9ca3af]">Drag nodes to rearrange. AI watches changes.</p>
+                <p className="text-sm text-muted">Drag nodes to rearrange. AI watches changes.</p>
               </div>
               <div className="flex-1 min-h-[500px]">
                 <MindMap />
@@ -157,7 +157,7 @@ export default function Onboarding() {
                 <CheckCircle size={40} />
               </div>
               <h2 className="text-3xl text-white font-medium">Architecture Complete</h2>
-              <p className="text-[#9ca3af] max-w-md">
+              <p className="text-muted max-w-md">
                 Your tech spec and mind map are ready. You can download the spec or proceed directly to the builder.
               </p>
               <div className="flex gap-4 mt-8">

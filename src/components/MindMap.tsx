@@ -37,7 +37,7 @@ export default function MindMap() {
   );
 
   return (
-    <div className="w-full h-full bg-[#1e1e1e] rounded-lg border border-[#333333] overflow-hidden">
+    <div className="w-full h-full bg-editor-bg rounded-lg border border-border overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges}
