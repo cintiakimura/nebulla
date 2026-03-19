@@ -1,7 +1,7 @@
 /**
  * Single API handler for all /api/* requests (used with vercel.json rewrite).
  * Rewrite sends /api/:path* → /api?path=:path*; we set req.url for Express.
- * Open-dev-user + Grok (agent/chat, tts) are handled here so we never load server.ts (and better-sqlite3) on Vercel.
+ * Open-dev-user + Grok (agent/chat, tts) + config audits are handled here so we never load server.ts (and better-sqlite3) on Vercel.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
@@ -538,6 +538,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if ((req.method ?? "GET") === "GET" && pathname === "/api/integrations/summary") {
     const { getIntegrationsSummaryJson } = await import("../src/lib/integrationsSummary.js");
     res.status(200).json(await getIntegrationsSummaryJson());
+    return;
+  }
+
+  // Secrets audit — must not fall through to Express+SQLite on Vercel.
+  if ((req.method ?? "GET") === "GET" && pathname === "/api/config/secrets-audit") {
+    const { buildSecretsAuditPayload } = await import("../src/lib/secretsAuditPayload.js");
+    res.status(200).json(buildSecretsAuditPayload());
+    return;
+  }
+  if ((req.method ?? "GET") === "GET" && pathname === "/api/config/production-readiness") {
+    const { buildProductionReadinessPayload } = await import("../src/lib/secretsAuditPayload.js");
+    res.status(200).json(buildProductionReadinessPayload());
+    return;
+  }
+  if ((req.method ?? "POST") === "POST" && pathname === "/api/config/secrets-alignment") {
+    const { buildSecretsAlignmentPayload } = await import("../src/lib/secretsAuditPayload.js");
+    const body =
+      typeof req.body === "object" && req.body
+        ? (req.body as { browserSecrets?: Record<string, boolean> })
+        : {};
+    const browser = body.browserSecrets ?? {};
+    res.status(200).json(buildSecretsAlignmentPayload(browser));
     return;
   }
 
