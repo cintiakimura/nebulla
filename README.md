@@ -24,6 +24,7 @@ These do not affect build or runtime. The Vite **chunk size** warning is relaxed
 - **`npm run kyn:ready`** — optional: lint + build + full API smoke tests (same as `vetr:verify`)  
 - **`npm run kyn:setup`** — fresh clone: `npm install` + doctor  
 - **`npm run kyn:doctor`** — quick `.env` check only  
+- **`npm run deploy`** — production deploy to Vercel (`vercel --prod` only; run `vercel login` first, or set `VERCEL_TOKEN`)
 
 1. Copy `.env.example` to `.env`
 2. Fill in the required placeholders:
