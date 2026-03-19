@@ -953,16 +953,18 @@ export default function Builder() {
                 <button
                   type="button"
                   onClick={() => navigate("/settings")}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg border border-border hover:bg-editor-bg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/20 border border-border/40 hover:bg-editor-bg/70 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
                 >
-                  Clone from Github
+                  <Github size={18} className="text-primary" />
+                  <span className="text-[11px] text-muted font-medium">GitHub</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg border border-border hover:bg-editor-bg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/20 border border-border/40 hover:bg-editor-bg/70 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
                 >
-                  Open folder
+                  <FolderOpen size={18} className="text-muted" />
+                  <span className="text-[11px] text-muted font-medium">Local folder</span>
                 </button>
                 <button
                   type="button"
@@ -974,9 +976,10 @@ export default function Builder() {
                     }
                     chatInputDomRef.current?.focus();
                   }}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg border border-border hover:bg-editor-bg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/20 border border-border/40 hover:bg-editor-bg/70 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
                 >
-                  Write prompt
+                  <FileText size={18} className="text-muted" />
+                  <span className="text-[11px] text-muted font-medium">Prompt</span>
                 </button>
               </div>
               <p className="text-sm text-muted text-center">Create a project and start coding. Chat with Grok on the right to plan or generate code.</p>
@@ -1295,7 +1298,7 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg border border-white/50 text-sm text-white placeholder-muted focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg/20 border border-border/40 text-sm text-white placeholder-muted focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
                 ref={chatInputDomRef}
