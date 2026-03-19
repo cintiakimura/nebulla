@@ -7,7 +7,14 @@ import { AGENT_ID, AGENT_SYSTEM_PROMPT, AGENT_PRE_CODE_QUESTIONS } from "./src/c
 import {
   getGrokModelAndMode,
   GROK_CODING_MODE_SYSTEM,
+  GROK_FAST_REASONING,
+  GROK_MULTI_AGENT,
 } from "./src/lib/grokModelSelection.js";
+import {
+  runCodeAgentPipeline,
+  runDeployAgentPipeline,
+  type CodeAgentRequestBody,
+} from "./src/lib/multiAgentHandlers.js";
 import { buildGrokChatErrorBody } from "./src/lib/grokApiError.js";
 import * as db from "./db.js";
 import {
@@ -843,10 +850,11 @@ async function startServer() {
       return;
     }
     try {
-      const { messages, userId: bodyUserId, projectId: bodyProjectId } = req.body as {
+      const { messages, userId: bodyUserId, projectId: bodyProjectId, interactionMode } = req.body as {
         messages?: { role: string; content: string }[];
         userId?: string;
         projectId?: string;
+        interactionMode?: "talk" | "code";
       };
       const authUserId = (req as RequestWithUserId).userId;
       if (isSupabaseConfigured() && !authUserId) {
@@ -877,7 +885,14 @@ async function startServer() {
         res.status(400).json({ error: "messages array required" });
         return;
       }
-      const { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
+      let { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
+      if (interactionMode === "talk") {
+        codingMode = false;
+        selectedModel = GROK_FAST_REASONING;
+      } else if (interactionMode === "code") {
+        codingMode = true;
+        selectedModel = GROK_MULTI_AGENT;
+      }
       const grokModelEnv = process.env.GROK_MODEL;
       const model =
         typeof grokModelEnv === "string" && grokModelEnv.trim() !== "" ? grokModelEnv.trim() : selectedModel;
@@ -1164,6 +1179,48 @@ async function startServer() {
     } catch (err) {
       console.error("[builder generate]", err);
       res.status(500).json({ error: "UI code generation failed", details: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/agents/code-run", resolveUserId, async (req, res) => {
+    const apiKey = getGrokApiKeyFromRequest(req);
+    if (!apiKey) {
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
+      return;
+    }
+    try {
+      const body = req.body as CodeAgentRequestBody;
+      const out = await runCodeAgentPipeline(apiKey, body, process.env);
+      if (out.error === "grok_failed" && typeof (out as { status?: number }).status === "number") {
+        res.status((out as { status: number }).status).json(out);
+        return;
+      }
+      if (out.error) {
+        res.status(400).json(out);
+        return;
+      }
+      res.json(out);
+    } catch (e) {
+      console.error("[agents/code-run]", e);
+      res.status(500).json({ error: "code agent failed", details: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.post("/api/agents/deploy-run", resolveUserId, async (_req, res) => {
+    try {
+      const out = await runDeployAgentPipeline(process.env);
+      if (out.error === "deploy_not_configured") {
+        res.status(501).json(out);
+        return;
+      }
+      if (out.error) {
+        res.status(502).json(out);
+        return;
+      }
+      res.json(out);
+    } catch (e) {
+      console.error("[agents/deploy-run]", e);
+      res.status(500).json({ error: "deploy agent failed", details: e instanceof Error ? e.message : String(e) });
     }
   });
 

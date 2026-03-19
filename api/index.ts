@@ -6,7 +6,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { AGENT_SYSTEM_PROMPT } from "../src/config/agentConfig.js";
-import { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } from "../src/lib/grokModelSelection.js";
+import {
+  getGrokModelAndMode,
+  GROK_CODING_MODE_SYSTEM,
+  GROK_FAST_REASONING,
+  GROK_MULTI_AGENT,
+} from "../src/lib/grokModelSelection.js";
+import { runCodeAgentPipeline, runDeployAgentPipeline } from "../src/lib/multiAgentHandlers.js";
 import {
   getProject as supabaseGetProject,
   isSupabaseConfigured as supabaseIsConfigured,
@@ -323,11 +329,15 @@ async function handleGrok(
 
   if (method === "POST" && pathname === "/api/agent/chat") {
     try {
-      const { messages, userId: _bodyUserId, projectId: _bodyProjectId } = (typeof req.body === "object" && req.body ? req.body : {}) as {
+      const { messages, userId: _bodyUserId, projectId: _bodyProjectId, interactionMode: _interactionMode } = (
+        typeof req.body === "object" && req.body ? req.body : {}
+      ) as {
         messages?: { role: string; content: string }[];
         userId?: string;
         projectId?: string;
+        interactionMode?: string;
       };
+      const interactionMode = _interactionMode === "code" ? "code" : "talk";
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: "messages array required" });
         return true;
@@ -375,7 +385,14 @@ async function handleGrok(
           ? `You are building the user's app. ALWAYS base your responses, code generation, and suggestions on this LOCKED SPEC as the single source of truth. Do NOT contradict or ignore it unless the user explicitly says to revise and re-lock.\n\nLocked Spec:\n\n${lockedSpecMd.trim()}`
           : null;
 
-      const { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
+      let { model: selectedModel, codingMode } = getGrokModelAndMode(messages);
+      if (interactionMode === "talk") {
+        codingMode = false;
+        selectedModel = GROK_FAST_REASONING;
+      } else if (interactionMode === "code") {
+        codingMode = true;
+        selectedModel = GROK_MULTI_AGENT;
+      }
       const grokModelEnv = process.env.GROK_MODEL;
       const model =
         typeof grokModelEnv === "string" && grokModelEnv.trim() !== "" ? grokModelEnv.trim() : selectedModel;
@@ -516,6 +533,48 @@ async function handleGrok(
   return false;
 }
 
+async function handleMultiAgent(
+  method: string,
+  pathname: string,
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<boolean> {
+  if (method !== "POST") return false;
+  if (pathname === "/api/agents/code-run") {
+    const apiKey = getGrokApiKey();
+    if (!apiKey) {
+      res.status(503).json({ error: SERVICE_UNAVAILABLE_MSG });
+      return true;
+    }
+    const body = (typeof req.body === "object" && req.body ? req.body : {}) as import("../src/lib/multiAgentHandlers.js").CodeAgentRequestBody;
+    const out = await runCodeAgentPipeline(apiKey, body, process.env);
+    if (out.error === "grok_failed" && typeof (out as { status?: number }).status === "number") {
+      res.status((out as { status: number }).status).json(out);
+      return true;
+    }
+    if (out.error) {
+      res.status(400).json(out);
+      return true;
+    }
+    res.status(200).json(out);
+    return true;
+  }
+  if (pathname === "/api/agents/deploy-run") {
+    const out = await runDeployAgentPipeline(process.env);
+    if (out.error === "deploy_not_configured") {
+      res.status(501).json(out);
+      return true;
+    }
+    if (out.error) {
+      res.status(502).json(out);
+      return true;
+    }
+    res.status(200).json(out);
+    return true;
+  }
+  return false;
+}
+
 let appPromise: Promise<Awaited<ReturnType<typeof import("../server").createApp>>> | null = null;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -565,6 +624,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const handled = await handleOpenDevUser(req.method ?? "GET", req, res, pathname);
   if (handled) return;
+
+  const agentHandled = await handleMultiAgent(req.method ?? "GET", pathname, req, res);
+  if (agentHandled) return;
 
   const grokHandled = await handleGrok(req.method ?? "GET", req, res, pathname);
   if (grokHandled) return;

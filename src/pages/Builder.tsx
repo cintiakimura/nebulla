@@ -4,7 +4,7 @@ import {
   Play, Square, Terminal as TerminalIcon, Layout, 
   Mic, MicOff, Settings, FileCode, Github,
   X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Paperclip, Send, Volume2, VolumeX, Download, AlertCircle, FileText,
-  Plus, FolderOpen, MessageSquare,
+  Plus, FolderOpen, MessageSquare, Bug, Code2,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import {
@@ -25,6 +25,12 @@ import { playGrokTts } from "../lib/grokVoiceAgent";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
+import { runBuilderAgentChain } from "../lib/builderAgentChain";
+import { loadAgentTaskMemory } from "../lib/multiAgentMemory";
+
+const BUILDER_BG = "#020C17";
+const BUILDER_ACCENT = "#081334";
+const BUILDER_MUTED = "#6C7286";
 
 // A component to sync Monaco with Sandpack
 const MonacoSync = ({ code, setCode }: { code: string, setCode: (c: string) => void }) => {
@@ -61,13 +67,23 @@ function BuilderBottomPanel({
   sandpackConsole?: React.ReactNode;
 }) {
   return (
-    <div className="h-[min(42vh,22rem)] min-h-[132px] max-h-[min(50vh,24rem)] bg-editor-bg border-t border-border flex flex-col flex-shrink-0">
-      <div className="h-9 flex items-center border-b border-border bg-sidebar-bg flex-shrink-0">
+    <div
+      className="h-[min(42vh,22rem)] min-h-[132px] max-h-[min(50vh,24rem)] border-t flex flex-col flex-shrink-0"
+      style={{ backgroundColor: BUILDER_BG, borderColor: "#0a1628" }}
+    >
+      <div
+        className="h-9 flex items-center border-b flex-shrink-0"
+        style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+      >
         <div className="flex items-center h-full">
           <button
             type="button"
             onClick={() => setBottomPanelTab("terminal")}
-            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "terminal" ? "border-primary text-primary bg-editor-bg" : "border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]"}`}
+            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "terminal" ? "border-cyan-500/60" : "border-transparent"}`}
+            style={{
+              color: bottomPanelTab === "terminal" ? "#a8b0c0" : BUILDER_MUTED,
+              backgroundColor: bottomPanelTab === "terminal" ? BUILDER_BG : "transparent",
+            }}
           >
             <TerminalIcon size={14} />
             <span className="text-xs uppercase tracking-wider">Terminal</span>
@@ -75,7 +91,11 @@ function BuilderBottomPanel({
           <button
             type="button"
             onClick={() => setBottomPanelTab("output")}
-            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "output" ? "border-primary text-primary bg-editor-bg" : "border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]"}`}
+            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "output" ? "border-cyan-500/60" : "border-transparent"}`}
+            style={{
+              color: bottomPanelTab === "output" ? "#a8b0c0" : BUILDER_MUTED,
+              backgroundColor: bottomPanelTab === "output" ? BUILDER_BG : "transparent",
+            }}
           >
             <FileCode size={14} />
             <span className="text-xs uppercase tracking-wider">Output</span>
@@ -83,24 +103,40 @@ function BuilderBottomPanel({
           <button
             type="button"
             onClick={() => setBottomPanelTab("problems")}
-            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "problems" ? "border-primary text-primary bg-editor-bg" : "border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]"}`}
+            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "problems" ? "border-cyan-500/60" : "border-transparent"}`}
+            style={{
+              color: bottomPanelTab === "problems" ? "#a8b0c0" : BUILDER_MUTED,
+              backgroundColor: bottomPanelTab === "problems" ? BUILDER_BG : "transparent",
+            }}
           >
             <AlertCircle size={14} />
             <span className="text-xs uppercase tracking-wider">Problems</span>
           </button>
         </div>
         <div className="ml-auto flex items-center pr-2">
-          <button type="button" onClick={() => setTerminalOpen(false)} className="text-muted hover:text-white p-1.5 rounded hover:bg-[#2d3f4f]" title="Close panel">
+          <button
+            type="button"
+            onClick={() => setTerminalOpen(false)}
+            className="p-1.5 rounded hover:opacity-90"
+            style={{ color: BUILDER_MUTED }}
+            title="Close panel"
+          >
             <X size={14} />
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0 font-mono text-sm text-white">
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0 font-mono text-sm" style={{ color: "#a8b0c0" }}>
         {bottomPanelTab === "terminal" && (
           <div className="flex flex-col h-full min-h-0">
             {sandpackConsole ? (
-              <div className="shrink-0 h-[42%] min-h-[96px] max-h-[200px] border-b border-border bg-[#1a1a1a] overflow-hidden flex flex-col">
-                <div className="text-[10px] uppercase tracking-wider text-muted px-3 py-1 border-b border-border/60 bg-[#252526]">
+              <div
+                className="shrink-0 h-[42%] min-h-[96px] max-h-[200px] border-b overflow-hidden flex flex-col"
+                style={{ backgroundColor: BUILDER_BG, borderColor: "#0a1628" }}
+              >
+                <div
+                  className="text-[10px] uppercase tracking-wider px-3 py-1 border-b"
+                  style={{ color: BUILDER_MUTED, borderColor: "#0a1628", backgroundColor: BUILDER_ACCENT }}
+                >
                   Preview console (Sandpack)
                 </div>
                 <div className="flex-1 min-h-0 overflow-auto sandpack-console-embed">
@@ -108,21 +144,25 @@ function BuilderBottomPanel({
                 </div>
               </div>
             ) : null}
-            <div className={`flex-1 min-h-0 overflow-auto p-3 ${sandpackConsole ? "" : "pt-3"}`}>
+            <div className={`flex-1 min-h-0 overflow-auto p-3 ${sandpackConsole ? "" : "pt-3"}`} style={{ backgroundColor: BUILDER_BG }}>
               {sandpackConsole ? (
-                <div className="text-[10px] uppercase tracking-wider text-muted mb-2">Kyn activity</div>
+                <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: BUILDER_MUTED }}>
+                  Kyn activity
+                </div>
               ) : null}
               {logs.map((log, i) => (
                 <div
                   key={i}
-                  className={`mb-1 ${log.includes("Error") || log.includes("Failed") ? "text-red-400" : log.includes("Success") ? "text-green-400" : log.includes("AI") || log.includes("Grok") ? "text-blue-400" : ""}`}
+                  className={`mb-1 ${log.includes("Error") || log.includes("Failed") ? "text-red-400" : log.includes("Success") ? "text-green-400" : log.includes("AI") || log.includes("Grok") ? "text-cyan-400/90" : ""}`}
                 >
-                  <span className="text-[#6b7280] mr-2">$</span>
+                  <span className="mr-2" style={{ color: BUILDER_MUTED }}>
+                    $
+                  </span>
                   {log}
                 </div>
               ))}
               {listening && transcript ? (
-                <div className="text-muted italic mt-2">
+                <div className="italic mt-2" style={{ color: BUILDER_MUTED }}>
                   <span className="mr-2">~</span>
                   {transcript}...
                 </div>
@@ -131,19 +171,23 @@ function BuilderBottomPanel({
           </div>
         )}
         {bottomPanelTab === "output" && (
-          <div className="p-4 h-full overflow-auto">
+          <div className="p-4 h-full overflow-auto" style={{ backgroundColor: BUILDER_BG }}>
             {logs.map((log, i) => (
               <div key={i} className={`mb-1 ${log.includes("Error") || log.includes("Failed") ? "text-red-400" : log.includes("Success") ? "text-green-400" : ""}`}>
-                <span className="text-[#6b7280] mr-2 select-none">›</span>
+                <span className="mr-2 select-none" style={{ color: BUILDER_MUTED }}>
+                  ›
+                </span>
                 {log}
               </div>
             ))}
-            {logs.length === 0 ? <div className="text-[#6b7280]">No output yet.</div> : null}
+            {logs.length === 0 ? (
+              <div style={{ color: BUILDER_MUTED }}>No output yet.</div>
+            ) : null}
           </div>
         )}
         {bottomPanelTab === "problems" && (
-          <div className="p-4 text-muted h-full overflow-auto">
-            <div className="text-xs text-[#6b7280] mb-2">No problems have been detected in the workspace.</div>
+          <div className="p-4 h-full overflow-auto" style={{ backgroundColor: BUILDER_BG, color: BUILDER_MUTED }}>
+            <div className="text-xs mb-2">No problems have been detected in the workspace.</div>
           </div>
         )}
       </div>
@@ -161,10 +205,13 @@ function BuilderStatusBar({
   paidStatus: { paid: boolean };
 }) {
   return (
-    <div className="h-6 bg-primary text-white text-xs flex items-center px-3 justify-between flex-shrink-0">
+    <div
+      className="h-6 text-xs flex items-center px-3 justify-between flex-shrink-0 border-t"
+      style={{ backgroundColor: "#081334", color: "#6C7286", borderColor: "#0a1628" }}
+    >
       <div className="flex items-center gap-4">
         {paidStatus.paid ? (
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 text-[#a8b0c0]">
             <Github size={12} /> main*
           </span>
         ) : (
@@ -173,15 +220,20 @@ function BuilderStatusBar({
           </span>
         )}
         <span className="flex items-center gap-1">
-          <X size={12} className="text-red-300" /> 0
+          <X size={12} className="text-amber-600/80" /> 0
         </span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <span>Ln 1, Col 1</span>
-        <span>Spaces: 2</span>
         <span>UTF-8</span>
-        <span>TypeScript React</span>
-        <button type="button" onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-primary/20 px-1 rounded" title={terminalOpen ? "Hide terminal" : "Show terminal"}>
+        <span>TSX</span>
+        <button
+          type="button"
+          onClick={() => setTerminalOpen(!terminalOpen)}
+          className="hover:opacity-90 px-1 rounded"
+          style={{ color: "#a8b0c0" }}
+          title={terminalOpen ? "Hide preview console panel" : "Show preview console panel"}
+        >
           <TerminalIcon size={12} />
         </button>
       </div>
@@ -243,6 +295,23 @@ export default function Builder() {
   const [setupComplete, setSetupCompleteState] = useState(getSetupComplete());
   const [chatInput, setChatInput] = useState("");
   const chatInputDomRef = useRef<HTMLInputElement | null>(null);
+  const [agentDebugEnabled, setAgentDebugEnabled] = useState(() => {
+    try {
+      return localStorage.getItem("kyn_agent_debug_chain") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [interactionMode, setInteractionMode] = useState<"talk" | "code">(() => {
+    try {
+      const v = localStorage.getItem("kyn_interaction_mode");
+      return v === "code" ? "code" : "talk";
+    } catch {
+      return "talk";
+    }
+  });
+  const [explorerOpen, setExplorerOpen] = useState(true);
+  const [agentRunning, setAgentRunning] = useState(false);
   const [grokSpeaks, setGrokSpeaks] = useState(() => {
     try { return localStorage.getItem("kyn_grok_speaks") !== "false"; } catch { return true; }
   });
@@ -615,18 +684,105 @@ export default function Builder() {
     }
   }, []);
 
+  const persistInteractionMode = (m: "talk" | "code") => {
+    setInteractionMode(m);
+    try {
+      localStorage.setItem("kyn_interaction_mode", m);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const persistAgentDebug = (on: boolean) => {
+    setAgentDebugEnabled(on);
+    try {
+      localStorage.setItem("kyn_agent_debug_chain", on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    const mem = loadAgentTaskMemory();
+    if (mem.length === 0) return;
+    setLogs((prev) => [
+      ...prev,
+      `[Memory] ${mem.length} task(s) stored (max 10). Latest: ${mem[0]?.summary?.slice(0, 100) ?? "—"}`,
+    ]);
+  }, []);
+
   const sendToGrok = async (newUserContent: string) => {
     const userId = await getUserId();
+    const apiBase = getApiBase() || "";
+
+    if (projectId && agentDebugEnabled && interactionMode === "code" && apiBase) {
+      setAgentRunning(true);
+      addLog("[Multi-agent] Code Agent → Deploy Agent (chained)");
+      try {
+        const { codeResult, deployResult, appliedCode } = await runBuilderAgentChain(
+          apiBase,
+          {
+            instruction: newUserContent,
+            app_tsx: codeRef.current,
+            package_json: packageRef.current,
+            self_debug: true,
+          },
+          addLog
+        );
+        const ca = codeResult.code_agent as { summary?: string } | undefined;
+        const preview =
+          deployResult && typeof deployResult.preview_url === "string"
+            ? deployResult.preview_url
+            : deployResult && deployResult.message
+              ? String(deployResult.message)
+              : "";
+        const assistantText = [ca?.summary ?? "Code agent finished.", preview && `Preview / deploy: ${preview}`]
+          .filter(Boolean)
+          .join("\n\n");
+        if (typeof appliedCode === "string" && appliedCode.trim()) setCode(appliedCode);
+        const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: assistantText };
+        setChatMessages((prev) => {
+          const next = [...prev, assistantMsg];
+          window.setTimeout(() => {
+            saveProject({
+              chat_messages: next,
+              code: appliedCode ?? codeRef.current,
+              package_json: packageRef.current,
+            });
+          }, 0);
+          return next;
+        });
+        if (grokSpeaks) speakWithGrokEve(assistantText);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        addLog(`[Multi-agent Error]: ${msg}`);
+        const errAssistant = { id: crypto.randomUUID(), role: "assistant" as const, content: `Agent chain failed: ${msg}` };
+        setChatMessages((prev) => {
+          const next = [...prev, errAssistant];
+          window.setTimeout(() => saveProject({ chat_messages: next }), 0);
+          return next;
+        });
+      } finally {
+        setAgentRunning(false);
+      }
+      return;
+    }
+
     const messages = [
       ...chatMessages.map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: newUserContent },
     ];
-    addLog(`[Grok]: Sending to agent...`);
+    addLog(`[Grok]: Sending to agent (${interactionMode})…`);
     try {
-      const res = await fetch(`${getApiBase() || ""}/api/agent/chat`, {
+      const res = await fetch(`${apiBase || ""}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getBackendSecretHeaders() },
-        body: JSON.stringify({ messages, userId, projectId: projectId ?? undefined }),
+        body: JSON.stringify({
+          messages,
+          userId,
+          projectId: projectId ?? undefined,
+          interactionMode,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -964,52 +1120,83 @@ export default function Builder() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-white overflow-hidden font-sans flex-col">
-      {/* Narrow screens: min width ~56rem — chat is on the far right; scroll horizontally or tap “Chat” (button below). */}
-      <div
-        ref={builderMainScrollRef}
-        className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
-      >
+    <div className="flex h-screen overflow-hidden font-sans flex-col" style={{ backgroundColor: BUILDER_BG, color: "#a8b0c0" }}>
+      <div ref={builderMainScrollRef} className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden">
         <div className="flex min-h-0 h-full min-w-[60rem]">
-      {/* Activity bar - keep same background as the rest of the page */}
-      <div className="w-12 bg-background flex flex-col items-center py-4 border-r border-border/20 z-10 shrink-0">
+      <div
+        className="w-14 flex flex-col items-center py-3 border-r z-10 shrink-0"
+        style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+      >
         <button
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
-          title="Explorer"
+          type="button"
+          className="p-2 rounded-md mb-2"
+          style={{ color: BUILDER_MUTED }}
+          title="Projects"
+          onClick={() => navigate("/builder")}
         >
-          <FileCode size={24} strokeWidth={1.5} />
+          <Layout size={22} strokeWidth={1.5} />
         </button>
         <button
-          onClick={() => openTab('preview')}
-          className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId === 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
+          type="button"
+          onClick={() => setExplorerOpen((o) => !o)}
+          className="p-2 rounded-md mb-2 transition-colors"
+          style={{
+            color: explorerOpen ? "#a8b0c0" : BUILDER_MUTED,
+            backgroundColor: explorerOpen ? "rgba(2,12,23,0.45)" : "transparent",
+          }}
+          title="Toggle explorer"
+        >
+          <FileCode size={22} strokeWidth={1.5} />
+        </button>
+        <button
+          type="button"
+          onClick={() => openTab("preview")}
+          className={`p-2 rounded-md mb-2 transition-colors ${activeTabId === "preview" ? "ring-1 ring-cyan-500/40" : ""}`}
+          style={{ color: activeTabId === "preview" ? "#a8b0c0" : BUILDER_MUTED }}
           title="Live Preview"
         >
-          <Eye size={24} strokeWidth={1.5} />
+          <Eye size={22} strokeWidth={1.5} />
         </button>
-        <button className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md mb-4 border-l-2 border-l-transparent" title="Projects" onClick={() => navigate("/builder")}>
-          <Layout size={24} strokeWidth={1.5} />
-        </button>
-        <div className="mt-auto flex flex-col gap-4">
+        <div className="mt-auto flex flex-col gap-2 pb-1">
+          <button
+            type="button"
+            onClick={() => persistAgentDebug(!agentDebugEnabled)}
+            className="p-2 rounded-md transition-colors"
+            style={{
+              color: agentDebugEnabled ? "#22d3ee" : BUILDER_MUTED,
+              backgroundColor: agentDebugEnabled ? "rgba(2,12,23,0.5)" : "transparent",
+            }}
+            title={agentDebugEnabled ? "Multi-agent chain ON (Code → Deploy)" : "Multi-agent chain OFF"}
+          >
+            <Bug size={22} strokeWidth={1.5} />
+          </button>
           <button
             type="button"
             onClick={scrollBuilderToChat}
-            className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md border-l-2 border-l-transparent"
-            title="Scroll to Grok chat (on narrow or zoomed windows)"
+            className="p-2 rounded-md"
+            style={{ color: BUILDER_MUTED }}
+            title="Scroll to chat"
           >
-            <MessageSquare size={24} strokeWidth={1.5} />
+            <MessageSquare size={22} strokeWidth={1.5} />
           </button>
           <button
+            type="button"
             onClick={() => navigate("/settings")}
-            className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-md border-l-2 border-l-transparent"
+            className="p-2 rounded-md"
+            style={{ color: BUILDER_MUTED }}
             title="Settings"
           >
-            <Settings size={24} strokeWidth={1.5} />
+            <Settings size={22} strokeWidth={1.5} />
           </button>
         </div>
       </div>
 
-      {/* Sidebar: Projects (when no project) or Explorer + Deploy (when project) */}
-      <div className="w-64 bg-background border-r border-border/20 flex flex-col">
+      <div
+        className={`shrink-0 flex flex-col border-r transition-all duration-200 overflow-hidden ${
+          !projectId || explorerOpen ? "w-56 opacity-100" : "w-0 opacity-0 pointer-events-none border-0"
+        }`}
+        style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+      >
         {projectId && (
           <div className="flex items-center gap-1 p-2 border-b border-border">
             <button
@@ -1125,15 +1312,18 @@ export default function Builder() {
         )}
       </div>
 
-      {/* Main area - project list (no project) or editor + preview (with project) */}
-      <div className="flex-1 flex flex-col min-w-0 w-full min-h-0 overflow-hidden bg-editor-bg">
+      <div className="flex-1 flex flex-col min-w-0 w-full min-h-0 overflow-hidden" style={{ backgroundColor: BUILDER_BG }}>
         {projectLoading ? (
-          <div className="flex-1 flex items-center justify-center bg-editor-bg text-muted">Loading project...</div>
+          <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: BUILDER_BG, color: BUILDER_MUTED }}>
+            Loading project...
+          </div>
         ) : !projectId ? (
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center min-h-0">
               <div className="max-w-lg w-full space-y-6">
-              <h1 className="text-xl font-medium text-white text-center">Start project brainstorming</h1>
+              <h1 className="text-xl font-medium text-center" style={{ color: "#a8b0c0" }}>
+                Start project brainstorming
+              </h1>
               <div className="space-y-3">
                 <button
                   type="button"
@@ -1242,7 +1432,10 @@ export default function Builder() {
         ) : (
           <>
         {/* Tab bar - files and preview navigation */}
-        <div className="flex-shrink-0 h-11 bg-sidebar-bg flex items-center border-b border-border overflow-x-auto gap-0">
+        <div
+          className="flex-shrink-0 h-11 flex items-center border-b overflow-x-auto gap-0"
+          style={{ backgroundColor: BUILDER_ACCENT, borderColor: "#0a1628" }}
+        >
           {openTabs.map((tabId) => {
             const label = tabId === 'preview' ? 'Live Preview' : tabId === '/App.tsx' ? 'App.tsx' : 'package.json';
             const isActive = activeTabId === tabId;
@@ -1250,12 +1443,22 @@ export default function Builder() {
               <div
                 key={tabId}
                 onClick={() => setActiveTabId(tabId)}
-                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r border-border cursor-pointer flex-shrink-0 ${isActive ? 'bg-editor-bg border-t-2 border-t-primary text-white' : 'text-muted hover:bg-[#1e3a5f] hover:text-white'}`}
+                className={`h-full flex items-center gap-2 pl-5 pr-4 min-w-[120px] border-r cursor-pointer flex-shrink-0 ${isActive ? "border-t-2 border-t-cyan-500/70" : ""}`}
+                style={{
+                  borderColor: "#0a1628",
+                  backgroundColor: isActive ? BUILDER_BG : "transparent",
+                  color: isActive ? "#a8b0c0" : BUILDER_MUTED,
+                }}
               >
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
                 <span className="text-sm truncate">{label}</span>
                 {tabId !== 'preview' && (
-                  <button onClick={(e) => closeTab(tabId, e)} className="ml-auto p-0.5 rounded hover:bg-[#2d3f4f]">
+                  <button
+                    type="button"
+                    onClick={(e) => closeTab(tabId, e)}
+                    className="ml-auto p-0.5 rounded hover:opacity-90"
+                    style={{ color: BUILDER_MUTED }}
+                  >
                     <X size={12} />
                   </button>
                 )}
@@ -1265,7 +1468,7 @@ export default function Builder() {
         </div>
 
         {/* Center + embedded terminal (Sandpack console when preview/editor) + status */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-editor-bg">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ backgroundColor: BUILDER_BG }}>
           {!setupComplete ? (
             <>
               <div className="flex-1 min-h-0 relative overflow-hidden">
@@ -1296,7 +1499,34 @@ export default function Builder() {
             </>
           ) : activeTabId !== "/package.json" ? (
             <>
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 flex min-h-0 overflow-hidden">
+                <div
+                  className="flex flex-col shrink-0 w-[min(38%,420px)] min-w-[240px] border-r flex-nowrap"
+                  style={{ backgroundColor: BUILDER_BG, borderColor: BUILDER_ACCENT }}
+                >
+                  <div
+                    className="text-[10px] uppercase tracking-wider px-2 py-1.5 border-b shrink-0 font-semibold"
+                    style={{ color: BUILDER_MUTED, borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}
+                  >
+                    Live terminal
+                  </div>
+                  <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed p-2" style={{ color: "#a8b0c0" }}>
+                    {logs.map((log, i) => (
+                      <div key={i} className="mb-0.5 break-words">
+                        <span style={{ color: BUILDER_MUTED }} className="mr-1 select-none">
+                          ›
+                        </span>
+                        {log}
+                      </div>
+                    ))}
+                    {agentRunning ? (
+                      <div className="mt-2 animate-pulse" style={{ color: BUILDER_MUTED }}>
+                        Multi-agent pipeline running…
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
                 <SandpackProvider
                   template="react-ts"
                   theme="dark"
@@ -1345,7 +1575,7 @@ export default function Builder() {
                         bottomPanelTab={bottomPanelTab}
                         setBottomPanelTab={setBottomPanelTab}
                         setTerminalOpen={setTerminalOpen}
-                        logs={logs}
+                        logs={[]}
                         listening={listening}
                         transcript={typeof transcript === "string" ? transcript : ""}
                         sandpackConsole={
@@ -1355,13 +1585,14 @@ export default function Builder() {
                             showSetupProgress
                             showRestartButton={false}
                             showResetConsoleButton
-                            className="h-full min-h-0 !bg-[#1a1a1a] text-[11px] text-[#d4d4d4]"
+                            className="h-full min-h-0 !bg-[#020C17] text-[11px] text-[#a8b0c0]"
                           />
                         }
                       />
                     ) : null}
                   </div>
                 </SandpackProvider>
+                </div>
               </div>
               <BuilderStatusBar terminalOpen={terminalOpen} setTerminalOpen={setTerminalOpen} paidStatus={paidStatus} />
             </>
@@ -1397,28 +1628,61 @@ export default function Builder() {
         )}
       </div>
 
-      {/* Chat Panel - same width as Explorer */}
       <div
         id="builder-chat-panel"
-        className="w-[min(20rem,100%)] min-w-[16rem] max-w-[22rem] bg-background border-l border-border/20 flex flex-col flex-shrink-0"
+        className="w-[min(20rem,100%)] min-w-[16rem] max-w-[22rem] flex flex-col flex-shrink-0 border-l"
+        style={{ backgroundColor: BUILDER_BG, borderColor: BUILDER_ACCENT }}
       >
-        <div className="p-3 border-b border-border flex items-center justify-between gap-2">
-          <span className="text-xs font-semibold tracking-wider text-white uppercase">CHAT</span>
-          <span
-            className="text-[11px] font-medium text-white bg-primary/20 border border-primary/60 px-3 py-1 rounded-full"
-            title="Fast reasoning model"
-          >
-            Powered by Grok 4.1 Fast
-          </span>
+        <div className="p-2 border-b flex flex-col gap-2" style={{ borderColor: BUILDER_ACCENT }}>
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#a8b0c0" }}>
+              Chat
+            </span>
+            <Code2 size={14} style={{ color: BUILDER_MUTED }} aria-hidden />
+          </div>
+          <div className="flex rounded overflow-hidden border" style={{ borderColor: BUILDER_ACCENT }}>
+            <button
+              type="button"
+              onClick={() => persistInteractionMode("talk")}
+              className="flex-1 py-1.5 text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor: interactionMode === "talk" ? "#020C17" : "transparent",
+                color: interactionMode === "talk" ? "#a8b0c0" : BUILDER_MUTED,
+              }}
+            >
+              Talk
+            </button>
+            <button
+              type="button"
+              onClick={() => persistInteractionMode("code")}
+              className="flex-1 py-1.5 text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor: interactionMode === "code" ? "#020C17" : "transparent",
+                color: interactionMode === "code" ? "#a8b0c0" : BUILDER_MUTED,
+              }}
+            >
+              Code
+            </button>
+          </div>
+          <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
+            Code + bug on → chained Code &amp; Deploy agents. Talk → chat only.
+          </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
           <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={handleFileSelect} />
-          <div className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? 'bg-primary/10 ring-1 ring-primary/50 rounded' : ''}`}>
+          <div
+            className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "ring-1 rounded" : ""}`}
+            style={isDragActive ? { backgroundColor: "rgba(8,19,52,0.85)", boxShadow: "0 0 0 1px rgba(34,211,238,0.25)" } : undefined}
+          >
             {chatMessages.map((msg) => (
               <div key={msg.id} className="group">
-                <div className="text-xs text-muted mb-0.5">{msg.role === 'user' ? 'You' : 'Assistant'}</div>
-                <div className="text-sm text-white select-text break-words pr-8">{msg.content}</div>
+                <div className="text-xs mb-0.5" style={{ color: BUILDER_MUTED }}>
+                  {msg.role === "user" ? "You" : "Assistant"}
+                </div>
+                <div className="text-sm select-text break-words pr-8" style={{ color: "#a8b0c0" }}>
+                  {msg.content}
+                </div>
                 {msg.images && msg.images.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2">
                     {msg.images.map((url, i) => (
@@ -1427,7 +1691,8 @@ export default function Builder() {
                         src={url}
                         alt="Generated UI mockup"
                         loading="lazy"
-                        className="rounded-lg shadow-lg max-w-full border border-border bg-editor-bg"
+                        className="rounded-lg max-w-full border"
+                        style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_BG }}
                       />
                     ))}
                   </div>
@@ -1439,7 +1704,8 @@ export default function Builder() {
                       e.stopPropagation();
                       navigator.clipboard.writeText(msg.content);
                     }}
-                    className="p-1 rounded hover:bg-[#2d3f4f] text-muted hover:text-white"
+                    className="p-1 rounded hover:opacity-90"
+                    style={{ color: BUILDER_MUTED }}
                     title="Copy"
                   >
                     <Copy size={12} />
@@ -1449,7 +1715,8 @@ export default function Builder() {
                       e.stopPropagation();
                       navigator.clipboard.writeText(window.location.href);
                     }}
-                    className="p-1 rounded hover:bg-[#2d3f4f] text-muted hover:text-white"
+                    className="p-1 rounded hover:opacity-90"
+                    style={{ color: BUILDER_MUTED }}
                     title="Copy link"
                   >
                     <Link2 size={12} />
@@ -1460,13 +1727,20 @@ export default function Builder() {
             ))}
           </div>
           {listening && (
-            <div className="px-3 py-2 border-t border-border bg-editor-bg/60">
-              <div className="text-xs text-muted mb-1">Live transcription</div>
-              <div className="text-sm text-muted italic select-text">{transcript || '...'}</div>
+            <div className="px-3 py-2 border-t" style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}>
+              <div className="text-xs mb-1" style={{ color: BUILDER_MUTED }}>
+                Live transcription
+              </div>
+              <div className="text-sm italic select-text" style={{ color: "#a8b0c0" }}>
+                {transcript || "..."}
+              </div>
             </div>
           )}
-          {/* Text input + Send. Voice/more controls live in the bottom toolbar */}
-          <div className="flex-shrink-0 p-2 border-t border-border bg-sidebar-bg" onClick={e => e.stopPropagation()}>
+          <div
+            className="flex-shrink-0 p-2 border-t"
+            style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {listening && (
               <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
                 <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" aria-hidden />
@@ -1480,7 +1754,12 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg/20 border border-border/25 text-sm text-white placeholder-muted focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                style={{
+                  backgroundColor: BUILDER_BG,
+                  borderColor: "#0a1628",
+                  color: "#a8b0c0",
+                }}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
                 ref={chatInputDomRef}
@@ -1488,7 +1767,8 @@ export default function Builder() {
               <button
                 onClick={handleSendText}
                 disabled={!chatInput.trim() || readOnly}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="w-8 h-8 flex items-center justify-center rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 hover:opacity-90"
+                style={{ backgroundColor: "#0e3a4a", color: "#a8b0c0", border: "1px solid #164e60" }}
                 title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={14} />
@@ -1497,7 +1777,10 @@ export default function Builder() {
           </div>
         </div>
         {/* Bottom toolbar: mic, Grok reads aloud, upload, copy */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3 border-t border-border bg-sidebar-bg">
+        <div
+          className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3 border-t"
+          style={{ borderColor: BUILDER_ACCENT, backgroundColor: BUILDER_ACCENT }}
+        >
           <button
             onClick={handleMicToggle}
             disabled={readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false}
@@ -1505,7 +1788,12 @@ export default function Builder() {
               readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false
                 ? "opacity-60 cursor-not-allowed"
                 : ""
-            } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : "text-white/70 hover:text-white hover:bg-border/40"}`}
+            } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : ""}`}
+            style={
+              !listening && !(readOnly || browserSupportsSpeechRecognition === false || isMicrophoneAvailable === false)
+                ? { color: BUILDER_MUTED }
+                : undefined
+            }
             title={
               readOnly
                 ? "Upgrade for full access"
@@ -1526,14 +1814,16 @@ export default function Builder() {
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
               return next;
             })}
-            className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? 'text-white bg-primary/15 border border-primary/30' : 'text-white/70 hover:text-white hover:bg-border/40'}`}
+            className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? "border border-cyan-500/35 bg-[#020C17]" : ""}`}
+            style={{ color: grokSpeaks ? "#a8b0c0" : BUILDER_MUTED }}
             title="Read replies with xAI Eve TTS when chat works; otherwise browser voice"
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-            className="p-2 rounded-md text-white/70 hover:text-white hover:bg-border/40 transition-colors shrink-0"
+            className="p-2 rounded-md transition-colors shrink-0 hover:opacity-90"
+            style={{ color: BUILDER_MUTED }}
             title="Upload file"
           >
             <Paperclip size={16} />
@@ -1541,7 +1831,8 @@ export default function Builder() {
           {projectId ? (
             <Link
               to={`/project/${projectId}/locked-summary`}
-              className="p-2 rounded-md text-white/70 hover:text-white hover:bg-border/40 transition-colors shrink-0"
+              className="p-2 rounded-md transition-colors shrink-0 hover:opacity-90"
+              style={{ color: BUILDER_MUTED }}
               title="Locked Spec"
             >
               <FileText size={16} />
@@ -1550,11 +1841,10 @@ export default function Builder() {
           <button
             onClick={handleCopyLast}
             disabled={!paidStatus.paid}
-            className={`p-2 rounded-md transition-colors shrink-0 ${
-              paidStatus.paid
-                ? "text-white/70 hover:text-white hover:bg-border/40"
-                : "opacity-60 cursor-not-allowed text-white/60"
+            className={`p-2 rounded-md transition-colors shrink-0 hover:opacity-90 ${
+              paidStatus.paid ? "" : "opacity-60 cursor-not-allowed"
             }`}
+            style={{ color: paidStatus.paid ? BUILDER_MUTED : `${BUILDER_MUTED}99` }}
             title={paidStatus.paid ? "Copy last reply" : "Upgrade to Pro to copy last reply"}
           >
             <Copy size={16} />
