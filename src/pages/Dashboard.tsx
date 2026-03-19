@@ -32,6 +32,7 @@ import { useBidirectionalVoiceAgent } from "../lib/useBidirectionalVoiceAgent";
 import { isFirstLogin, setFirstLoginDone, getSessionToken } from "../lib/supabaseAuth";
 import { runQuickAudit, type AuditEntry } from "../lib/runQuickAudit";
 import { getBackendSecretHeaders } from "../lib/storedSecrets";
+import { formatGrokErrorForChat } from "../lib/grokApiError";
 import {
   fetchUnbreakableRules,
   getVETRSystemPrompt,
@@ -359,9 +360,16 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
         body: JSON.stringify({ messages: [...history, { role: "user", content: t }], userId, projectId: planningProjectIdRef.current ?? undefined }),
       });
-      const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: { content?: string };
+        error?: string;
+        details?: string;
+        hint?: string;
+      };
       if (res.status === 503) setSettingsDrawerMessage("Service down—try later");
-      const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service down—try later");
+      const content = res.ok && data.message?.content
+        ? data.message.content
+        : formatGrokErrorForChat(data);
       const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
       setChatMessages((prev) => [...prev, assistantMsg]);
       const pid = planningProjectIdRef.current;
@@ -441,12 +449,17 @@ export default function Dashboard() {
           body: JSON.stringify({ messages, userId, projectId: planningProjectIdRef.current ?? undefined }),
         });
         if (voiceCancelRef.current) return;
-        const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: { content?: string };
+          error?: string;
+          details?: string;
+          hint?: string;
+        };
         if (res.status === 503) {
           setSettingsDrawerMessage("Service down—try later");
           setSettingsDrawerOpen(true);
         }
-        const content = res.ok && data.message?.content ? data.message.content : (data.error && data.details ? `${data.error}: ${data.details}` : data.error || "Service down—try later");
+        const content = res.ok && data.message?.content ? data.message.content : formatGrokErrorForChat(data);
 
         const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text };
         const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content };
@@ -743,7 +756,7 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
         const content =
           res.ok && (data as { message?: { content?: string } }).message?.content
             ? (data as { message: { content: string } }).message.content
-            : "Could not run VETR analysis.";
+            : formatGrokErrorForChat(data as { error?: string; details?: string; hint?: string }, "Could not run VETR analysis.");
         previousOutput = content;
         messages.push({ role: "assistant", content });
         setVetrResult(content);

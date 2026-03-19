@@ -1,5 +1,6 @@
 import { runQuickAudit } from "./runQuickAudit";
 import { getBackendSecretHeaders } from "./storedSecrets";
+import { formatGrokErrorForChat } from "./grokApiError";
 import {
   buildVETRContinuationMessage,
   buildVETRFreshStartMessage,
@@ -72,13 +73,16 @@ export async function runVETRLoop(params: RunVETRLoopParams): Promise<RunVETRLoo
       throw new Error("Grok service unavailable (503). Set API key in Settings and retry.");
     }
 
-    const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string; details?: string };
+    const data = (await res.json().catch(() => ({}))) as {
+      message?: { content?: string };
+      error?: string;
+      details?: string;
+      hint?: string;
+    };
     const content =
       res.ok && data?.message?.content
         ? data.message.content
-        : data?.error && data?.details
-          ? `${data.error}: ${data.details}`
-          : data?.error || "Could not run VETR analysis.";
+        : formatGrokErrorForChat(data, "Could not run VETR analysis.");
 
     previousOutput = content;
     messages.push({ role: "assistant", content });

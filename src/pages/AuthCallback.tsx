@@ -13,6 +13,13 @@ export default function AuthCallback() {
     let subscription: { unsubscribe: () => void } | null = null;
     let timeoutId = 0;
 
+    const clearAuthTimeout = () => {
+      if (timeoutId !== 0) {
+        window.clearTimeout(timeoutId);
+        timeoutId = 0;
+      }
+    };
+
     (async () => {
       try {
         await ensureSupabaseConfig();
@@ -46,64 +53,78 @@ export default function AuthCallback() {
         window.history.replaceState({}, document.title, url.pathname + url.hash);
       }
 
-      const applyUserId = (userId: string) => {
+      const finishSuccess = (userId: string) => {
         if (cancelled) return;
-        window.clearTimeout(timeoutId);
+        clearAuthTimeout();
         setUserIdAfterLogin(userId);
         setStatus("done");
         setErrorMsg(null);
         navigate("/builder", { replace: true });
       };
 
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-      if (cancelled) return;
-
-      if (sessionErr) {
-        console.error("[kyn auth callback] getSession error:", sessionErr.message, sessionErr);
-        setErrorMsg(sessionErr.message);
-        const { data: { user } } = await supabase.auth.getUser();
-        const uid = user?.id;
-        if (uid) applyUserId(uid);
-        else if (!cancelled) {
-          setStatus("error");
-          setErrorMsg("Could not resolve user from Supabase session.");
-        }
-      } else {
-        const uid = session?.user?.id;
-        if (uid) {
-          applyUserId(uid);
-        } else {
-          const { data: { user } } = await supabase.auth.getUser();
-          const userId = user?.id;
-          if (userId) applyUserId(userId);
-          else if (!cancelled) {
-            setStatus("error");
-            setErrorMsg("Supabase returned no user. Try signing in again.");
-          }
-        }
-      }
-
-      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((event, sess) => {
-        if (cancelled) return;
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-          const uid = sess?.user?.id;
-          if (uid) applyUserId(uid);
-        }
-      });
-      subscription = sub;
-
+      // Start timeout as soon as we're waiting on session resolution — before any async session
+      // work — so finishSuccess can always clear a real timer (avoids leaks / setState after unmount).
       timeoutId = window.setTimeout(() => {
         if (!cancelled) {
           setStatus((s) => (s === "loading" ? "error" : s));
           setErrorMsg((m) => m ?? "Auth timed out.");
         }
       }, 12000);
+
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((event, sess) => {
+        if (cancelled) return;
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          const uid = sess?.user?.id;
+          if (uid) finishSuccess(uid);
+        }
+      });
+      subscription = sub;
+
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      if (sessionErr) {
+        console.error("[kyn auth callback] getSession error:", sessionErr.message, sessionErr);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+        const uid = user?.id;
+        if (uid) {
+          finishSuccess(uid);
+          return;
+        }
+        clearAuthTimeout();
+        if (!cancelled) {
+          setStatus("error");
+          setErrorMsg("Could not resolve user from Supabase session.");
+        }
+        return;
+      }
+
+      const uid = session?.user?.id;
+      if (uid) {
+        finishSuccess(uid);
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled) return;
+      const userId = user?.id;
+      if (userId) {
+        finishSuccess(userId);
+        return;
+      }
+
+      clearAuthTimeout();
+      if (!cancelled) {
+        setStatus("error");
+        setErrorMsg("Supabase returned no user. Try signing in again.");
+      }
     })();
 
     return () => {
       cancelled = true;
       subscription?.unsubscribe();
-      window.clearTimeout(timeoutId);
+      if (timeoutId !== 0) window.clearTimeout(timeoutId);
     };
   }, [navigate]);
 

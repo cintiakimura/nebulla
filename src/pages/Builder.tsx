@@ -19,6 +19,7 @@ import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib
 import { getApiBase, clearBackendUnavailable, setBackendUnavailable } from "../lib/api";
 import { getSessionToken } from "../lib/supabaseAuth";
 import { getBackendSecretHeaders } from "../lib/storedSecrets";
+import { formatGrokErrorForChat } from "../lib/grokApiError";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
@@ -508,10 +509,8 @@ export default function Builder() {
         }
         if (res.status === 405 || res.status === 404) {
           errMsg = "Grok isn’t available right now. Make sure the backend is running and has an API key set.";
-        } else if (details) {
-          errMsg = `${dataErr || "Grok error"}: ${details}`;
         } else {
-          errMsg = dataErr || "Grok request failed. Check Settings for API key and that the backend is running.";
+          errMsg = formatGrokErrorForChat(data as { error?: string; details?: string; hint?: string }, "Grok request failed. Check Settings for API key and that the backend is running.");
         }
         addLog(`[Grok Error]: ${errMsg}`);
         const errAssistant = { id: crypto.randomUUID(), role: 'assistant' as const, content: errMsg };

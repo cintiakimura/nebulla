@@ -5,6 +5,7 @@ import { getApiBase } from "../lib/api";
 import { getUserId } from "../lib/auth";
 import { getSessionToken } from "../lib/supabaseAuth";
 import { getBackendSecretHeaders } from "../lib/storedSecrets";
+import { formatGrokErrorForChat } from "../lib/grokApiError";
 import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
 
 const TABS = [
@@ -206,7 +207,12 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 503) setShowGrokKeyModal(true);
-      const reply = res.ok && data?.message?.content ? data.message.content : res.status === 503 ? "Grok isn’t available right now." : "Sorry, I couldn’t reply.";
+      const reply =
+        res.ok && data?.message?.content
+          ? data.message.content
+          : res.status === 503
+            ? "Grok isn’t available right now."
+            : formatGrokErrorForChat(data as { error?: string; details?: string; hint?: string }, "Sorry, I couldn’t reply.");
       const withReply = [...nextMessages, { id: crypto.randomUUID(), role: "assistant" as const, content: reply }];
       setMessages(withReply);
       const replyLower = reply.toLowerCase();

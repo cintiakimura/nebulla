@@ -8,6 +8,7 @@ import {
   getGrokModelAndMode,
   GROK_CODING_MODE_SYSTEM,
 } from "./src/lib/grokModelSelection.js";
+import { buildGrokChatErrorBody } from "./src/lib/grokApiError.js";
 import * as db from "./db.js";
 import {
   isSupabaseConfigured,
@@ -1001,15 +1002,9 @@ async function startServer() {
       });
       const errText = await response.text();
       if (!response.ok) {
-        let details: string;
-        try {
-          const parsed = JSON.parse(errText) as { error?: { message?: string } };
-          details = parsed?.error?.message || errText.slice(0, 300);
-        } catch {
-          details = errText.slice(0, 300);
-        }
-        console.error("[Grok chat] xAI error:", response.status, details);
-        res.status(response.status).json({ error: "Grok API error", details });
+        const body = buildGrokChatErrorBody(errText);
+        console.error("[Grok chat] xAI error:", response.status, body.details);
+        res.status(response.status).json(body);
         return;
       }
       if (userId && isSupabaseConfigured() && userId !== "open-dev-user") {

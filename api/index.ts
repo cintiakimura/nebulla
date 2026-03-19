@@ -11,6 +11,7 @@ import {
   getProject as supabaseGetProject,
   isSupabaseConfigured as supabaseIsConfigured,
 } from "../src/lib/supabase-multi-tenant.js";
+import { buildGrokChatErrorBody } from "../src/lib/grokApiError.js";
 
 const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
 // Client Grok modal expects the error message to mention "grok".
@@ -398,15 +399,9 @@ async function handleGrok(
       });
       const errText = await response.text();
       if (!response.ok) {
-        let details: string;
-        try {
-          const parsed = JSON.parse(errText) as { error?: { message?: string } };
-          details = parsed?.error?.message || errText.slice(0, 300);
-        } catch {
-          details = errText.slice(0, 300);
-        }
-        console.error("[api/index Grok chat] xAI error:", response.status, details);
-        res.status(response.status).json({ error: "Grok API error", details });
+        const body = buildGrokChatErrorBody(errText);
+        console.error("[api/index Grok chat] xAI error:", response.status, body.details);
+        res.status(response.status).json(body);
         return true;
       }
       // Some providers return non-JSON bodies even on HTTP 200.
