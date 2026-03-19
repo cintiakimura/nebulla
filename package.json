@@ -18,7 +18,7 @@
     "kyn:doctor": "node scripts/kyn-doctor.mjs",
     "kyn:ready": "npm run vetr:verify",
     "kyn:setup": "npm install && npm run kyn:doctor",
-    "deploy": "vercel --prod",
+    "deploy": "node scripts/vercel-deploy-prod.mjs",
     "electron": "electron .",
     "electron:dev": "npm run dev & sleep 3 && electron ."
   },
