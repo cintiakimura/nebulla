@@ -370,6 +370,8 @@ export default function Builder() {
   const [grokSpeaks, setGrokSpeaks] = useState(() => {
     try { return localStorage.getItem("kyn_grok_speaks") !== "false"; } catch { return true; }
   });
+  /** True while Grok TTS (Eve) audio is actually playing — makes “voice” obvious in the UI. */
+  const [grokSpeaking, setGrokSpeaking] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
   const [rateLimitModalOpen, setRateLimitModalOpen] = useState(false);
   const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
@@ -755,6 +757,7 @@ export default function Builder() {
     return () => {
       grokAudioRef.current?.pause();
       grokAudioRef.current = null;
+      setGrokSpeaking(false);
     };
   }, []);
 
@@ -773,14 +776,21 @@ export default function Builder() {
       }
       try {
         grokAudioRef.current?.pause();
-        const ok = await playGrokTts(base, text, { voice_id: "eve", audioElementRef: grokAudioRef });
+        setGrokSpeaking(false);
+        const ok = await playGrokTts(base, text, {
+          voice_id: "eve",
+          audioElementRef: grokAudioRef,
+          onPlayingChange: setGrokSpeaking,
+        });
         if (!ok) {
+          setGrokSpeaking(false);
           setLogs((prev) => [
             ...prev,
             "[TTS]: Grok Eve failed after retries — check xAI key, TTS permission, and /api/tts.",
           ]);
         }
       } catch {
+        setGrokSpeaking(false);
         setLogs((prev) => [...prev, "[TTS]: Grok Eve error — check /api/tts and network."]);
       }
     })();
@@ -1841,11 +1851,24 @@ export default function Builder() {
           className="p-2 flex flex-col gap-2 shrink-0"
           style={{ borderBottom: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
         >
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#a8b0c0" }}>
-              Chat
-            </span>
-            <Code2 size={14} style={{ color: BUILDER_MUTED }} aria-hidden />
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold" style={{ color: "#e2e6ef" }}>
+                  Grok
+                </span>
+                <span
+                  className="text-[9px] px-1.5 py-px rounded font-medium uppercase tracking-wide"
+                  style={{ color: "#7dd3fc", backgroundColor: "rgba(14,165,233,0.12)", border: "1px solid rgba(34,211,238,0.2)" }}
+                >
+                  Open chat
+                </span>
+              </div>
+              <p className="text-[10px] leading-snug mt-1" style={{ color: BUILDER_MUTED }}>
+                Free-form conversation — plan, ask questions, or steer the app. Replies can use voice (Eve) when enabled below.
+              </p>
+            </div>
+            <Code2 size={14} className="shrink-0 mt-0.5" style={{ color: BUILDER_MUTED }} aria-hidden />
           </div>
           <div className="flex rounded overflow-hidden min-h-[32px]" style={{ border: `1px solid ${BUILDER_BORDER}` }}>
             <button
@@ -1872,8 +1895,8 @@ export default function Builder() {
             </button>
           </div>
           <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
-            Code + bug on → chained Code &amp; Deploy agents. Talk → chat only. Drag the <strong className="text-[#a8b0c0] font-normal">bottom-right</strong> grip on
-            sidebar, terminal, chat, or bottom panel to resize.
+            <strong className="text-[#a8b0c0] font-normal">Talk</strong> = open Grok chat (no auto code pipeline).{" "}
+            <strong className="text-[#a8b0c0] font-normal">Code</strong> + debug on → chained agents. Mic = your voice to text; speaker = Grok reads aloud.
           </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
@@ -1887,10 +1910,24 @@ export default function Builder() {
                 : undefined
             }
           >
+            {chatMessages.length === 0 && (
+              <div
+                className="rounded-lg px-3 py-3 text-xs leading-relaxed"
+                style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}`, color: BUILDER_MUTED }}
+              >
+                <p className="font-medium mb-1" style={{ color: "#a8b0c0" }}>
+                  Start anywhere
+                </p>
+                <p>
+                  This isn’t a fixed script — type or use the mic. Grok keeps context in this thread. Turn on{" "}
+                  <span className="text-cyan-400/90">Grok voice</span> in the bar below to hear replies with Eve.
+                </p>
+              </div>
+            )}
             {chatMessages.map((msg) => (
               <div key={msg.id} className="group">
                 <div className="text-xs mb-0.5" style={{ color: BUILDER_MUTED }}>
-                  {msg.role === "user" ? "You" : "Assistant"}
+                  {msg.role === "user" ? "You" : "Grok"}
                 </div>
                 <div className="text-sm select-text break-words pr-8" style={{ color: "#a8b0c0" }}>
                   {msg.content}
@@ -1968,7 +2005,13 @@ export default function Builder() {
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
-                placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
+                placeholder={
+                  readOnly
+                    ? "Upgrade for full access"
+                    : listening
+                      ? "Speak, then tap mic again to send"
+                      : "Ask Grok anything…"
+                }
                 className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 style={{
                   backgroundColor: BUILDER_BG,
@@ -1991,16 +2034,31 @@ export default function Builder() {
             </div>
           </div>
         </div>
-        {/* Bottom toolbar: mic, Grok reads aloud, upload, copy */}
+        {/* Bottom toolbar: mic, Grok voice (TTS), upload, copy */}
         <div
-          className="flex-shrink-0 flex items-center justify-center gap-4 py-1.5 px-3"
+          className="flex-shrink-0 flex flex-col gap-1.5 py-1.5 px-3"
           style={{ borderTop: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
         >
+          {grokSpeaking && (
+            <div
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px]"
+              style={{ backgroundColor: "rgba(14,165,233,0.1)", border: "1px solid rgba(34,211,238,0.25)", color: "#a5f3fc" }}
+              role="status"
+              aria-live="polite"
+            >
+              <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse shrink-0" aria-hidden />
+              <span>
+                <strong className="font-semibold text-cyan-100">Grok is speaking</strong>
+                <span className="text-cyan-200/80"> — Eve voice</span>
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
           <button
             type="button"
             onClick={handleMicToggle}
             disabled={readOnly || browserSupportsSpeechRecognition === false}
-            className={`p-2 rounded-md transition-colors shrink-0 ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors shrink-0 ${
               readOnly || browserSupportsSpeechRecognition === false ? "opacity-60 cursor-not-allowed" : ""
             } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : ""}`}
             style={!listening && !(readOnly || browserSupportsSpeechRecognition === false) ? { color: BUILDER_MUTED } : undefined}
@@ -2013,28 +2071,37 @@ export default function Builder() {
                     ? "Mic: click to request access (allow in browser prompt if shown)"
                     : listening
                       ? "Tap to stop and send"
-                      : "Speak to text — uses browser speech recognition (Chrome recommended)"
+                      : "Your voice → text (browser). Grok’s voice is the speaker button."
             }
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
+            <span className="text-[11px] font-medium hidden sm:inline">Your mic</span>
           </button>
           <button
+            type="button"
             onClick={() => setGrokSpeaks(prev => {
               const next = !prev;
               try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
+              if (!next) {
+                grokAudioRef.current?.pause();
+                grokAudioRef.current = null;
+                setGrokSpeaking(false);
+              }
               return next;
             })}
-            className={`p-2 rounded-md transition-colors shrink-0 ${grokSpeaks ? "border border-cyan-500/35" : ""}`}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors shrink-0 ${grokSpeaks ? "border border-cyan-500/35" : ""}`}
             style={
               grokSpeaks
                 ? { color: "#a8b0c0", backgroundColor: BUILDER_BG, border: "1px solid rgba(34,211,238,0.35)" }
                 : { color: BUILDER_MUTED }
             }
-            title="Read replies with Grok Eve: /api/tts → xAI /v1/tts (same key as chat). No robot voice fallback."
+            title="When on, Grok reads each reply aloud with the Eve voice (backend /api/tts). Off = silent text only."
           >
             {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            <span className="text-[11px] font-medium hidden sm:inline">{grokSpeaks ? "Grok voice on" : "Grok voice off"}</span>
           </button>
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
             className="p-2 rounded-md transition-colors shrink-0 hover:opacity-90"
             style={{ color: BUILDER_MUTED }}
@@ -2053,6 +2120,7 @@ export default function Builder() {
             </Link>
           ) : null}
           <button
+            type="button"
             onClick={handleCopyLast}
             disabled={!paidStatus.paid}
             className={`p-2 rounded-md transition-colors shrink-0 hover:opacity-90 ${
@@ -2063,6 +2131,7 @@ export default function Builder() {
           >
             <Copy size={16} />
           </button>
+          </div>
         </div>
       </div>
         </div>
@@ -2073,10 +2142,10 @@ export default function Builder() {
         type="button"
         onClick={scrollBuilderToChat}
         className="fixed bottom-24 right-4 z-[55] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-lg shadow-black/40 hover:bg-primary/90 xl:hidden"
-        title="Open Grok chat (on small windows it’s to the right — scroll or tap here)"
+        title="Open Grok chat — open conversation on the right (scroll sideways or tap)"
       >
         <MessageSquare size={18} aria-hidden />
-        Chat
+        Grok
       </button>
 
       {/* Upgrade to Pro modal (free tier blocks) */}

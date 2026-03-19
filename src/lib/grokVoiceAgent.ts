@@ -208,6 +208,8 @@ export async function playGrokTts(
     voice_id?: string;
     /** Assign so caller can pause on unmount / new message */
     audioElementRef?: { current: HTMLAudioElement | null };
+    /** Fires when playback actually starts / fully stops (ended, error, or new clip). */
+    onPlayingChange?: (playing: boolean) => void;
   }
 ): Promise<boolean> {
   const trimmed = textForGrokTtsSpoken(text);
@@ -234,13 +236,19 @@ export async function playGrokTts(
       const objectUrl = URL.createObjectURL(blob);
       const audio = new Audio(objectUrl);
       if (options?.audioElementRef) options.audioElementRef.current = audio;
+      const onPlayingChange = options?.onPlayingChange;
       const cleanup = () => {
         URL.revokeObjectURL(objectUrl);
         if (options?.audioElementRef?.current === audio) options.audioElementRef.current = null;
+        onPlayingChange?.(false);
       };
-      audio.addEventListener("ended", cleanup, { once: true });
-      audio.addEventListener("error", cleanup, { once: true });
+      const onEndOrError = () => {
+        cleanup();
+      };
+      audio.addEventListener("ended", onEndOrError, { once: true });
+      audio.addEventListener("error", onEndOrError, { once: true });
       await audio.play();
+      onPlayingChange?.(true);
       return true;
     } catch {
       /* retry */
