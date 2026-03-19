@@ -1,5 +1,6 @@
 /**
- * Supabase client for auth (OAuth). Uses VITE_SUPABASE_* when set; else wizard-saved creds; else fetches from backend /api/config (hosted kyn.app).
+ * Supabase client for auth (OAuth).
+ * Uses wizard-saved creds first; otherwise fetches Supabase config from backend /api/config.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseCreds } from "./setupStorage";
@@ -8,13 +9,13 @@ import { getApiBase } from "./api";
 let client: SupabaseClient | null = null;
 let clientCacheKey: string = "";
 
-let cachedConfig: { url: string; anonKey: string } | null = null;
+let cachedConfig: { url: string; publishableKey: string } | null = null;
 
 function getCacheKey(url: string, key: string): string {
   return url + "|" + key.slice(0, 20);
 }
 
-/** Fetch Supabase url + anon key from backend (no env vars needed on frontend). */
+/** Fetch Supabase url + publishable key from backend (no env vars needed on frontend). */
 export async function fetchSupabaseConfig(): Promise<{ url: string; anonKey: string } | null> {
   if (typeof window === "undefined") return null;
   const base = getApiBase() || window.location.origin;
@@ -22,10 +23,10 @@ export async function fetchSupabaseConfig(): Promise<{ url: string; anonKey: str
   try {
     const res = await fetch(configUrl);
     if (!res.ok) return null;
-    const data = (await res.json()) as { supabaseUrl?: string; supabaseAnonKey?: string };
+    const data = (await res.json()) as { supabaseUrl?: string; supabasePublishableKey?: string; supabaseAnonKey?: string };
     const url = data.supabaseUrl?.trim();
-    const anonKey = data.supabaseAnonKey?.trim();
-    if (url && anonKey) return { url, anonKey };
+    const publishableKey = data.supabasePublishableKey?.trim() || data.supabaseAnonKey?.trim();
+    if (url && publishableKey) return { url, anonKey: publishableKey };
   } catch (_) {}
   return null;
 }
@@ -35,7 +36,7 @@ export async function ensureSupabaseConfig(): Promise<void> {
   if (cachedConfig) return;
   const config = await fetchSupabaseConfig();
   if (config) {
-    cachedConfig = config;
+    cachedConfig = { url: config.url, publishableKey: config.anonKey };
     client = null;
     clientCacheKey = "";
   }
@@ -50,20 +51,10 @@ export function clearSupabaseConfigCache(): void {
 
 export function getSupabaseAuthClient(): SupabaseClient | null {
   if (typeof window === "undefined") return null;
-  let url = import.meta.env.VITE_SUPABASE_URL;
-  let key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (typeof url !== "string" || !url.trim() || typeof key !== "string" || !key.trim()) {
-    const creds = getSupabaseCreds();
-    if (creds?.url?.trim() && creds?.anonKey?.trim()) {
-      url = creds.url.trim();
-      key = creds.anonKey.trim();
-    } else if (cachedConfig?.url && cachedConfig?.anonKey) {
-      url = cachedConfig.url;
-      key = cachedConfig.anonKey;
-    } else {
-      return null;
-    }
-  }
+  const creds = getSupabaseCreds();
+  const url = creds?.url?.trim() || cachedConfig?.url;
+  const key = creds?.anonKey?.trim() || cachedConfig?.publishableKey;
+  if (typeof url !== "string" || !url.trim() || typeof key !== "string" || !key.trim()) return null;
   const keyId = getCacheKey(url, key);
   if (client && clientCacheKey === keyId) return client;
   clientCacheKey = keyId;

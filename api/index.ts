@@ -35,11 +35,14 @@ const defaultPackageJson = JSON.stringify({ name: "kyn-app", private: true, vers
 function handleConfig(method: string, pathname: string, res: VercelResponse): boolean {
   if (method !== "GET" || pathname !== "/api/config") return false;
   const supabaseUrl = (process.env.SUPABASE_URL ?? "").trim();
-  const supabaseAnon = (process.env.SUPABASE_ANON_KEY ?? "").trim();
+  const supabasePublishableKey = (process.env.SUPABASE_PUBLISHABLE_KEY ?? "").trim();
   const openModeFallbackUserId = (process.env.OPEN_MODE_FALLBACK_USER_ID ?? "").trim() || null;
   res.status(200).json({
     supabaseUrl: supabaseUrl && supabaseUrl !== "PLACEHOLDER" ? supabaseUrl : "",
-    supabaseAnonKey: supabaseAnon && supabaseAnon !== "PLACEHOLDER" ? supabaseAnon : "",
+    supabasePublishableKey:
+      supabasePublishableKey && supabasePublishableKey !== "PLACEHOLDER" ? supabasePublishableKey : "",
+    // Back-compat field name (derived from the same publishable key).
+    supabaseAnonKey: supabasePublishableKey && supabasePublishableKey !== "PLACEHOLDER" ? supabasePublishableKey : "",
     openModeFallbackUserId,
   });
   return true;
@@ -64,7 +67,7 @@ async function handleOpenDevUser(
   if (!isOpenDevUserPath(pathname)) return false;
 
   const supabaseUrl = process.env.SUPABASE_URL?.trim();
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY?.trim();
   const fallbackUserId = process.env.OPEN_MODE_FALLBACK_USER_ID?.trim();
   const supabaseOk = supabaseUrl && supabaseKey && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER";
 
@@ -75,7 +78,9 @@ async function handleOpenDevUser(
     if (method === "GET") {
       if (supabaseOk) {
         try {
-          const supabase = createClient(supabaseUrl!, supabaseKey!, { auth: { persistSession: false } });
+          const supabase = createClient(supabaseUrl!, supabaseKey!, {
+            auth: { autoRefreshToken: false, persistSession: false },
+          });
           // Primary lookup: fallbackUserId-aligned user_id.
           if (fallbackUserId) {
             const { data, error } = await supabase
@@ -114,7 +119,9 @@ async function handleOpenDevUser(
       if (supabaseOk) {
         try {
           const body = typeof req.body === "object" && req.body ? req.body as Record<string, unknown> : {};
-          const supabase = createClient(supabaseUrl!, supabaseKey!, { auth: { persistSession: false } });
+          const supabase = createClient(supabaseUrl!, supabaseKey!, {
+            auth: { autoRefreshToken: false, persistSession: false },
+          });
           const specsStr =
             body.specs === undefined
               ? undefined
@@ -399,8 +406,21 @@ async function handleGrok(
         res.status(response.status).json({ error: "Grok API error", details });
         return true;
       }
-      const data = JSON.parse(errText) as { choices?: { message?: { content?: string } }[] };
-      const content = data.choices?.[0]?.message?.content ?? "";
+      // Some providers return non-JSON bodies even on HTTP 200.
+      let data: { choices?: { message?: { content?: unknown } }[] } | null = null;
+      try {
+        data = JSON.parse(errText) as { choices?: { message?: { content?: unknown } }[] };
+      } catch (e) {
+        console.error("[api/index Grok chat] non-JSON success response:", e, errText.slice(0, 300));
+      }
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== "string") {
+        res.status(502).json({
+          error: "Grok API returned unexpected response",
+          details: errText.slice(0, 300),
+        });
+        return true;
+      }
       res.status(200).json({ message: { role: "assistant", content } });
       return true;
     } catch (err) {

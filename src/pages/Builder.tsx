@@ -787,8 +787,8 @@ export default function Builder() {
   return (
     <div className="flex h-screen bg-background text-white overflow-hidden font-sans flex-col">
       <div className="flex flex-1 min-h-0">
-      {/* Activity bar - blue-accented IDE style */}
-      <div className="w-12 bg-[#1e2a38] flex flex-col items-center py-4 border-r border-border z-10">
+      {/* Activity bar - keep same background as the rest of the page */}
+      <div className="w-12 bg-sidebar-bg flex flex-col items-center py-4 border-r border-border z-10">
         <button
           className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
           title="Explorer"
@@ -953,7 +953,7 @@ export default function Builder() {
                 <button
                   type="button"
                   onClick={() => navigate("/settings")}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/20 border border-border/40 hover:bg-editor-bg/70 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
                 >
                   <Github size={18} className="text-primary" />
                   <span className="text-[11px] text-muted font-medium">GitHub</span>
@@ -961,7 +961,7 @@ export default function Builder() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/20 border border-border/40 hover:bg-editor-bg/70 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
                 >
                   <FolderOpen size={18} className="text-muted" />
                   <span className="text-[11px] text-muted font-medium">Local folder</span>
@@ -976,7 +976,7 @@ export default function Builder() {
                     }
                     chatInputDomRef.current?.focus();
                   }}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/20 border border-border/40 hover:bg-editor-bg/70 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
+                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
                 >
                   <FileText size={18} className="text-muted" />
                   <span className="text-[11px] text-muted font-medium">Prompt</span>
@@ -1125,7 +1125,7 @@ export default function Builder() {
         {/* Bottom panel: Terminal, Output, Problems (Cursor-style) */}
         {terminalOpen && (
           <div className="h-48 min-h-[120px] bg-editor-bg border-t border-border flex flex-col flex-shrink-0">
-            <div className="h-9 flex items-center border-b border-border bg-[#1e2a38]">
+            <div className="h-9 flex items-center border-b border-border bg-sidebar-bg">
               <div className="flex items-center h-full">
                 <button
                   onClick={() => setBottomPanelTab('terminal')}
@@ -1298,7 +1298,7 @@ export default function Builder() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!readOnly) handleSendText(); } }}
                 placeholder={readOnly ? "Upgrade for full access" : (listening ? "Speak, then tap mic again to send" : "Type to Grok...")}
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg/20 border border-border/40 text-sm text-white placeholder-muted focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 min-w-0 px-3 py-2 rounded-md bg-editor-bg/20 border border-border/25 text-sm text-white placeholder-muted focus:border-primary focus:outline-none ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
                 ref={chatInputDomRef}

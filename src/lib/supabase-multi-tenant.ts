@@ -1,6 +1,6 @@
 /**
  * Server-side multi-tenant Supabase access.
- * Uses service_role to bypass RLS; all calls are scoped by user_id.
+ * Uses the Supabase secret key (service role) to bypass RLS; all calls are scoped by user_id.
  * Use for: projects, user metadata (is_pro, grok_calls_today), mind_maps, chats.
  */
 
@@ -10,10 +10,15 @@ let adminClient: SupabaseClient | null = null;
 
 function getAdminClient(): SupabaseClient | null {
   const url = process.env.SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const key = process.env.SUPABASE_SECRET_KEY?.trim();
   if (!url || !key || url === "PLACEHOLDER" || key === "PLACEHOLDER") return null;
   if (!adminClient) {
-    adminClient = createClient(url, key, { auth: { persistSession: false } });
+    adminClient = createClient(url, key, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
   }
   return adminClient;
 }

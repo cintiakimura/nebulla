@@ -1,6 +1,6 @@
 /**
  * Register an email or GitHub user as admin (and paid) in Supabase.
- * Requires: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env
+ * Requires: SUPABASE_URL and SUPABASE_SECRET_KEY in .env
  *
  * Run from project root:
  *   node scripts/register-admin.mjs <email>
@@ -29,13 +29,13 @@ const email = byGitHub ? null : raw.toLowerCase();
 const githubUsername = byGitHub ? githubMatch[1].toLowerCase() : null;
 
 const url = process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !serviceRoleKey || url === "PLACEHOLDER" || serviceRoleKey === "PLACEHOLDER") {
-  console.error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env (use Service Role key from Supabase → Settings → API).");
+const secretKey = process.env.SUPABASE_SECRET_KEY;
+if (!url || !secretKey || url === "PLACEHOLDER" || secretKey === "PLACEHOLDER") {
+  console.error("Set SUPABASE_URL and SUPABASE_SECRET_KEY in .env (use Service Role key from Supabase → Settings → API).");
   process.exit(1);
 }
 
-const supabase = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+const supabase = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
 function userMatchesGitHub(u, username) {
   const un = username.toLowerCase();

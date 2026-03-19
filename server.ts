@@ -52,11 +52,11 @@ async function resolveUserId(req: RequestWithUserId, res: express.Response, next
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
   if (token) {
     const url = process.env.SUPABASE_URL?.trim();
-    const anon = process.env.SUPABASE_ANON_KEY?.trim();
+    const anon = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
     if (url && anon && url !== "PLACEHOLDER" && anon !== "PLACEHOLDER") {
       try {
         const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(url, anon);
+        const supabase = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
         const { data: { user }, error } = await supabase.auth.getUser(token);
         if (!error && user?.id) {
           req.userId = user.id;
@@ -114,7 +114,7 @@ async function startServer() {
   // Health check
   app.get("/api/health", (_req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
     const supabaseConnected = !!(
       typeof supabaseUrl === "string" &&
       supabaseUrl.trim() &&
@@ -145,7 +145,7 @@ async function startServer() {
   // Public config: Supabase anon key for frontend (no auth). Open mode: expose fallback user id for getUserId().
   app.get("/api/config", (_req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL?.trim() ?? "";
-    const supabaseAnon = process.env.SUPABASE_ANON_KEY?.trim() ?? "";
+    const supabaseAnon = process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? "";
     const openModeFallbackUserId = (process.env.OPEN_MODE_FALLBACK_USER_ID ?? "").trim() || null;
     res.json({
       supabaseUrl: supabaseUrl && supabaseUrl !== "PLACEHOLDER" ? supabaseUrl : "",
@@ -157,7 +157,9 @@ async function startServer() {
   // Ephemeral token for Grok Voice Agent WebSocket (client uses this to connect to wss://api.x.ai/v1/realtime)
   app.post("/api/realtime/token", async (req, res) => {
     const headerKey = (req.headers["x-grok-api-key"] as string)?.trim();
-    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : process.env.GROK_API_KEY)?.trim();
+    // Accept both env names (chat uses XAI_API_KEY || GROK_API_KEY).
+    const envKey = (process.env.XAI_API_KEY || process.env.GROK_API_KEY)?.trim();
+    const apiKey = (headerKey && headerKey !== "PLACEHOLDER" ? headerKey : envKey)?.trim();
     if (!apiKey || apiKey === "PLACEHOLDER") {
       res.status(503).json({ error: "GROK_API_KEY not set. Add your Grok API key in Settings." });
       return;
@@ -329,11 +331,11 @@ async function startServer() {
         isPaid = await hasWriteAccess(userId);
       } else {
         const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
         if (supabaseUrl && supabaseKey && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER") {
           try {
             const { createClient } = await import("@supabase/supabase-js");
-            const supabase = createClient(supabaseUrl, supabaseKey);
+            const supabase = createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
             const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
             isPaid = row?.paid === true || row?.is_pro === true;
           } catch (_) {}
@@ -548,11 +550,11 @@ async function startServer() {
               ? await (async () => {
                   const { createClient } = await import("@supabase/supabase-js");
                   const supabaseUrl = process.env.SUPABASE_URL?.trim();
-                  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+                  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY?.trim();
                   if (!supabaseUrl || !serviceRoleKey || supabaseUrl === "PLACEHOLDER" || serviceRoleKey === "PLACEHOLDER") {
                     throw new Error("Supabase service role key not configured; cannot upload branding assets.");
                   }
-                  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+                  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
                   const now = Date.now();
                   const uploaded: string[] = [];
@@ -663,11 +665,11 @@ async function startServer() {
         isPaid = await hasWriteAccess(userId);
       } else {
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
       if (supabaseUrl && supabaseKey && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER") {
         try {
           const { createClient } = await import("@supabase/supabase-js");
-          const supabase = createClient(supabaseUrl, supabaseKey);
+          const supabase = createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
             const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", userId).maybeSingle();
             isPaid = row?.paid === true || row?.is_pro === true;
           } catch (_) {}
@@ -902,8 +904,21 @@ async function startServer() {
         const isPro = meta?.is_pro ?? meta?.paid ?? false;
         if (!isPro) await incrementGrokCalls(userId);
       }
-      const data = JSON.parse(errText) as { choices?: { message?: { content?: string } }[] };
-      const content = data.choices?.[0]?.message?.content ?? "";
+      // Some providers return non-JSON bodies even on HTTP 200.
+      let data: { choices?: { message?: { content?: unknown } }[] } | null = null;
+      try {
+        data = JSON.parse(errText) as { choices?: { message?: { content?: unknown } }[] };
+      } catch (e) {
+        console.error("[Grok chat] non-JSON success response:", e, errText.slice(0, 300));
+      }
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== "string") {
+        res.status(502).json({
+          error: "Grok API returned unexpected response",
+          details: errText.slice(0, 300),
+        });
+        return;
+      }
       res.json({ message: { role: "assistant", content } });
     } catch (err) {
       console.error("[Grok chat]", err);
@@ -1040,12 +1055,12 @@ async function startServer() {
         return;
       }
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
       let isPaid = false;
       if (supabaseUrl && supabaseKey && uid && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER") {
         try {
           const { createClient } = await import("@supabase/supabase-js");
-          const supabase = createClient(supabaseUrl, supabaseKey);
+          const supabase = createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
           const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", uid).maybeSingle();
           isPaid = row?.paid === true || row?.is_pro === true;
         } catch (_) {}

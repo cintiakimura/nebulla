@@ -56,7 +56,8 @@ async function runTests() {
         OPEN_MODE_FALLBACK_USER_ID: openModeUserId,
         OPEN_MODE_ORIGIN: "", // allow fallback for localhost (no origin check)
         SUPABASE_URL: "", // force SQLite for reproducible audit
-        SUPABASE_ANON_KEY: "",
+        SUPABASE_PUBLISHABLE_KEY: "",
+        SUPABASE_SECRET_KEY: "",
       },
       cwd: join(__dirname, ".."),
       stdio: ["ignore", "pipe", "pipe"],

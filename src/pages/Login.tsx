@@ -107,6 +107,21 @@ export default function Login() {
     supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
   };
 
+  const handleGoogleSignIn = async () => {
+    let supabase = getSupabaseAuthClient();
+    if (!supabase) {
+      await ensureSupabaseConfig();
+      supabase = getSupabaseAuthClient();
+    }
+    if (!supabase) {
+      setError("Supabase auth is not configured yet. Check Settings → API URL, then reload.");
+      return;
+    }
+    setError(null);
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+  };
+
   const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!forgotEmail.trim()) return;
@@ -235,6 +250,14 @@ export default function Login() {
               className="w-full py-3 px-4 bg-[#264f78] hover:bg-[#1a8ad4] text-white font-medium rounded-lg disabled:opacity-60 transition-all"
             >
               Sign in with GitHub
+            </button>
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="w-full py-3 px-4 bg-[#1e3a5f] hover:bg-[#264f78] text-white font-medium rounded-lg disabled:opacity-60 transition-all"
+            >
+              Sign in with Google
             </button>
             <button
               type="button"

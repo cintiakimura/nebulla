@@ -10,7 +10,7 @@ export default {
         "editor-bg": "#06061F",
         "sidebar-bg": "#06061F",
         text: "#ffffff",
-        muted: "#6F748A",
+        muted: "#569cd6",
         border: "#1F213C",
         abyss: {
           bg: "#06061F",
@@ -19,7 +19,7 @@ export default {
           accent: "#007ACC",
           "accent-hover": "#1a8ad4",
           secondary: "#007ACC",
-          muted: "#6F748A",
+          muted: "#569cd6",
           border: "#1F213C",
           hover: "#0B0B2A",
         },
