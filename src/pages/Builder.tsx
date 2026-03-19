@@ -788,7 +788,7 @@ export default function Builder() {
     <div className="flex h-screen bg-background text-white overflow-hidden font-sans flex-col">
       <div className="flex flex-1 min-h-0">
       {/* Activity bar - keep same background as the rest of the page */}
-      <div className="w-12 bg-sidebar-bg flex flex-col items-center py-4 border-r border-border z-10">
+      <div className="w-12 bg-background flex flex-col items-center py-4 border-r border-border/20 z-10">
         <button
           className={`p-2 rounded-md mb-4 transition-colors border-l-2 ${activeTabId !== 'preview' ? 'text-white bg-primary/15 border-l-primary' : 'text-muted hover:text-primary hover:bg-primary/10 border-l-transparent'}`}
           title="Explorer"
@@ -817,7 +817,7 @@ export default function Builder() {
       </div>
 
       {/* Sidebar: Projects (when no project) or Explorer + Deploy (when project) */}
-      <div className="w-64 bg-sidebar-bg border-r border-border flex flex-col">
+      <div className="w-64 bg-background border-r border-border/20 flex flex-col">
         {projectId && (
           <div className="flex items-center gap-1 p-2 border-b border-border">
             <button
@@ -1219,7 +1219,7 @@ export default function Builder() {
       </div>
 
       {/* Chat Panel - same width as Explorer */}
-      <div className="w-64 bg-sidebar-bg border-l border-border flex flex-col flex-shrink-0">
+      <div className="w-64 bg-background border-l border-border/20 flex flex-col flex-shrink-0">
         <div className="p-3 border-b border-border flex items-center justify-between gap-2">
           <span className="text-xs font-semibold tracking-wider text-white uppercase">CHAT</span>
           <span

@@ -11,7 +11,8 @@ export default {
         "sidebar-bg": "#06061F",
         text: "#ffffff",
         muted: "#569cd6",
-        border: "#1F213C",
+        // Near page bg so dividers read as subtle separation, not a bright “white” line
+        border: "#0B0B2A",
         abyss: {
           bg: "#06061F",
           "editor-bg": "#06061F",
@@ -20,7 +21,7 @@ export default {
           "accent-hover": "#1a8ad4",
           secondary: "#007ACC",
           muted: "#569cd6",
-          border: "#1F213C",
+          border: "#0B0B2A",
           hover: "#0B0B2A",
         },
       },

@@ -309,7 +309,7 @@ async function handleGrok(
       return true;
     } catch (e) {
       console.error("[api/index realtime token]", e);
-      res.status(500).json({ error: "Failed to get voice token" });
+      res.status(500).json({ error: "Failed to get voice token", details: (e instanceof Error ? e.message : String(e)) });
       return true;
     }
   }
