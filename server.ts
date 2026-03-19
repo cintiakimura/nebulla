@@ -4,7 +4,12 @@ import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
 import { handleExportProject } from "./src/api/export-project.js";
 import { AGENT_ID, AGENT_SYSTEM_PROMPT, AGENT_PRE_CODE_QUESTIONS } from "./src/config/agentConfig.js";
-import { GROK_CHAT_COMPLETIONS_MODEL, XAI_CHAT_COMPLETIONS_URL, XAI_TTS_URL } from "./src/config/xaiGrok.js";
+import {
+  GROK_CHAT_COMPLETIONS_MODEL,
+  XAI_CHAT_COMPLETIONS_URL,
+  XAI_TTS_DEFAULT_LANGUAGE,
+  XAI_TTS_URL,
+} from "./src/config/xaiGrok.js";
 import { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } from "./src/lib/grokModelSelection.js";
 import {
   runCodeAgentPipeline,
@@ -1047,6 +1052,7 @@ async function startServer() {
           voice_id: (voiceId && ["eve", "ara", "rex", "sal", "leo"].includes(String(voiceId).toLowerCase()))
             ? String(voiceId).toLowerCase()
             : "eve",
+          language: (process.env.XAI_TTS_LANGUAGE ?? "").trim() || XAI_TTS_DEFAULT_LANGUAGE,
         }),
       });
       if (!response.ok) {

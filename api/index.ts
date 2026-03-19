@@ -1,17 +1,27 @@
 /**
  * Single API handler for all /api/* requests (used with vercel.json rewrite).
  * Rewrite sends /api/:path* → /api?path=:path*; we set req.url for Express.
- * Open-dev-user + Grok (agent/chat, tts) + config audits are handled here so we never load server.ts (and better-sqlite3) on Vercel.
+ * Open-dev-user + auth user limits/projects list + Grok (agent/chat, tts) + config audits are handled here
+ * so we never load server.ts (and better-sqlite3) on Vercel for those routes.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { AGENT_SYSTEM_PROMPT } from "../src/config/agentConfig.js";
-import { GROK_CHAT_COMPLETIONS_MODEL, XAI_CHAT_COMPLETIONS_URL, XAI_TTS_URL } from "../src/config/xaiGrok.js";
+import {
+  GROK_CHAT_COMPLETIONS_MODEL,
+  XAI_CHAT_COMPLETIONS_URL,
+  XAI_TTS_DEFAULT_LANGUAGE,
+  XAI_TTS_URL,
+} from "../src/config/xaiGrok.js";
 import { getGrokModelAndMode, GROK_CODING_MODE_SYSTEM } from "../src/lib/grokModelSelection.js";
 import { runCodeAgentPipeline, runDeployAgentPipeline } from "../src/lib/multiAgentHandlers.js";
 import {
+  countProjects as supabaseCountProjects,
+  ensureUserAndGetMetadata,
+  getGrokUsage,
   getProject as supabaseGetProject,
   isSupabaseConfigured as supabaseIsConfigured,
+  listProjects as supabaseListProjects,
 } from "../src/lib/supabase-multi-tenant.js";
 import { buildGrokChatErrorBody } from "../src/lib/grokApiError.js";
 
@@ -19,6 +29,141 @@ const OPEN_DEV_PATH = "/api/users/open-dev-user/projects";
 // Client Grok modal expects the error message to mention "grok".
 const SERVICE_UNAVAILABLE_MSG = "Grok service unavailable—try later";
 let grokFirstCallLogged = false;
+
+function headerString(v: string | string[] | undefined): string {
+  if (v === undefined || v === null) return "";
+  return Array.isArray(v) ? (v[0] ?? "") : v;
+}
+
+/** Same rules as server.ts `requestFromOpenModeOrigin` (Origin / Referer only). */
+function requestFromOpenModeOriginFromHeader(originOrReferer: string): boolean {
+  const o = originOrReferer.trim();
+  if (o) {
+    try {
+      const url = new URL(o);
+      const host = url.hostname.toLowerCase();
+      if (host === "localhost" || host === "127.0.0.1") return true;
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  const origin = process.env.OPEN_MODE_ORIGIN?.trim();
+  if (!origin || !o) return false;
+  try {
+    const url = new URL(o);
+    const host = url.hostname.toLowerCase();
+    const want = origin.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const wantHost = want.includes("/") ? new URL(want.startsWith("http") ? want : `https://${want}`).hostname : want;
+    return host === wantHost || host === `www.${wantHost}`;
+  } catch {
+    return o.includes(origin) || o.includes(origin.replace(/^https?:\/\//, ""));
+  }
+}
+
+async function getAuthenticatedUserId(req: VercelRequest): Promise<string | null> {
+  const auth = headerString(req.headers.authorization);
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (token) {
+    const url = process.env.SUPABASE_URL?.trim();
+    const anon = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
+    if (url && anon && url !== "PLACEHOLDER" && anon !== "PLACEHOLDER") {
+      try {
+        const supabase = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
+        const { data, error } = await supabase.auth.getUser(token);
+        if (!error && data.user?.id) return data.user.id;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  const o = headerString(req.headers.origin) || headerString(req.headers.referer);
+  if (requestFromOpenModeOriginFromHeader(o)) {
+    return process.env.OPEN_MODE_FALLBACK_USER_ID?.trim() || "open-dev-user";
+  }
+  return null;
+}
+
+const freeProjectLimitEnv = () => Math.max(0, parseInt(process.env.FREE_PROJECT_LIMIT ?? "3", 10));
+const freeGrokLimitEnv = () => Math.max(0, parseInt(process.env.FREE_GROK_DAILY_LIMIT ?? "10", 10));
+
+/**
+ * GET /api/users/me/limits and GET /api/users/:userId/projects without loading Express + better-sqlite3.
+ * Fixes Vercel 500s when the SQLite native module or DB init fails in the serverless bundle.
+ */
+async function handleAuthUserApi(
+  method: string,
+  pathname: string,
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<boolean> {
+  if (method !== "GET") return false;
+
+  try {
+    if (pathname === "/api/users/me/limits") {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return true;
+      }
+      const projectLimit = freeProjectLimitEnv();
+      const grokLimitNum = freeGrokLimitEnv();
+      let isPro = false;
+      let projectCount = 0;
+      let grokToday = 0;
+      if (supabaseIsConfigured()) {
+        const meta = await ensureUserAndGetMetadata(userId);
+        isPro = meta?.is_pro ?? meta?.paid ?? false;
+        projectCount = await supabaseCountProjects(userId);
+        const usage = await getGrokUsage(userId);
+        grokToday = usage.count;
+      }
+      res.status(200).json({
+        isPro,
+        projectCount,
+        projectLimit,
+        grokToday,
+        grokLimit: isPro ? null : grokLimitNum,
+      });
+      return true;
+    }
+
+    const projectsMatch = pathname.match(/^\/api\/users\/([^/]+)\/projects$/);
+    if (projectsMatch) {
+      const paramUserId = projectsMatch[1];
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return true;
+      }
+      if (paramUserId !== userId) {
+        res.status(403).json({ error: "Forbidden: cannot access another user's data" });
+        return true;
+      }
+      if (supabaseIsConfigured()) {
+        const list = await supabaseListProjects(userId);
+        res.status(200).json(
+          list.map((r) => ({
+            id: r.id,
+            user_id: r.user_id,
+            name: r.name,
+            status: r.status,
+            last_edited: r.last_edited,
+            created_at: r.created_at,
+          }))
+        );
+      } else {
+        res.status(200).json([]);
+      }
+      return true;
+    }
+  } catch (e) {
+    console.error("[api/index] handleAuthUserApi", pathname, e);
+    res.status(500).json({ error: "Request failed", details: e instanceof Error ? e.message : String(e) });
+    return true;
+  }
+
+  return false;
+}
 
 function getGrokApiKey(): string | null {
   const key = (process.env.XAI_API_KEY || process.env.GROK_API_KEY)?.trim();
@@ -456,6 +601,7 @@ async function handleGrok(
           voice_id: (voiceId && ["eve", "ara", "rex", "sal", "leo"].includes(String(voiceId).toLowerCase()))
             ? String(voiceId).toLowerCase()
             : "eve",
+          language: (process.env.XAI_TTS_LANGUAGE ?? "").trim() || XAI_TTS_DEFAULT_LANGUAGE,
         }),
       });
       if (!response.ok) {
@@ -616,6 +762,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const handled = await handleOpenDevUser(req.method ?? "GET", req, res, pathname);
   if (handled) return;
+
+  const authUserHandled = await handleAuthUserApi(req.method ?? "GET", pathname, req, res);
+  if (authUserHandled) return;
 
   const agentHandled = await handleMultiAgent(req.method ?? "GET", pathname, req, res);
   if (agentHandled) return;
