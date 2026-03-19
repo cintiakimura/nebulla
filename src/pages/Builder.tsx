@@ -10,6 +10,7 @@ import Editor from "@monaco-editor/react";
 import {
   SandpackProvider,
   SandpackPreview,
+  SandpackConsole,
   useSandpack,
 } from "@codesandbox/sandpack-react";
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
@@ -38,6 +39,155 @@ const MonacoSync = ({ code, setCode }: { code: string, setCode: (c: string) => v
 
 type ProjectStatus = "Live" | "Preview" | "Draft";
 type Project = { id: string; name: string; status: ProjectStatus; lastEdited: string; thumbnail?: string | null; url?: string | null };
+
+type BottomPanelTabId = "terminal" | "output" | "problems";
+
+/** Cursor-style bottom panel: optional Sandpack console (must render inside SandpackProvider) + kyn activity logs */
+function BuilderBottomPanel({
+  bottomPanelTab,
+  setBottomPanelTab,
+  setTerminalOpen,
+  logs,
+  listening,
+  transcript,
+  sandpackConsole,
+}: {
+  bottomPanelTab: BottomPanelTabId;
+  setBottomPanelTab: (t: BottomPanelTabId) => void;
+  setTerminalOpen: (open: boolean) => void;
+  logs: string[];
+  listening: boolean;
+  transcript: string;
+  sandpackConsole?: React.ReactNode;
+}) {
+  return (
+    <div className="h-[min(42vh,22rem)] min-h-[132px] max-h-[min(50vh,24rem)] bg-editor-bg border-t border-border flex flex-col flex-shrink-0">
+      <div className="h-9 flex items-center border-b border-border bg-sidebar-bg flex-shrink-0">
+        <div className="flex items-center h-full">
+          <button
+            type="button"
+            onClick={() => setBottomPanelTab("terminal")}
+            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "terminal" ? "border-primary text-primary bg-editor-bg" : "border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]"}`}
+          >
+            <TerminalIcon size={14} />
+            <span className="text-xs uppercase tracking-wider">Terminal</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBottomPanelTab("output")}
+            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "output" ? "border-primary text-primary bg-editor-bg" : "border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]"}`}
+          >
+            <FileCode size={14} />
+            <span className="text-xs uppercase tracking-wider">Output</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBottomPanelTab("problems")}
+            className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "problems" ? "border-primary text-primary bg-editor-bg" : "border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]"}`}
+          >
+            <AlertCircle size={14} />
+            <span className="text-xs uppercase tracking-wider">Problems</span>
+          </button>
+        </div>
+        <div className="ml-auto flex items-center pr-2">
+          <button type="button" onClick={() => setTerminalOpen(false)} className="text-muted hover:text-white p-1.5 rounded hover:bg-[#2d3f4f]" title="Close panel">
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0 font-mono text-sm text-white">
+        {bottomPanelTab === "terminal" && (
+          <div className="flex flex-col h-full min-h-0">
+            {sandpackConsole ? (
+              <div className="shrink-0 h-[42%] min-h-[96px] max-h-[200px] border-b border-border bg-[#1a1a1a] overflow-hidden flex flex-col">
+                <div className="text-[10px] uppercase tracking-wider text-muted px-3 py-1 border-b border-border/60 bg-[#252526]">
+                  Preview console (Sandpack)
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto sandpack-console-embed">
+                  {sandpackConsole}
+                </div>
+              </div>
+            ) : null}
+            <div className={`flex-1 min-h-0 overflow-auto p-3 ${sandpackConsole ? "" : "pt-3"}`}>
+              {sandpackConsole ? (
+                <div className="text-[10px] uppercase tracking-wider text-muted mb-2">Kyn activity</div>
+              ) : null}
+              {logs.map((log, i) => (
+                <div
+                  key={i}
+                  className={`mb-1 ${log.includes("Error") || log.includes("Failed") ? "text-red-400" : log.includes("Success") ? "text-green-400" : log.includes("AI") || log.includes("Grok") ? "text-blue-400" : ""}`}
+                >
+                  <span className="text-[#6b7280] mr-2">$</span>
+                  {log}
+                </div>
+              ))}
+              {listening && transcript ? (
+                <div className="text-muted italic mt-2">
+                  <span className="mr-2">~</span>
+                  {transcript}...
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+        {bottomPanelTab === "output" && (
+          <div className="p-4 h-full overflow-auto">
+            {logs.map((log, i) => (
+              <div key={i} className={`mb-1 ${log.includes("Error") || log.includes("Failed") ? "text-red-400" : log.includes("Success") ? "text-green-400" : ""}`}>
+                <span className="text-[#6b7280] mr-2 select-none">›</span>
+                {log}
+              </div>
+            ))}
+            {logs.length === 0 ? <div className="text-[#6b7280]">No output yet.</div> : null}
+          </div>
+        )}
+        {bottomPanelTab === "problems" && (
+          <div className="p-4 text-muted h-full overflow-auto">
+            <div className="text-xs text-[#6b7280] mb-2">No problems have been detected in the workspace.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BuilderStatusBar({
+  terminalOpen,
+  setTerminalOpen,
+  paidStatus,
+}: {
+  terminalOpen: boolean;
+  setTerminalOpen: (v: boolean) => void;
+  paidStatus: { paid: boolean };
+}) {
+  return (
+    <div className="h-6 bg-primary text-white text-xs flex items-center px-3 justify-between flex-shrink-0">
+      <div className="flex items-center gap-4">
+        {paidStatus.paid ? (
+          <span className="flex items-center gap-1">
+            <Github size={12} /> main*
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 opacity-80">
+            <Github size={12} /> main*
+          </span>
+        )}
+        <span className="flex items-center gap-1">
+          <X size={12} className="text-red-300" /> 0
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <span>Ln 1, Col 1</span>
+        <span>Spaces: 2</span>
+        <span>UTF-8</span>
+        <span>TypeScript React</span>
+        <button type="button" onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-primary/20 px-1 rounded" title={terminalOpen ? "Hide terminal" : "Show terminal"}>
+          <TerminalIcon size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** Extract code from markdown code blocks and apply to editor. Uses last block of each type. */
 function applyCodeFromContent(
@@ -77,8 +227,7 @@ export default function Builder() {
 }`);
   
   const [terminalOpen, setTerminalOpen] = useState(true);
-  type BottomPanelTab = 'terminal' | 'output' | 'problems';
-  const [bottomPanelTab, setBottomPanelTab] = useState<BottomPanelTab>('terminal');
+  const [bottomPanelTab, setBottomPanelTab] = useState<BottomPanelTabId>("terminal");
   const [logs, setLogs] = useState<string[]>(["[kyn] Builder initialized.", "[kyn] Ready for VETR loop (Verify, Explain, Trace, Repair)."]);
   type TabId = 'preview' | '/App.tsx' | '/package.json';
   const [openTabs, setOpenTabs] = useState<TabId[]>(['preview', '/App.tsx']);
@@ -821,7 +970,7 @@ export default function Builder() {
         ref={builderMainScrollRef}
         className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
       >
-        <div className="flex min-h-0 h-full min-w-[56rem]">
+        <div className="flex min-h-0 h-full min-w-[60rem]">
       {/* Activity bar - keep same background as the rest of the page */}
       <div className="w-12 bg-background flex flex-col items-center py-4 border-r border-border/20 z-10 shrink-0">
         <button
@@ -981,49 +1130,52 @@ export default function Builder() {
         {projectLoading ? (
           <div className="flex-1 flex items-center justify-center bg-editor-bg text-muted">Loading project...</div>
         ) : !projectId ? (
-          /* Project list / welcome - no project selected */
-          <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center">
-            <div className="max-w-lg w-full space-y-6">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center min-h-0">
+              <div className="max-w-lg w-full space-y-6">
               <h1 className="text-xl font-medium text-white text-center">Start project brainstorming</h1>
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-3">
                 <button
                   type="button"
                   onClick={() => navigate("/master-plan-brainstorming")}
-                  className="flex-1 py-3 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-3.5 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium flex items-center justify-center gap-2 transition-colors shadow-sm shadow-primary/20"
                 >
                   Brainstorm
                 </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/settings")}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
-                >
-                  <Github size={18} className="text-primary" />
-                  <span className="text-[11px] text-muted font-medium">GitHub</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
-                >
-                  <FolderOpen size={18} className="text-muted" />
-                  <span className="text-[11px] text-muted font-medium">Local folder</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (readOnly) {
-                      setProModalAction("read_only");
-                      setProModalOpen(true);
-                      return;
-                    }
-                    chatInputDomRef.current?.focus();
-                  }}
-                  className="flex-1 py-3 px-4 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 text-white font-medium flex flex-col items-center justify-center gap-1 transition-colors"
-                >
-                  <FileText size={18} className="text-muted" />
-                  <span className="text-[11px] text-muted font-medium">Prompt</span>
-                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/settings")}
+                    className="py-3 px-2 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 hover:border-primary/30 text-white font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px]"
+                  >
+                    <Github size={20} className="text-primary shrink-0" />
+                    <span className="text-[10px] text-muted font-medium text-center leading-tight">GitHub</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="py-3 px-2 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 hover:border-primary/30 text-white font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px]"
+                  >
+                    <FolderOpen size={20} className="text-muted shrink-0" />
+                    <span className="text-[10px] text-muted font-medium text-center leading-tight">Local folder</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (readOnly) {
+                        setProModalAction("read_only");
+                        setProModalOpen(true);
+                        return;
+                      }
+                      scrollBuilderToChat();
+                      chatInputDomRef.current?.focus();
+                    }}
+                    className="py-3 px-2 rounded-lg bg-sidebar-bg/15 border border-border/25 hover:bg-editor-bg/50 hover:border-primary/30 text-white font-medium flex flex-col items-center justify-center gap-1.5 transition-colors min-h-[88px]"
+                  >
+                    <FileText size={20} className="text-muted shrink-0" />
+                    <span className="text-[10px] text-muted font-medium text-center leading-tight">Prompt</span>
+                  </button>
+                </div>
               </div>
               <p className="text-sm text-muted text-center">Create a project and start coding. Chat with Grok on the right to plan or generate code.</p>
               {createError && (
@@ -1073,7 +1225,19 @@ export default function Builder() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
+            {terminalOpen ? (
+              <BuilderBottomPanel
+                bottomPanelTab={bottomPanelTab}
+                setBottomPanelTab={setBottomPanelTab}
+                setTerminalOpen={setTerminalOpen}
+                logs={logs}
+                listening={listening}
+                transcript={typeof transcript === "string" ? transcript : ""}
+              />
+            ) : null}
+            <BuilderStatusBar terminalOpen={terminalOpen} setTerminalOpen={setTerminalOpen} paidStatus={paidStatus} />
           </div>
         ) : (
           <>
@@ -1100,162 +1264,134 @@ export default function Builder() {
           })}
         </div>
 
-        {/* Center content - preview/editor pane (dark blue #1e1e1e) */}
-        <div className="flex-1 min-h-0 relative overflow-hidden bg-editor-bg">
+        {/* Center + embedded terminal (Sandpack console when preview/editor) + status */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-editor-bg">
           {!setupComplete ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-editor-bg p-8">
-              <div className="max-w-md rounded-lg border border-border bg-sidebar-bg p-6 text-center">
-                <p className="text-white text-sm mb-4">Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
-                <button
-                  type="button"
-                  onClick={() => navigate("/settings")}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm rounded transition-colors"
-                >
-                  Go to Settings
-                </button>
-              </div>
-            </div>
-          ) : activeTabId !== '/package.json' ? (
-            <SandpackProvider
-              template="react-ts"
-              theme="dark"
-              files={{ "/App.tsx": code }}
-              customSetup={{ dependencies: { "lucide-react": "latest", "tailwindcss": "latest" } }}
-            >
-              <MonacoSync code={code} setCode={setCode} />
-              {activeTabId === 'preview' && (
-                <div className="absolute inset-0 flex flex-col bg-editor-bg">
-                  <div className="flex-none h-8 bg-sidebar-bg border-b border-border flex items-center px-4">
-                    <span className="text-xs text-muted font-medium">Live Preview</span>
+            <>
+              <div className="flex-1 min-h-0 relative overflow-hidden">
+                <div className="absolute inset-0 flex items-center justify-center bg-editor-bg p-8 z-[1]">
+                  <div className="max-w-md rounded-lg border border-border bg-sidebar-bg p-6 text-center">
+                    <p className="text-white text-sm mb-4">Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/settings")}
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm rounded transition-colors"
+                    >
+                      Go to Settings
+                    </button>
                   </div>
-                  <div className="absolute top-8 left-0 right-0 bottom-0 w-full bg-editor-bg">
-                    <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: '100%', width: '100%' }} />
-                  </div>
-                  {!paidStatus.paid && (
-                    <div className="absolute bottom-2 right-2 text-sm text-muted bg-sidebar-bg/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-border">
-                      Kyn Sandbox – Upgrade for full access
-                    </div>
-                  )}
                 </div>
-              )}
-              {activeTabId === '/App.tsx' && (
+              </div>
+              {terminalOpen ? (
+                <BuilderBottomPanel
+                  bottomPanelTab={bottomPanelTab}
+                  setBottomPanelTab={setBottomPanelTab}
+                  setTerminalOpen={setTerminalOpen}
+                  logs={logs}
+                  listening={listening}
+                  transcript={typeof transcript === "string" ? transcript : ""}
+                />
+              ) : null}
+              <BuilderStatusBar terminalOpen={terminalOpen} setTerminalOpen={setTerminalOpen} paidStatus={paidStatus} />
+            </>
+          ) : activeTabId !== "/package.json" ? (
+            <>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <SandpackProvider
+                  template="react-ts"
+                  theme="dark"
+                  files={{ "/App.tsx": code }}
+                  customSetup={{ dependencies: { "lucide-react": "latest", "tailwindcss": "latest" } }}
+                >
+                  <MonacoSync code={code} setCode={setCode} />
+                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden h-full">
+                    <div className="flex-1 min-h-0 relative overflow-hidden bg-editor-bg">
+                      {activeTabId === "preview" && (
+                        <div className="absolute inset-0 flex flex-col bg-editor-bg">
+                          <div className="flex-none h-8 bg-sidebar-bg border-b border-border flex items-center px-4">
+                            <span className="text-xs text-muted font-medium">Live Preview</span>
+                          </div>
+                          <div className="absolute top-8 left-0 right-0 bottom-0 w-full bg-editor-bg">
+                            <SandpackPreview showOpenInCodeSandbox={false} showRefreshButton={true} style={{ height: "100%", width: "100%" }} />
+                          </div>
+                          {!paidStatus.paid && (
+                            <div className="absolute bottom-2 right-2 text-sm text-muted bg-sidebar-bg/90 px-2 py-1 rounded pointer-events-none select-none z-10 border border-border">
+                              Kyn Sandbox – Upgrade for full access
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {activeTabId === "/App.tsx" && (
+                        <div className="absolute inset-0 w-full bg-editor-bg">
+                          <Editor
+                            height="100%"
+                            defaultLanguage="typescript"
+                            theme="vs-dark"
+                            value={code}
+                            onChange={(val) => setCode(val ?? "")}
+                            options={{
+                              minimap: { enabled: false },
+                              fontSize: 14,
+                              wordWrap: "on",
+                              padding: { top: 16 },
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {terminalOpen ? (
+                      <BuilderBottomPanel
+                        bottomPanelTab={bottomPanelTab}
+                        setBottomPanelTab={setBottomPanelTab}
+                        setTerminalOpen={setTerminalOpen}
+                        logs={logs}
+                        listening={listening}
+                        transcript={typeof transcript === "string" ? transcript : ""}
+                        sandpackConsole={
+                          <SandpackConsole
+                            showHeader={false}
+                            showSyntaxError
+                            showSetupProgress
+                            showRestartButton={false}
+                            showResetConsoleButton
+                            className="h-full min-h-0 !bg-[#1a1a1a] text-[11px] text-[#d4d4d4]"
+                          />
+                        }
+                      />
+                    ) : null}
+                  </div>
+                </SandpackProvider>
+              </div>
+              <BuilderStatusBar terminalOpen={terminalOpen} setTerminalOpen={setTerminalOpen} paidStatus={paidStatus} />
+            </>
+          ) : (
+            <>
+              <div className="flex-1 min-h-0 relative overflow-hidden bg-editor-bg">
                 <div className="absolute inset-0 w-full bg-editor-bg">
                   <Editor
                     height="100%"
-                    defaultLanguage="typescript"
+                    defaultLanguage="json"
                     theme="vs-dark"
-                    value={code}
-                    onChange={(val) => setCode(val ?? '')}
-                    options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: 'on', padding: { top: 16 }, fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
+                    value={packageJsonContent}
+                    onChange={(val) => setPackageJsonContent(val ?? "")}
+                    options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on", padding: { top: 16 } }}
                   />
                 </div>
-              )}
-            </SandpackProvider>
-          ) : (
-            <div className="absolute inset-0 w-full bg-editor-bg">
-              <Editor
-                height="100%"
-                defaultLanguage="json"
-                theme="vs-dark"
-                value={packageJsonContent}
-                onChange={(val) => setPackageJsonContent(val ?? '')}
-                options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: 'on', padding: { top: 16 } }}
-              />
-            </div>
+              </div>
+              {terminalOpen ? (
+                <BuilderBottomPanel
+                  bottomPanelTab={bottomPanelTab}
+                  setBottomPanelTab={setBottomPanelTab}
+                  setTerminalOpen={setTerminalOpen}
+                  logs={logs}
+                  listening={listening}
+                  transcript={typeof transcript === "string" ? transcript : ""}
+                />
+              ) : null}
+              <BuilderStatusBar terminalOpen={terminalOpen} setTerminalOpen={setTerminalOpen} paidStatus={paidStatus} />
+            </>
           )}
-        </div>
-
-        {/* Bottom panel: Terminal, Output, Problems (Cursor-style) */}
-        {terminalOpen && (
-          <div className="h-48 min-h-[120px] bg-editor-bg border-t border-border flex flex-col flex-shrink-0">
-            <div className="h-9 flex items-center border-b border-border bg-sidebar-bg">
-              <div className="flex items-center h-full">
-                <button
-                  onClick={() => setBottomPanelTab('terminal')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'terminal' ? 'border-primary text-primary bg-editor-bg' : 'border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]'}`}
-                >
-                  <TerminalIcon size={14} />
-                  <span className="text-xs uppercase tracking-wider">Terminal</span>
-                </button>
-                <button
-                  onClick={() => setBottomPanelTab('output')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'output' ? 'border-primary text-primary bg-editor-bg' : 'border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]'}`}
-                >
-                  <FileCode size={14} />
-                  <span className="text-xs uppercase tracking-wider">Output</span>
-                </button>
-                <button
-                  onClick={() => setBottomPanelTab('problems')}
-                  className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === 'problems' ? 'border-primary text-primary bg-editor-bg' : 'border-transparent text-muted hover:text-primary hover:bg-[#1e3a5f]'}`}
-                >
-                  <AlertCircle size={14} />
-                  <span className="text-xs uppercase tracking-wider">Problems</span>
-                </button>
-              </div>
-              <div className="ml-auto flex items-center pr-2">
-                <button onClick={() => setTerminalOpen(false)} className="text-muted hover:text-white p-1.5 rounded hover:bg-[#2d3f4f]" title="Close panel">
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto font-mono text-sm text-white min-h-0">
-              {bottomPanelTab === 'terminal' && (
-                <div className="p-4">
-                  {logs.map((log, i) => (
-                    <div key={i} className={`mb-1 ${log.includes('Error') || log.includes('Failed') ? 'text-red-400' : log.includes('Success') ? 'text-green-400' : log.includes('AI') || log.includes('Grok') ? 'text-blue-400' : ''}`}>
-                      <span className="text-[#6b7280] mr-2">$</span>
-                      {log}
-                    </div>
-                  ))}
-                  {listening && transcript && (
-                    <div className="text-muted italic mt-2">
-                      <span className="mr-2">~</span>
-                      {transcript}...
-                    </div>
-                  )}
-                </div>
-              )}
-              {bottomPanelTab === 'output' && (
-                <div className="p-4">
-                  {logs.map((log, i) => (
-                    <div key={i} className={`mb-1 ${log.includes('Error') || log.includes('Failed') ? 'text-red-400' : log.includes('Success') ? 'text-green-400' : ''}`}>
-                      <span className="text-[#6b7280] mr-2 select-none">›</span>
-                      {log}
-                    </div>
-                  ))}
-                  {logs.length === 0 && (
-                    <div className="text-[#6b7280]">No output yet.</div>
-                  )}
-                </div>
-              )}
-              {bottomPanelTab === 'problems' && (
-                <div className="p-4 text-muted">
-                  <div className="text-xs text-[#6b7280] mb-2">No problems have been detected in the workspace.</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Status Bar: same layout; free users see git label without click-to-upgrade if preferred, or keep as is */}
-        <div className="h-6 bg-primary text-white text-xs flex items-center px-3 justify-between">
-          <div className="flex items-center gap-4">
-            {paidStatus.paid ? (
-              <span className="flex items-center gap-1"><Github size={12} /> main*</span>
-            ) : (
-              <span className="flex items-center gap-1 opacity-80"><Github size={12} /> main*</span>
-            )}
-            <span className="flex items-center gap-1"><X size={12} className="text-red-300" /> 0</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>Ln 1, Col 1</span>
-            <span>Spaces: 2</span>
-            <span>UTF-8</span>
-            <span>TypeScript React</span>
-            <button onClick={() => setTerminalOpen(!terminalOpen)} className="hover:bg-primary/20 px-1 rounded">
-              <TerminalIcon size={12} />
-            </button>
-          </div>
         </div>
           </>
         )}
@@ -1264,7 +1400,7 @@ export default function Builder() {
       {/* Chat Panel - same width as Explorer */}
       <div
         id="builder-chat-panel"
-        className="w-64 bg-background border-l border-border/20 flex flex-col flex-shrink-0"
+        className="w-[min(20rem,100%)] min-w-[16rem] max-w-[22rem] bg-background border-l border-border/20 flex flex-col flex-shrink-0"
       >
         <div className="p-3 border-b border-border flex items-center justify-between gap-2">
           <span className="text-xs font-semibold tracking-wider text-white uppercase">CHAT</span>
