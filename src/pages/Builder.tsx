@@ -20,6 +20,7 @@ import { getUserId, getPaidStatus, setPaidFromSuccess, isOpenMode } from "../lib
 import { getApiBase, clearBackendUnavailable, setBackendUnavailable } from "../lib/api";
 import { getSessionToken } from "../lib/supabaseAuth";
 import { getBackendSecretHeaders } from "../lib/storedSecrets";
+import { getGrokModelAndMode } from "../lib/grokModelSelection.js";
 import { formatGrokErrorForChat } from "../lib/grokApiError";
 import { playGrokTts } from "../lib/grokVoiceAgent";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
@@ -345,14 +346,8 @@ export default function Builder() {
       return false;
     }
   });
-  const [interactionMode, setInteractionMode] = useState<"talk" | "code">(() => {
-    try {
-      const v = localStorage.getItem("kyn_interaction_mode");
-      return v === "code" ? "code" : "talk";
-    } catch {
-      return "talk";
-    }
-  });
+  /** Server uses heuristics on the message (no manual Talk/Code switch). */
+  const INTERACTION_MODE = "auto" as const;
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [sidebarPanelW, setSidebarPanelW] = useState(() =>
     readStoredPanelSize("kyn_builder_sidebar_w", 224, 160, 560)
@@ -775,6 +770,16 @@ export default function Builder() {
     isMicrophoneAvailable,
   } = useSpeechRecognition();
 
+  const VOICE_SILENCE_MS = 3000;
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transcriptRef = useRef("");
+  const submitVoiceRef = useRef<(spoken: string) => void>(() => {});
+  const prevGrokPendingForMicRef = useRef(false);
+
+  useEffect(() => {
+    transcriptRef.current = typeof transcript === "string" ? transcript : "";
+  }, [transcript]);
+
   useEffect(() => {
     return () => {
       grokAudioRef.current?.pause();
@@ -838,15 +843,6 @@ export default function Builder() {
     })();
   };
 
-  const persistInteractionMode = (m: "talk" | "code") => {
-    setInteractionMode(m);
-    try {
-      localStorage.setItem("kyn_interaction_mode", m);
-    } catch {
-      /* ignore */
-    }
-  };
-
   const persistAgentDebug = (on: boolean) => {
     setAgentDebugEnabled(on);
     try {
@@ -871,7 +867,13 @@ export default function Builder() {
     const apiBase = getApiBase() || "";
 
     try {
-    if (projectId && agentDebugEnabled && interactionMode === "code" && apiBase) {
+    const routeMessages = [
+      ...chatMessages.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user" as const, content: newUserContent },
+    ];
+    const routeToCodeAgent = getGrokModelAndMode(routeMessages).codingMode;
+
+    if (projectId && agentDebugEnabled && routeToCodeAgent && apiBase) {
       setAgentRunning(true);
       addLog("[Multi-agent] Code Agent → Deploy Agent (chained)");
       try {
@@ -928,7 +930,7 @@ export default function Builder() {
       ...chatMessages.map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: newUserContent },
     ];
-    addLog(`[Grok]: Sending to agent (${interactionMode})…`);
+    addLog(`[Grok]: Sending to agent (auto — ${routeToCodeAgent ? "code" : "chat"} heuristic)…`);
     try {
       const res = await fetch(`${apiBase || ""}/api/agent/chat`, {
         method: 'POST',
@@ -937,7 +939,7 @@ export default function Builder() {
           messages,
           userId,
           projectId: projectId ?? undefined,
-          interactionMode,
+          interactionMode: INTERACTION_MODE,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1017,6 +1019,75 @@ export default function Builder() {
     }
   };
 
+  /** Voice: after ~3s silence, auto-send (no second tap). Uses latest sendToGrok. */
+  submitVoiceRef.current = (spoken: string) => {
+    const t = spoken.trim();
+    if (!t) return;
+    addLog(`[Voice Input]: ${t}`);
+    addLog(`[Grok]: Analyzing request...`);
+    SpeechRecognition.stopListening();
+    resetTranscript();
+    const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: t };
+    setChatMessages((prev) => {
+      const next = [...prev, userMsg];
+      void saveProject({ chat_messages: next });
+      return next;
+    });
+    const uiPrompt = extractUiGeneratePrompt(t);
+    if (uiPrompt) {
+      void (async () => {
+        try {
+          const userId = await getUserId();
+          const res = await fetch(`${getApiBase()}/api/builder/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
+            body: JSON.stringify({ prompt: uiPrompt, userId }),
+          });
+          const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
+          if (res.ok && data.code) {
+            const code = data.code.trim();
+            if (code.includes("```")) {
+              applyCodeFromContent(code, setCode, setPackageJsonContent);
+            } else {
+              setCode(code);
+            }
+            const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
+            const builderMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: kynContent };
+            setChatMessages((prev) => {
+              const next = [...prev, builderMsg];
+              void saveProject({ chat_messages: next });
+              return next;
+            });
+            if (voiceModeOpenRef.current) speakWithGrokEve(kynContent);
+          } else if (data.error && !data.placeholder) {
+            const errMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: `UI generation: ${data.error}` };
+            setChatMessages((prev) => {
+              const next = [...prev, errMsg];
+              void saveProject({ chat_messages: next });
+              return next;
+            });
+          } else if (!res.ok) {
+            const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
+            const errMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: fallback };
+            setChatMessages((prev) => {
+              const next = [...prev, errMsg];
+              void saveProject({ chat_messages: next });
+              return next;
+            });
+          } else {
+            const noCodeMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: "UI generation returned no code. Try again or rephrase your request." };
+            setChatMessages((prev) => {
+              const next = [...prev, noCodeMsg];
+              void saveProject({ chat_messages: next });
+              return next;
+            });
+          }
+        } catch (_) {}
+      })();
+    }
+    sendToGrok(t);
+  };
+
   const handleSendText = () => {
     if (readOnly) return;
     const text = chatInput.trim();
@@ -1072,7 +1143,7 @@ export default function Builder() {
     sendToGrok(text);
   };
 
-  /** Grok-style single control: waveform toggles voice session (mic + Eve TTS). Mic pauses while Grok speaks. */
+  /** Waveform: on = voice session; off = voice off. Send after ~3s pause in speech (see silence effect). */
   const handleVoiceModeToggle = () => {
     if (readOnly) return;
     if (browserSupportsSpeechRecognition === false) return;
@@ -1085,138 +1156,94 @@ export default function Builder() {
     }
     if (grokPending) return;
 
-    if (listening) {
-      const spoken = typeof transcript === "string" ? transcript.trim() : "";
-      SpeechRecognition.stopListening();
-      if (spoken) {
-        addLog(`[Voice Input]: ${spoken}`);
-        addLog(`[Grok]: Analyzing request...`);
-        const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: spoken };
-        setChatMessages((prev) => {
-          const next = [...prev, userMsg];
-          void saveProject({ chat_messages: next });
-          return next;
-        });
-        resetTranscript();
-
-        const uiPrompt = extractUiGeneratePrompt(spoken);
-        if (uiPrompt) {
-          (async () => {
-            try {
-              const userId = await getUserId();
-              const res = await fetch(`${getApiBase()}/api/builder/generate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
-                body: JSON.stringify({ prompt: uiPrompt, userId }),
-              });
-              const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
-              if (res.ok && data.code) {
-                const code = data.code.trim();
-                if (code.includes("```")) {
-                  applyCodeFromContent(code, setCode, setPackageJsonContent);
-                } else {
-                  setCode(code);
-                }
-                const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
-                const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
-                setChatMessages((prev) => {
-                  const next = [...prev, builderMsg];
-                  void saveProject({ chat_messages: next });
-                  return next;
-                });
-                if (voiceModeOpenRef.current) speakWithGrokEve(kynContent);
-              } else if (data.error && !data.placeholder) {
-                const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
-                setChatMessages((prev) => {
-                  const next = [...prev, errMsg];
-                  void saveProject({ chat_messages: next });
-                  return next;
-                });
-              } else if (!res.ok) {
-                const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
-                const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
-                setChatMessages((prev) => {
-                  const next = [...prev, errMsg];
-                  void saveProject({ chat_messages: next });
-                  return next;
-                });
-              } else {
-                const noCodeMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: "UI generation returned no code. Try again or rephrase your request." };
-                setChatMessages((prev) => {
-                  const next = [...prev, noCodeMsg];
-                  void saveProject({ chat_messages: next });
-                  return next;
-                });
-              }
-            } catch (_) {}
-          })();
-        }
-
-        sendToGrok(spoken);
-      } else {
-        addLog("[Voice]: No speech captured — try again or check the mic permission.");
-        resetTranscript();
+    if (voiceModeOpen) {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
       }
-      return;
-    }
-
-    if (voiceModeOpen && !listening && !grokSpeaking && !grokPending) {
+      SpeechRecognition.stopListening();
+      resetTranscript();
       setVoiceModeOpen(false);
       try {
         localStorage.setItem("kyn_voice_mode", "0");
       } catch {
         /* ignore */
       }
-      SpeechRecognition.stopListening();
-      resetTranscript();
+      addLog("[Voice]: Voice session off.");
       return;
     }
 
-    if (!voiceModeOpen) {
-      setVoiceModeOpen(true);
-      try {
-        localStorage.setItem("kyn_voice_mode", "1");
-      } catch {
-        /* ignore */
-      }
-      resetTranscript();
-      void (async () => {
-        try {
-          if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach((t) => t.stop());
-          }
-        } catch (e) {
-          addLog(
-            `[Voice]: Microphone permission denied or unavailable — ${e instanceof Error ? e.message : String(e)}`
-          );
-          setVoiceModeOpen(false);
-          try {
-            localStorage.setItem("kyn_voice_mode", "0");
-          } catch {
-            /* ignore */
-          }
-          return;
-        }
-        try {
-          await SpeechRecognition.startListening({
-            continuous: true,
-            interimResults: true,
-            language: "en-US",
-          });
-          addLog("[Voice]: Voice mode on — speak, then tap the waveform again to send; mic pauses while Grok speaks.");
-        } catch (e2) {
-          addLog(`[Voice]: Could not start speech recognition — ${e2 instanceof Error ? e2.message : String(e2)}`);
-          setVoiceModeOpen(false);
-          try {
-            localStorage.setItem("kyn_voice_mode", "0");
-          } catch {
-            /* ignore */
-          }
-        }
-      })();
+    setVoiceModeOpen(true);
+    try {
+      localStorage.setItem("kyn_voice_mode", "1");
+    } catch {
+      /* ignore */
     }
+    resetTranscript();
+    void (async () => {
+      try {
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((t) => t.stop());
+        }
+      } catch (e) {
+        addLog(
+          `[Voice]: Microphone permission denied or unavailable — ${e instanceof Error ? e.message : String(e)}`
+        );
+        setVoiceModeOpen(false);
+        try {
+          localStorage.setItem("kyn_voice_mode", "0");
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      try {
+        await SpeechRecognition.startListening({
+          continuous: true,
+          interimResults: true,
+          language: "en-US",
+        });
+        addLog(`[Voice]: On — pause ~${VOICE_SILENCE_MS / 1000}s after you stop talking to send. Tap waveform to turn voice off.`);
+      } catch (e2) {
+        addLog(`[Voice]: Could not start speech recognition — ${e2 instanceof Error ? e2.message : String(e2)}`);
+        setVoiceModeOpen(false);
+        try {
+          localStorage.setItem("kyn_voice_mode", "0");
+        } catch {
+          /* ignore */
+        }
+      }
+    })();
   };
+
+  /** ~3s after last transcript change while voice is on → send (no second tap). */
+  useEffect(() => {
+    if (!voiceModeOpen || !listening || grokSpeaking || grokPending) {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      return;
+    }
+    const text = (transcript || "").trim();
+    if (!text) return;
+
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = setTimeout(() => {
+      silenceTimerRef.current = null;
+      const spoken = (transcriptRef.current || "").trim();
+      if (!spoken || !voiceModeOpenRef.current) return;
+      submitVoiceRef.current(spoken);
+    }, VOICE_SILENCE_MS);
+
+    return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+    };
+  }, [transcript, voiceModeOpen, listening, grokSpeaking, grokPending]);
 
   /** While Grok TTS plays, stop the browser mic so it doesn’t transcribe Grok’s voice (feedback loop). */
   useEffect(() => {
@@ -1243,6 +1270,24 @@ export default function Builder() {
     }, 400);
     return () => clearTimeout(id);
   }, [voiceModeOpen, grokSpeaking, grokPending, listening, readOnly, browserSupportsSpeechRecognition]);
+
+  /** After chat returns without Eve audio, resume mic for the next voice turn. */
+  useEffect(() => {
+    const agentDone = prevGrokPendingForMicRef.current && !grokPending;
+    prevGrokPendingForMicRef.current = grokPending;
+    if (!voiceModeOpen || readOnly || browserSupportsSpeechRecognition === false) return;
+    if (!agentDone) return;
+    if (grokSpeaking) return;
+    const id = window.setTimeout(() => {
+      if (!voiceModeOpenRef.current || grokSpeakingRef.current || grokPending) return;
+      void SpeechRecognition.startListening({
+        continuous: true,
+        interimResults: true,
+        language: "en-US",
+      }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(id);
+  }, [grokPending, voiceModeOpen, grokSpeaking, readOnly, browserSupportsSpeechRecognition]);
 
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, msg]);
@@ -1981,37 +2026,13 @@ export default function Builder() {
                 </span>
               </div>
               <p className="text-[10px] leading-snug mt-1" style={{ color: BUILDER_MUTED }}>
-                Type anytime. Use the waveform button for voice (same idea as the Grok app): one control opens voice + Eve replies; tap again to send speech or to end the session.
+                Chat vs code is <strong className="text-[#a8b0c0] font-normal">automatic</strong> from what you say. Voice: waveform on → speak; pause ~3s to send; waveform off → voice session ends.
               </p>
             </div>
             <Code2 size={14} className="shrink-0 mt-0.5" style={{ color: BUILDER_MUTED }} aria-hidden />
           </div>
-          <div className="flex rounded overflow-hidden min-h-[32px]" style={{ border: `1px solid ${BUILDER_BORDER}` }}>
-            <button
-              type="button"
-              onClick={() => persistInteractionMode("talk")}
-              className="flex-1 py-1.5 text-[10px] font-medium transition-colors"
-              style={{
-                backgroundColor: interactionMode === "talk" ? BUILDER_BG : "transparent",
-                color: interactionMode === "talk" ? "#a8b0c0" : BUILDER_MUTED,
-              }}
-            >
-              Talk
-            </button>
-            <button
-              type="button"
-              onClick={() => persistInteractionMode("code")}
-              className="flex-1 py-1.5 text-[10px] font-medium transition-colors"
-              style={{
-                backgroundColor: interactionMode === "code" ? BUILDER_BG : "transparent",
-                color: interactionMode === "code" ? "#a8b0c0" : BUILDER_MUTED,
-              }}
-            >
-              Code
-            </button>
-          </div>
           <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
-            <strong className="text-[#a8b0c0] font-normal">Talk</strong> = chat only. <strong className="text-[#a8b0c0] font-normal">Code</strong> + debug → chained agents. Voice = waveform below (not separate mic/speaker).
+            Grok echoes what you want before building; say <strong className="text-[#a8b0c0] font-normal">yes</strong> to proceed. Multi-agent pipeline runs when your message looks like a code task (and debug chain is on in Settings).
           </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
@@ -2131,7 +2152,7 @@ export default function Builder() {
                     : grokPending
                       ? "Grok is thinking…"
                       : listening
-                        ? "Speak, then tap waveform again to send"
+                        ? `Pause ~${VOICE_SILENCE_MS / 1000}s after you stop talking to send`
                         : "Ask Grok anything…"
                 }
                 className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}

@@ -859,7 +859,7 @@ async function startServer() {
         messages?: { role: string; content: string }[];
         userId?: string;
         projectId?: string;
-        interactionMode?: "talk" | "code";
+        interactionMode?: "talk" | "code" | "auto";
       };
       const authUserId = (req as RequestWithUserId).userId;
       if (isSupabaseConfigured() && !authUserId) {
@@ -891,9 +891,12 @@ async function startServer() {
         return;
       }
       const { codingMode: codingHeuristic } = getGrokModelAndMode(messages);
+      const mode: "talk" | "code" | "auto" =
+        interactionMode === "code" ? "code" : interactionMode === "talk" ? "talk" : "auto";
       let codingMode = codingHeuristic;
-      if (interactionMode === "talk") codingMode = false;
-      else if (interactionMode === "code") codingMode = true;
+      if (mode === "talk") codingMode = false;
+      else if (mode === "code") codingMode = true;
+      // "auto": use getGrokModelAndMode(messages) only
 
       const grokModelEnv = process.env.GROK_MODEL?.trim();
       const model = grokModelEnv || GROK_CHAT_COMPLETIONS_MODEL;

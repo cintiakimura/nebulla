@@ -478,7 +478,12 @@ async function handleGrok(
         projectId?: string;
         interactionMode?: string;
       };
-      const interactionMode = _interactionMode === "code" ? "code" : "talk";
+      const interactionMode: "talk" | "code" | "auto" =
+        _interactionMode === "code"
+          ? "code"
+          : _interactionMode === "talk"
+            ? "talk"
+            : "auto";
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: "messages array required" });
         return true;
@@ -530,6 +535,7 @@ async function handleGrok(
       let codingMode = codingHeuristic;
       if (interactionMode === "talk") codingMode = false;
       else if (interactionMode === "code") codingMode = true;
+      // "auto": keep codingMode from getGrokModelAndMode(messages) only
 
       const grokModelEnv = process.env.GROK_MODEL?.trim();
       const model = grokModelEnv || GROK_CHAT_COMPLETIONS_MODEL;
