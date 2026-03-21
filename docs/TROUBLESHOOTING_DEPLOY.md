@@ -63,7 +63,9 @@ Login (email/magic link) and “Sign in with Google/GitHub” use **Supabase Aut
 Grok chat calls the backend at **`/api/agent/chat`**. So:
 
 - Backend must be reachable (see §1 and §2).
-- Backend env must have **`GROK_API_KEY`** set (from [console.x.ai](https://console.x.ai)).
+- Backend env must have **`XAI_API_KEY`** or **`GROK_API_KEY`** set (from [console.x.ai](https://console.x.ai)).
+
+**Slow replies:** Each message is one **non-streaming** round-trip to xAI (`stream: false`), then optional TTS (`/api/tts`). Latency is mostly **model + network + cold Vercel/serverless**. To tune: set **`GROK_MODEL`** on the backend to a faster model if your account supports it; keep **`VITE_API_URL`** pointing at a **warm** backend if you use a separate host; expect **several seconds** for long answers.
 
 ---
 

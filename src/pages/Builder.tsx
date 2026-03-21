@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation, Link } from "react-router-dom";
-import { 
-  Play, Square, Terminal as TerminalIcon, Layout, 
+import {
+  Play, Square, Terminal as TerminalIcon, Layout,
   Mic, MicOff, Settings, FileCode, Github,
-  X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Paperclip, Send, Volume2, VolumeX, Download, AlertCircle, FileText,
-  Plus, FolderOpen, MessageSquare, Bug, Code2,
+  X, Maximize2, Minimize2, Eye, Network, Copy, Link2, Paperclip, Send, Download, AlertCircle, FileText,
+  Plus, FolderOpen, MessageSquare, Bug, Code2, AudioWaveform,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import {
@@ -367,11 +367,33 @@ export default function Builder() {
   const terminalPanelRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<HTMLDivElement>(null);
   const [agentRunning, setAgentRunning] = useState(false);
-  const [grokSpeaks, setGrokSpeaks] = useState(() => {
-    try { return localStorage.getItem("kyn_grok_speaks") !== "false"; } catch { return true; }
+  /**
+   * One Grok-style voice session: mic + read replies aloud (Eve). Tap waveform to open, tap again to send while
+   * listening, tap while idle to end session. Mic pauses while Grok speaks (no feedback loop).
+   */
+  const [voiceModeOpen, setVoiceModeOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem("kyn_voice_mode");
+      if (v === "1") return true;
+      if (v === "0") return false;
+      return false;
+    } catch {
+      return false;
+    }
   });
+  const voiceModeOpenRef = useRef(voiceModeOpen);
+  useEffect(() => {
+    voiceModeOpenRef.current = voiceModeOpen;
+  }, [voiceModeOpen]);
   /** True while Grok TTS (Eve) audio is actually playing — makes “voice” obvious in the UI. */
   const [grokSpeaking, setGrokSpeaking] = useState(false);
+  /** True while POST /api/agent/chat (or multi-agent) is in flight — shows “thinking” and blocks idle voice-close. */
+  const [grokPending, setGrokPending] = useState(false);
+  const prevGrokSpeakingRef = useRef(false);
+  const grokSpeakingRef = useRef(false);
+  useEffect(() => {
+    grokSpeakingRef.current = grokSpeaking;
+  }, [grokSpeaking]);
   const [readOnly, setReadOnly] = useState(false);
   const [rateLimitModalOpen, setRateLimitModalOpen] = useState(false);
   const [showGrokKeyModal, setShowGrokKeyModal] = useState(false);
@@ -767,7 +789,7 @@ export default function Builder() {
    */
   const speakWithGrokEve = (text: string, force?: boolean) => {
     if (typeof window === "undefined" || !text?.trim()) return;
-    if (!force && !grokSpeaks) return;
+    if (!force && !voiceModeOpenRef.current) return;
     void (async () => {
       const base = getApiBase() || "";
       if (!base) {
@@ -788,10 +810,30 @@ export default function Builder() {
             ...prev,
             "[TTS]: Grok Eve failed after retries — check xAI key, TTS permission, and /api/tts.",
           ]);
+          if (voiceModeOpenRef.current) {
+            window.setTimeout(() => {
+              if (grokSpeakingRef.current || !voiceModeOpenRef.current) return;
+              void SpeechRecognition.startListening({
+                continuous: true,
+                interimResults: true,
+                language: "en-US",
+              }).catch(() => {});
+            }, 400);
+          }
         }
       } catch {
         setGrokSpeaking(false);
         setLogs((prev) => [...prev, "[TTS]: Grok Eve error — check /api/tts and network."]);
+        if (voiceModeOpenRef.current) {
+          window.setTimeout(() => {
+            if (grokSpeakingRef.current || !voiceModeOpenRef.current) return;
+            void SpeechRecognition.startListening({
+              continuous: true,
+              interimResults: true,
+              language: "en-US",
+            }).catch(() => {});
+          }, 400);
+        }
       }
     })();
   };
@@ -824,9 +866,11 @@ export default function Builder() {
   }, []);
 
   const sendToGrok = async (newUserContent: string) => {
+    setGrokPending(true);
     const userId = await getUserId();
     const apiBase = getApiBase() || "";
 
+    try {
     if (projectId && agentDebugEnabled && interactionMode === "code" && apiBase) {
       setAgentRunning(true);
       addLog("[Multi-agent] Code Agent → Deploy Agent (chained)");
@@ -864,7 +908,7 @@ export default function Builder() {
           }, 0);
           return next;
         });
-        if (grokSpeaks) speakWithGrokEve(assistantText);
+        if (voiceModeOpenRef.current) speakWithGrokEve(assistantText);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         addLog(`[Multi-agent Error]: ${msg}`);
@@ -957,7 +1001,7 @@ export default function Builder() {
       const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content };
       setChatMessages(prev => [...prev, assistantMsg]);
       applyCodeFromContent(content, setCode, setPackageJsonContent);
-      if (grokSpeaks) speakWithGrokEve(content);
+      if (voiceModeOpenRef.current) speakWithGrokEve(content);
       const newChat = [...chatMessages, { id: crypto.randomUUID(), role: 'user' as const, content: newUserContent }, assistantMsg];
       saveProject({ chat_messages: newChat });
     } catch (err) {
@@ -967,6 +1011,9 @@ export default function Builder() {
       setChatMessages(prev => [...prev, errMsg]);
       const newChat = [...chatMessages, { id: crypto.randomUUID(), role: 'user' as const, content: newUserContent }, errMsg];
       saveProject({ chat_messages: newChat });
+    }
+    } finally {
+      setGrokPending(false);
     }
   };
 
@@ -1003,7 +1050,7 @@ export default function Builder() {
                 const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
                 setChatMessages(prev => [...prev, builderMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });
-                if (grokSpeaks) speakWithGrokEve(kynContent);
+                if (voiceModeOpenRef.current) speakWithGrokEve(kynContent);
               } else if (data.error && !data.placeholder) {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
                 setChatMessages(prev => [...prev, errMsg]);
@@ -1025,9 +1072,19 @@ export default function Builder() {
     sendToGrok(text);
   };
 
-  const handleMicToggle = () => {
+  /** Grok-style single control: waveform toggles voice session (mic + Eve TTS). Mic pauses while Grok speaks. */
+  const handleVoiceModeToggle = () => {
     if (readOnly) return;
     if (browserSupportsSpeechRecognition === false) return;
+
+    if (grokSpeaking) {
+      grokAudioRef.current?.pause();
+      grokAudioRef.current = null;
+      setGrokSpeaking(false);
+      return;
+    }
+    if (grokPending) return;
+
     if (listening) {
       const spoken = typeof transcript === "string" ? transcript.trim() : "";
       SpeechRecognition.stopListening();
@@ -1067,7 +1124,7 @@ export default function Builder() {
                   void saveProject({ chat_messages: next });
                   return next;
                 });
-                if (grokSpeaks) speakWithGrokEve(kynContent);
+                if (voiceModeOpenRef.current) speakWithGrokEve(kynContent);
               } else if (data.error && !data.placeholder) {
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: `UI generation: ${data.error}` };
                 setChatMessages((prev) => {
@@ -1100,7 +1157,28 @@ export default function Builder() {
         addLog("[Voice]: No speech captured — try again or check the mic permission.");
         resetTranscript();
       }
-    } else {
+      return;
+    }
+
+    if (voiceModeOpen && !listening && !grokSpeaking && !grokPending) {
+      setVoiceModeOpen(false);
+      try {
+        localStorage.setItem("kyn_voice_mode", "0");
+      } catch {
+        /* ignore */
+      }
+      SpeechRecognition.stopListening();
+      resetTranscript();
+      return;
+    }
+
+    if (!voiceModeOpen) {
+      setVoiceModeOpen(true);
+      try {
+        localStorage.setItem("kyn_voice_mode", "1");
+      } catch {
+        /* ignore */
+      }
       resetTranscript();
       void (async () => {
         try {
@@ -1112,6 +1190,12 @@ export default function Builder() {
           addLog(
             `[Voice]: Microphone permission denied or unavailable — ${e instanceof Error ? e.message : String(e)}`
           );
+          setVoiceModeOpen(false);
+          try {
+            localStorage.setItem("kyn_voice_mode", "0");
+          } catch {
+            /* ignore */
+          }
           return;
         }
         try {
@@ -1120,13 +1204,45 @@ export default function Builder() {
             interimResults: true,
             language: "en-US",
           });
-          addLog("[System]: Listening for voice commands… (tap mic again to send)");
+          addLog("[Voice]: Voice mode on — speak, then tap the waveform again to send; mic pauses while Grok speaks.");
         } catch (e2) {
           addLog(`[Voice]: Could not start speech recognition — ${e2 instanceof Error ? e2.message : String(e2)}`);
+          setVoiceModeOpen(false);
+          try {
+            localStorage.setItem("kyn_voice_mode", "0");
+          } catch {
+            /* ignore */
+          }
         }
       })();
     }
   };
+
+  /** While Grok TTS plays, stop the browser mic so it doesn’t transcribe Grok’s voice (feedback loop). */
+  useEffect(() => {
+    if (!voiceModeOpen || !grokSpeaking) return;
+    if (listening) {
+      SpeechRecognition.stopListening();
+    }
+  }, [voiceModeOpen, grokSpeaking, listening]);
+
+  /** After Eve TTS finishes, resume the mic (only on grokSpeaking true → false; avoids racing chat return vs TTS start). */
+  useEffect(() => {
+    const ttsEnded = prevGrokSpeakingRef.current && !grokSpeaking;
+    prevGrokSpeakingRef.current = grokSpeaking;
+    if (!voiceModeOpen || readOnly || browserSupportsSpeechRecognition === false) return;
+    if (!ttsEnded) return;
+    if (listening || grokPending) return;
+    const id = window.setTimeout(() => {
+      if (!voiceModeOpenRef.current || grokSpeakingRef.current || grokPending) return;
+      void SpeechRecognition.startListening({
+        continuous: true,
+        interimResults: true,
+        language: "en-US",
+      }).catch(() => {});
+    }, 400);
+    return () => clearTimeout(id);
+  }, [voiceModeOpen, grokSpeaking, grokPending, listening, readOnly, browserSupportsSpeechRecognition]);
 
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, msg]);
@@ -1865,7 +1981,7 @@ export default function Builder() {
                 </span>
               </div>
               <p className="text-[10px] leading-snug mt-1" style={{ color: BUILDER_MUTED }}>
-                Free-form conversation — plan, ask questions, or steer the app. Replies can use voice (Eve) when enabled below.
+                Type anytime. Use the waveform button for voice (same idea as the Grok app): one control opens voice + Eve replies; tap again to send speech or to end the session.
               </p>
             </div>
             <Code2 size={14} className="shrink-0 mt-0.5" style={{ color: BUILDER_MUTED }} aria-hidden />
@@ -1895,8 +2011,7 @@ export default function Builder() {
             </button>
           </div>
           <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
-            <strong className="text-[#a8b0c0] font-normal">Talk</strong> = open Grok chat (no auto code pipeline).{" "}
-            <strong className="text-[#a8b0c0] font-normal">Code</strong> + debug on → chained agents. Mic = your voice to text; speaker = Grok reads aloud.
+            <strong className="text-[#a8b0c0] font-normal">Talk</strong> = chat only. <strong className="text-[#a8b0c0] font-normal">Code</strong> + debug → chained agents. Voice = waveform below (not separate mic/speaker).
           </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
@@ -1919,8 +2034,7 @@ export default function Builder() {
                   Start anywhere
                 </p>
                 <p>
-                  This isn’t a fixed script — type or use the mic. Grok keeps context in this thread. Turn on{" "}
-                  <span className="text-cyan-400/90">Grok voice</span> in the bar below to hear replies with Eve.
+                  Type here anytime, or tap the <span className="text-cyan-400/90">waveform</span> to talk (voice session + Eve reads replies — one button, like the Grok app).
                 </p>
               </div>
             )}
@@ -1993,10 +2107,16 @@ export default function Builder() {
             style={{ borderTop: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
             onClick={(e) => e.stopPropagation()}
           >
-            {listening && (
+            {grokPending && (
+              <div className="flex items-center gap-2 mb-2 text-xs" style={{ color: "#7dd3fc" }}>
+                <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" aria-hidden />
+                Grok is thinking…
+              </div>
+            )}
+            {listening && !grokSpeaking && (
               <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
                 <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" aria-hidden />
-                Listening...
+                Listening…
               </div>
             )}
             <div className="flex gap-2 items-center">
@@ -2008,9 +2128,11 @@ export default function Builder() {
                 placeholder={
                   readOnly
                     ? "Upgrade for full access"
-                    : listening
-                      ? "Speak, then tap mic again to send"
-                      : "Ask Grok anything…"
+                    : grokPending
+                      ? "Grok is thinking…"
+                      : listening
+                        ? "Speak, then tap waveform again to send"
+                        : "Ask Grok anything…"
                 }
                 className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 style={{
@@ -2034,7 +2156,7 @@ export default function Builder() {
             </div>
           </div>
         </div>
-        {/* Bottom toolbar: mic, Grok voice (TTS), upload, copy */}
+        {/* Grok-style: one waveform = voice session (mic + Eve). Paperclip = upload. */}
         <div
           className="flex-shrink-0 flex flex-col gap-1.5 py-1.5 px-3"
           style={{ borderTop: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
@@ -2049,65 +2171,52 @@ export default function Builder() {
               <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse shrink-0" aria-hidden />
               <span>
                 <strong className="font-semibold text-cyan-100">Grok is speaking</strong>
-                <span className="text-cyan-200/80"> — Eve voice</span>
+                <span className="text-cyan-200/80"> — mic paused so it won’t pick up Eve</span>
               </span>
             </div>
           )}
-          <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
+          <div className="flex items-center justify-center gap-4 sm:gap-5 flex-wrap">
           <button
             type="button"
-            onClick={handleMicToggle}
+            onClick={handleVoiceModeToggle}
             disabled={readOnly || browserSupportsSpeechRecognition === false}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors shrink-0 ${
-              readOnly || browserSupportsSpeechRecognition === false ? "opacity-60 cursor-not-allowed" : ""
-            } ${listening ? "text-red-400 bg-red-500/12 border border-red-500/25" : ""}`}
-            style={!listening && !(readOnly || browserSupportsSpeechRecognition === false) ? { color: BUILDER_MUTED } : undefined}
+            className={`flex flex-col items-center justify-center gap-0.5 min-w-[72px] px-3 py-2 rounded-full transition-all shrink-0 ${
+              readOnly || browserSupportsSpeechRecognition === false ? "opacity-60 cursor-not-allowed" : "hover:opacity-95"
+            } ${voiceModeOpen ? "ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.15)]" : ""}`}
+            style={{
+              color: voiceModeOpen ? "#e0f2fe" : BUILDER_MUTED,
+              backgroundColor: voiceModeOpen ? BUILDER_BG : "transparent",
+              border: `1px solid ${voiceModeOpen ? "rgba(34,211,238,0.45)" : BUILDER_BORDER}`,
+            }}
             title={
               readOnly
                 ? "Upgrade for full access"
                 : browserSupportsSpeechRecognition === false
-                  ? "Speech recognition not supported in this browser (try Chrome)"
+                  ? "Speech recognition not supported (try Chrome)"
                   : isMicrophoneAvailable === false
-                    ? "Mic: click to request access (allow in browser prompt if shown)"
-                    : listening
-                      ? "Tap to stop and send"
-                      : "Your voice → text (browser). Grok’s voice is the speaker button."
+                    ? "Allow microphone when prompted"
+                    : !voiceModeOpen
+                      ? "Voice: open session (mic + Eve replies). Same idea as the Grok app waveform."
+                      : listening
+                        ? "Tap again to send what you said"
+                        : "Tap to end voice session (or wait for Grok to finish)"
             }
           >
-            {listening ? <MicOff size={16} /> : <Mic size={16} />}
-            <span className="text-[11px] font-medium hidden sm:inline">Your mic</span>
+            <AudioWaveform size={22} strokeWidth={voiceModeOpen ? 2.25 : 2} className={voiceModeOpen ? "text-cyan-300" : ""} aria-hidden />
+            <span className="text-[10px] font-semibold tracking-wide">{voiceModeOpen ? "Voice on" : "Voice"}</span>
           </button>
           <button
             type="button"
-            onClick={() => setGrokSpeaks(prev => {
-              const next = !prev;
-              try { localStorage.setItem("kyn_grok_speaks", next ? "true" : "false"); } catch (_) {}
-              if (!next) {
-                grokAudioRef.current?.pause();
-                grokAudioRef.current = null;
-                setGrokSpeaking(false);
-              }
-              return next;
-            })}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors shrink-0 ${grokSpeaks ? "border border-cyan-500/35" : ""}`}
-            style={
-              grokSpeaks
-                ? { color: "#a8b0c0", backgroundColor: BUILDER_BG, border: "1px solid rgba(34,211,238,0.35)" }
-                : { color: BUILDER_MUTED }
-            }
-            title="When on, Grok reads each reply aloud with the Eve voice (backend /api/tts). Off = silent text only."
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+            className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] px-2 py-2 rounded-lg transition-colors shrink-0 hover:opacity-90"
+            style={{ color: BUILDER_MUTED, border: `1px solid ${BUILDER_BORDER}` }}
+            title="Attach a file (same slot as Grok’s attach)"
           >
-            {grokSpeaks ? <Volume2 size={16} /> : <VolumeX size={16} />}
-            <span className="text-[11px] font-medium hidden sm:inline">{grokSpeaks ? "Grok voice on" : "Grok voice off"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-            className="p-2 rounded-md transition-colors shrink-0 hover:opacity-90"
-            style={{ color: BUILDER_MUTED }}
-            title="Upload file"
-          >
-            <Paperclip size={16} />
+            <Paperclip size={18} aria-hidden />
+            <span className="text-[10px] font-medium">Upload</span>
           </button>
           {projectId ? (
             <Link
