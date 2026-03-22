@@ -88,8 +88,8 @@ Server ready.
 --- 4. Agent chat (Grok) ---
   [PASS] POST /api/agent/chat — reply received
 
---- 5. UI generation (Builder.io) ---
-  [PASS] POST /api/builder/generate — 503 (BUILDER_PRIVATE_KEY not set)
+--- 5. UI generation (Google Stitch) ---
+  [PASS] POST /api/builder/generate — 503 (STITCH_API_KEY not set)
 
 --- 6. Stripe & update-paid-status (410 = removed) ---
   [PASS] POST /api/create-checkout-session — 410 (payments removed)
@@ -122,7 +122,7 @@ Total: 13  Passed: 13  Failed: 0
 | `/api/users/:userId/projects/:projectId` | PUT | ✅ | Update project. |
 | `/api/agent/config` | GET | ✅ | agentId, systemPrompt, preCodeQuestions. |
 | `/api/agent/chat` | POST | ✅ | Grok chat; body `{ messages }`; GROK_API_KEY. |
-| `/api/builder/generate` | POST | ✅ | Builder.io Visual Copilot; 503 if BUILDER_PRIVATE_KEY not set. |
+| `/api/builder/generate` | POST | ✅ | Google Stitch; 503 if STITCH_API_KEY not set. |
 | `/api/create-checkout-session` | POST | ✅ | **410 Gone** (payments removed). |
 | `/api/update-paid-status` | POST | ✅ | **410 Gone** (payments removed). |
 | `/api/deploy` | POST | ✅ | Mock. |

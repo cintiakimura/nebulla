@@ -16,7 +16,13 @@ export function buildSecretsAuditPayload() {
     },
     { key: "SUPABASE_SECRET_KEY", category: "core" as const, configured: envConfigured("SUPABASE_SECRET_KEY") },
     { key: "XAI_API_KEY", category: "ai" as const, configured: grokConfigured, aliases: ["GROK_API_KEY"] },
-    { key: "BUILDER_PRIVATE_KEY", category: "integrations" as const, configured: envConfigured("BUILDER_PRIVATE_KEY") },
+    {
+      key: "STITCH_API_KEY",
+      category: "integrations" as const,
+      configured: envConfigured("STITCH_API_KEY") || envConfigured("GOOGLE_STITCH_API_KEY"),
+      aliases: ["GOOGLE_STITCH_API_KEY"],
+    },
+    { key: "STITCH_PROJECT_ID", category: "integrations" as const, configured: envConfigured("STITCH_PROJECT_ID") },
     { key: "ALLOWED_ORIGIN", category: "deploy" as const, configured: envConfigured("ALLOWED_ORIGIN") },
     { key: "APP_URL", category: "deploy" as const, configured: envConfigured("APP_URL") },
     { key: "STRIPE_SECRET_KEY", category: "billing" as const, configured: envConfigured("STRIPE_SECRET_KEY") },
@@ -62,16 +68,18 @@ export function buildProductionReadinessPayload() {
 const ALIGN_KEYS = [
   "XAI_API_KEY",
   "GROK_API_KEY",
-  "BUILDER_PRIVATE_KEY",
+  "STITCH_API_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_PUBLIC_KEY",
 ] as const;
 
 export function buildSecretsAlignmentPayload(browser: Record<string, boolean>) {
   const grokEnv = envConfigured("XAI_API_KEY") || envConfigured("GROK_API_KEY");
+  const stitchEnv = envConfigured("STITCH_API_KEY") || envConfigured("GOOGLE_STITCH_API_KEY");
   const rows = ALIGN_KEYS.map((key) => {
     let server = false;
     if (key === "XAI_API_KEY" || key === "GROK_API_KEY") server = grokEnv;
+    else if (key === "STITCH_API_KEY") server = stitchEnv;
     else server = envConfigured(key);
     const browserSet = !!browser[key];
     const aligned = server === browserSet;

@@ -20,7 +20,7 @@ type IntegrationsSummaryPayload = {
   services?: {
     grok?: { configured?: boolean; routes?: string[] };
     supabase?: { url?: boolean; publishableKey?: boolean; secretKey?: boolean; publicConfigRoute?: string };
-    builderIo?: { configured?: boolean; routes?: string[] };
+    stitch?: { configured?: boolean; routes?: string[] };
     stripe?: { secretKey?: boolean; webhookSecret?: boolean };
     vercel?: {
       runningOnVercel?: boolean;
@@ -297,7 +297,7 @@ export default function Settings() {
           <h2 className="text-lg font-medium text-white">Secrets</h2>
           <p className="text-sm text-muted mb-2">
             Stored in this browser (localStorage). When set, they are sent to your backend as secure headers so chat, voice,
-            TTS, and Builder.io can work even if the host env is empty. For production, mirror the same keys in Vercel /
+            TTS, and Stitch UI generation can work even if the host env is empty. For production, mirror the same keys in Vercel /
             Railway / Render environment variables — use <strong>Refresh env check</strong> below to compare.
           </p>
           <button
@@ -398,7 +398,7 @@ export default function Settings() {
                   <ul className="text-xs text-muted space-y-1 font-mono">
                     <li>Grok (xAI): {s.grok?.configured ? "✓ configured" : "— missing"}</li>
                     <li>Supabase: {supOk ? "✓ url + publishable + secret" : "— incomplete"}</li>
-                    <li>Builder.io: {s.builderIo?.configured ? "✓ configured" : "— missing"}</li>
+                    <li>Google Stitch: {s.stitch?.configured ? "✓ configured" : "— missing"}</li>
                     <li>
                       Stripe:{" "}
                       {s.stripe?.secretKey || s.stripe?.webhookSecret

@@ -58,13 +58,13 @@
 
 ---
 
-## 5. UI generation (Builder.io)
+## 5. UI generation (Google Stitch)
 
 | Test | Result | Note |
 |------|--------|------|
-| POST /api/builder/generate | PASS | 503 — BUILDER_PRIVATE_KEY not set (expected when key not in .env) |
+| POST /api/builder/generate | PASS | 503 — STITCH_API_KEY not set (expected when key not in .env) |
 
-**Conclusion:** Endpoint responds; returns 503 with message when Builder.io key is not configured. With `BUILDER_PRIVATE_KEY` set, expect 200 and `code` in response.
+**Conclusion:** Endpoint responds; returns 503 with message when Stitch key is not configured. With `STITCH_API_KEY` set, expect 200 and `code` in response.
 
 ---
 
@@ -134,8 +134,8 @@ Server ready.
 --- 4. Agent chat (Grok) ---
   [PASS] POST /api/agent/chat — reply received
 
---- 5. UI generation (Builder.io) ---
-  [PASS] POST /api/builder/generate — 503 (BUILDER_PRIVATE_KEY not set)
+--- 5. UI generation (Google Stitch) ---
+  [PASS] POST /api/builder/generate — 503 (STITCH_API_KEY not set)
 
 --- 6. Stripe & update-paid-status ---
   [FAIL] POST /api/create-checkout-session — 500
@@ -158,7 +158,7 @@ Failed: POST /api/create-checkout-session 500
 ## Recommendations
 
 1. **Stripe:** Use Price IDs (`price_xxx`) in `.env` for `STRIPE_PROTOTYPE_PRICE_ID` and `STRIPE_KING_PRO_PRICE_ID` so create-checkout-session returns 200.
-2. **Builder.io:** Set `BUILDER_PRIVATE_KEY` in `.env` to test UI generation with real code response.
+2. **Google Stitch:** Set `STITCH_API_KEY` in `.env` to test UI generation with a real code response.
 3. **Supabase:** Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` to test update-paid-status with a real users table.
 
 ---

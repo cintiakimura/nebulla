@@ -162,7 +162,7 @@ async function runTests() {
       record("Agent chat", false, e.message);
     }
 
-    console.log("\n--- 5. UI generation (Builder.io) ---");
+    console.log("\n--- 5. UI generation (Google Stitch) ---");
     try {
       const uiRes = await fetch(testBase + "/api/builder/generate", {
         method: "POST",
@@ -173,7 +173,7 @@ async function runTests() {
       const hasCode = uiRes.ok && uiData && typeof uiData.code === "string";
       const ui503 = uiRes.status === 503 && (uiData.placeholder || uiData.error);
       if (hasCode) record("POST /api/builder/generate", true, "code returned");
-      else if (ui503) record("POST /api/builder/generate", true, "503 (BUILDER_PRIVATE_KEY not set)");
+      else if (ui503) record("POST /api/builder/generate", true, "503 (STITCH_API_KEY not set)");
       else record("POST /api/builder/generate", false, uiRes.status + " " + JSON.stringify(uiData).slice(0, 60));
     } catch (e) {
       record("Builder UI generate", false, e.message);

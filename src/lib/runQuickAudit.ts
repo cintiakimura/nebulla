@@ -233,7 +233,7 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     const hasCode = uiRes.ok && typeof uiData?.code === "string";
     const ui503 = uiRes.status === 503 && (uiData?.placeholder || uiData?.error);
     if (hasCode) record("POST /api/builder/generate", true, passDetail("code returned"));
-    else if (ui503) record("POST /api/builder/generate", true, "503 — BUILDER_PRIVATE_KEY not set");
+    else if (ui503) record("POST /api/builder/generate", true, "503 — STITCH_API_KEY not set");
     else record("POST /api/builder/generate", false, `status ${uiRes.status}`);
   } catch (e) {
     record("POST /api/builder/generate", false, e instanceof Error ? e.message : String(e));

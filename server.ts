@@ -38,6 +38,8 @@ import {
   buildProductionReadinessPayload,
   buildSecretsAlignmentPayload,
 } from "./src/lib/secretsAuditPayload.js";
+import { Stitch, StitchToolClient, StitchError, type Project } from "@google/stitch-sdk";
+import { wrapStitchHtmlAsReactAppTsx } from "./src/lib/stitchWrapReact.js";
 
 type RequestWithUserId = express.Request & { userId?: string };
 
@@ -134,12 +136,24 @@ function getGrokApiKeyFromRequest(req: express.Request): string | null {
   return getGrokApiKeyFromEnv();
 }
 
-function getBuilderPrivateKeyFromRequest(req: express.Request): string {
+/** Prefer `x-stitch-api-key` (Settings → browser) then env — unless STRICT_SERVER_API_KEYS is set. */
+function getStitchApiKeyFromRequest(req: express.Request): string {
   if (!strictServerSecretsOnly()) {
-    const headerKey = (req.headers["x-builder-private-key"] as string)?.trim();
+    const headerKey = (req.headers["x-stitch-api-key"] as string)?.trim();
     if (headerKey && headerKey !== "PLACEHOLDER") return headerKey;
   }
-  return (process.env.BUILDER_PRIVATE_KEY || "").trim();
+  return (
+    (process.env.STITCH_API_KEY || process.env.GOOGLE_STITCH_API_KEY || "").trim()
+  );
+}
+
+/** Use STITCH_PROJECT_ID if set; otherwise first listed project; otherwise create "Kyn UI". */
+async function resolveStitchProjectForUiGen(sdk: Stitch): Promise<Project> {
+  const envId = process.env.STITCH_PROJECT_ID?.trim();
+  if (envId) return sdk.project(envId);
+  const projects = await sdk.projects();
+  if (projects.length > 0) return projects[0]!;
+  return sdk.createProject(process.env.STITCH_PROJECT_TITLE?.trim() || "Kyn UI");
 }
 
 // Client Grok modal expects the error message to mention "grok".
@@ -177,7 +191,7 @@ async function startServer() {
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, x-grok-api-key, x-builder-private-key"
+        "Content-Type, Authorization, x-grok-api-key, x-stitch-api-key"
       );
       if (req.method === "OPTIONS") return res.sendStatus(204);
       next();
@@ -1077,26 +1091,34 @@ async function startServer() {
     }
   });
 
-  // Builder.io Visual Copilot: generate UI/design code from prompt (key never exposed client-side)
-  const BUILDER_FREE_DAILY_LIMIT = Math.max(0, parseInt(process.env.BUILDER_GENERATION_FREE_DAILY_LIMIT ?? "10", 10));
-  const builderGenCountByUser = new Map<string, { date: string; count: number }>();
+  // Google Stitch: generate UI from prompt → HTML → React wrapper for Sandpack (key never exposed client-side)
+  const UI_GEN_FREE_DAILY_LIMIT = Math.max(
+    0,
+    parseInt(
+      process.env.STITCH_GENERATION_FREE_DAILY_LIMIT ??
+        process.env.BUILDER_GENERATION_FREE_DAILY_LIMIT ??
+        "10",
+      10
+    )
+  );
+  const uiGenCountByUser = new Map<string, { date: string; count: number }>();
 
-  function getBuilderGenUsage(userId: string): { date: string; count: number } {
+  function getUiGenUsage(userId: string): { date: string; count: number } {
     const today = new Date().toISOString().slice(0, 10);
-    const cur = builderGenCountByUser.get(userId);
+    const cur = uiGenCountByUser.get(userId);
     if (!cur || cur.date !== today) return { date: today, count: 0 };
     return cur;
   }
 
-  function incrementBuilderGenUsage(userId: string): void {
+  function incrementUiGenUsage(userId: string): void {
     const today = new Date().toISOString().slice(0, 10);
-    const cur = builderGenCountByUser.get(userId);
+    const cur = uiGenCountByUser.get(userId);
     if (!cur || cur.date !== today) {
-      builderGenCountByUser.set(userId, { date: today, count: 1 });
+      uiGenCountByUser.set(userId, { date: today, count: 1 });
       return;
     }
     cur.count++;
-    builderGenCountByUser.set(userId, cur);
+    uiGenCountByUser.set(userId, cur);
   }
 
   app.post("/api/builder/generate", async (req, res) => {
@@ -1107,10 +1129,11 @@ async function startServer() {
         return;
       }
       const uid = typeof userId === "string" ? userId : "";
-      const apiKey = getBuilderPrivateKeyFromRequest(req);
+      const apiKey = getStitchApiKeyFromRequest(req);
       if (!apiKey || apiKey === "PLACEHOLDER") {
         res.status(503).json({
-          error: "Builder.io not configured. Add BUILDER_PRIVATE_KEY to .env (Builder.io dashboard → API keys).",
+          error:
+            "Google Stitch not configured. Add STITCH_API_KEY to .env and Vercel (see stitch.withgoogle.com/docs).",
           placeholder: true,
         });
         return;
@@ -1127,62 +1150,87 @@ async function startServer() {
         } catch (_) {}
       }
       if (!isPaid && uid) {
-        const usage = getBuilderGenUsage(uid);
-        if (usage.count >= BUILDER_FREE_DAILY_LIMIT) {
+        const usage = getUiGenUsage(uid);
+        if (usage.count >= UI_GEN_FREE_DAILY_LIMIT) {
           res.status(429).json({
-            error: `Rate limit – try later or upgrade. Free tier: ${BUILDER_FREE_DAILY_LIMIT} UI generations per day.`,
+            error: `Rate limit – try later or upgrade. Free tier: ${UI_GEN_FREE_DAILY_LIMIT} UI generations per day.`,
           });
           return;
         }
       }
-      const response = await fetch("https://api.builder.io/v1/ai/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({ prompt: prompt.trim() }),
-      });
-      const errText = await response.text();
-      if (!response.ok) {
-        let msg = errText.slice(0, 300);
-        try {
-          const parsed = JSON.parse(errText) as { error?: string; message?: string };
-          msg = parsed?.error || parsed?.message || msg;
-        } catch (_) {}
-        if (response.status === 401) {
-          res.status(503).json({
-            error: "Builder.io not configured. Add BUILDER_PRIVATE_KEY to .env (Builder.io dashboard → API keys).",
-            placeholder: true,
-          });
-          return;
-        }
-        if (response.status === 404) {
-          res.status(503).json({
-            error: "Builder.io not configured or endpoint unavailable.",
-            placeholder: true,
-          });
-          return;
-        }
-        if (response.status === 429) {
-          res.status(429).json({ error: "Rate limit – try later or upgrade" });
-          return;
-        }
-        res.status(503).json({ error: msg || "Builder.io service unavailable" });
-        return;
-      }
-      if (!isPaid && uid) incrementBuilderGenUsage(uid);
-      let data: { code?: string; output?: string; component?: string };
+
+      const client = new StitchToolClient({ apiKey });
       try {
-        data = JSON.parse(errText) as { code?: string; output?: string; component?: string };
-      } catch (_) {
-        res.status(500).json({ error: "Invalid response from Builder.io" });
-        return;
+        const sdk = new Stitch(client);
+        const project = await resolveStitchProjectForUiGen(sdk);
+        const stitchPrompt =
+          `Create a modern, accessible web UI (complete HTML document with inline CSS where needed). User request:\n${prompt.trim()}`;
+        const screen = await project.generate(stitchPrompt, "DESKTOP", "GEMINI_3_FLASH");
+        const htmlRef = await screen.getHtml();
+        let html = "";
+        if (htmlRef && /^https?:\/\//i.test(htmlRef)) {
+          const hr = await fetch(htmlRef);
+          if (!hr.ok) {
+            res.status(502).json({ error: `Stitch HTML download failed (${hr.status})` });
+            return;
+          }
+          html = await hr.text();
+        } else {
+          html = htmlRef || "";
+        }
+        if (!html.trim()) {
+          res.status(502).json({ error: "Stitch returned empty HTML" });
+          return;
+        }
+        const code = wrapStitchHtmlAsReactAppTsx(html);
+        if (!isPaid && uid) incrementUiGenUsage(uid);
+        res.json({
+          code,
+          raw: {
+            provider: "stitch",
+            projectId: project.projectId,
+            screenId: screen.screenId,
+            htmlSource: /^https?:\/\//i.test(htmlRef) ? "downloadUrl" : "inline",
+          },
+        });
+      } catch (err) {
+        if (err instanceof StitchError) {
+          if (err.code === "AUTH_FAILED") {
+            res.status(503).json({
+              error:
+                "Google Stitch auth failed. Check STITCH_API_KEY in .env / Vercel (stitch.withgoogle.com).",
+              placeholder: true,
+            });
+            return;
+          }
+          if (err.code === "RATE_LIMITED") {
+            res.status(429).json({ error: "Rate limit – try later or upgrade" });
+            return;
+          }
+          if (err.code === "NOT_FOUND" || err.code === "PERMISSION_DENIED") {
+            res.status(503).json({
+              error:
+                err.message ||
+                "Stitch project or permission error. Set STITCH_PROJECT_ID to a valid project if needed.",
+            });
+            return;
+          }
+          res.status(503).json({
+            error: err.message || "Google Stitch service error",
+            suggestion: err.suggestion,
+          });
+          return;
+        }
+        console.error("[stitch generate]", err);
+        res.status(500).json({
+          error: "UI code generation failed",
+          details: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        await client.close().catch(() => {});
       }
-      const code = data?.code ?? data?.output ?? data?.component ?? "";
-      res.json({ code: code || "", raw: data });
     } catch (err) {
-      console.error("[builder generate]", err);
+      console.error("[stitch generate outer]", err);
       res.status(500).json({ error: "UI code generation failed", details: err instanceof Error ? err.message : String(err) });
     }
   });

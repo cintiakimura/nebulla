@@ -17,7 +17,7 @@ The API lives in `server.ts`. Deploy it to a host that runs Node:
 - `GROK_API_KEY` — for chat and TTS (Eve)
 - **`ALLOWED_ORIGIN`** = your Vercel app URL, e.g. `https://kyn-jbzpg19gy-cintia-kimuras-projects.vercel.app` or your custom domain. No trailing slash. Required so the browser can call your API (CORS).
 
-Optional: `STRIPE_SECRET_KEY`, `BUILDER_PRIVATE_KEY`, `FREE_PROJECT_LIMIT`, etc.
+Optional: `STRIPE_SECRET_KEY`, `STITCH_API_KEY`, `FREE_PROJECT_LIMIT`, etc.
 
 ## 2. Point Vercel at the backend
 

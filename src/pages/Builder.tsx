@@ -1051,7 +1051,7 @@ export default function Builder() {
             } else {
               setCode(code);
             }
-            const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
+            const kynContent = "Here's the UI from Google Stitch — check the preview. Want me to refine it, add state/logic, or tweak the design?";
             const builderMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: kynContent };
             setChatMessages((prev) => {
               const next = [...prev, builderMsg];
@@ -1098,7 +1098,7 @@ export default function Builder() {
     addLog(`[You]: ${text.slice(0, 60)}${text.length > 60 ? '…' : ''}`);
     saveProject({ chat_messages: [...chatMessages, userMsg] });
 
-    // If user asked for UI/layout/design, call Builder.io Visual Copilot and apply generated code
+    // If user asked for UI/layout/design, call Google Stitch (/api/builder/generate) and apply generated code
     const uiPrompt = extractUiGeneratePrompt(text);
     if (uiPrompt) {
       (async () => {
@@ -1117,7 +1117,7 @@ export default function Builder() {
                 } else {
                   setCode(code);
                 }
-                const kynContent = "Here's the UI code from Builder.io — check the preview. Want me to refine it, add state/logic, or tweak the design?";
+                const kynContent = "Here's the UI from Google Stitch — check the preview. Want me to refine it, add state/logic, or tweak the design?";
                 const builderMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: kynContent };
                 setChatMessages(prev => [...prev, builderMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, builderMsg] });

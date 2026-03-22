@@ -8,7 +8,7 @@ This app is structured so **secrets and vendor APIs** are controlled from the **
 |--------|-----|
 | **Grok (xAI)** | `XAI_API_KEY` or `GROK_API_KEY` — chat, TTS, images, realtime token via `/api/*` |
 | **Supabase** | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — DB, auth validation, RLS bypass on server only |
-| **Builder.io** | `BUILDER_PRIVATE_KEY` — proxied by `POST /api/builder/generate` |
+| **Google Stitch** | `STITCH_API_KEY` or `GOOGLE_STITCH_API_KEY` — `POST /api/builder/generate` (optional `STITCH_PROJECT_ID`) |
 | **Stripe** | `STRIPE_SECRET_KEY`, webhooks — server only |
 | **Vercel** | Host + optional `VERCEL_ACCESS_TOKEN` + `VERCEL_PROJECT_ID` for `GET /api/integrations/summary` metadata |
 
@@ -16,7 +16,7 @@ This app is structured so **secrets and vendor APIs** are controlled from the **
 
 - **UI** (React).
 - **OAuth** redirect to Google/GitHub (then return to `/auth/callback`).
-- **Optional** local overrides (`Settings → Secrets`) sent as `x-grok-api-key` / `x-builder-private-key` unless you set **`STRICT_SERVER_API_KEYS=1`**.
+- **Optional** local overrides (`Settings → Secrets`) sent as `x-grok-api-key` / `x-stitch-api-key` unless you set **`STRICT_SERVER_API_KEYS=1`**.
 
 ## Discoverability (no secret values)
 
@@ -32,7 +32,7 @@ Set on the server:
 STRICT_SERVER_API_KEYS=1
 ```
 
-Then Grok and Builder **only** use keys from the host env (browser header overrides ignored).
+Then Grok and Stitch **only** use keys from the host env (browser header overrides ignored).
 
 ## Optional Vercel API link
 

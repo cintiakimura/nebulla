@@ -64,7 +64,8 @@ export async function getIntegrationsSummaryJson(): Promise<Record<string, unkno
   const supabaseUrl = envConfigured("SUPABASE_URL");
   const supabasePub = envConfigured("SUPABASE_PUBLISHABLE_KEY") || envConfigured("SUPABASE_ANON_KEY");
   const supabaseSecret = envConfigured("SUPABASE_SECRET_KEY");
-  const builder = envConfigured("BUILDER_PRIVATE_KEY");
+  const stitchUi =
+    envConfigured("STITCH_API_KEY") || envConfigured("GOOGLE_STITCH_API_KEY");
   const stripe = envConfigured("STRIPE_SECRET_KEY");
   const stripeWebhook = envConfigured("STRIPE_WEBHOOK_SECRET");
   let vercelProject: Record<string, unknown> | null = null;
@@ -81,7 +82,7 @@ export async function getIntegrationsSummaryJson(): Promise<Record<string, unkno
   return {
     architecture: "backend-first-monorepo",
     description:
-      "Grok, Supabase (server + config for client), Builder.io, and Stripe are driven from this API; secrets stay in host env. OAuth still uses the browser for provider login.",
+      "Grok, Supabase (server + config for client), Google Stitch (UI generation), and Stripe are driven from this API; secrets stay in host env. OAuth still uses the browser for provider login.",
     strictServerSecretsOnly: strictServerSecretsOnly(),
     services: {
       grok: {
@@ -94,8 +95,8 @@ export async function getIntegrationsSummaryJson(): Promise<Record<string, unkno
         secretKey: supabaseSecret,
         publicConfigRoute: "/api/config",
       },
-      builderIo: {
-        configured: builder,
+      stitch: {
+        configured: stitchUi,
         routes: ["/api/builder/generate"],
       },
       stripe: {

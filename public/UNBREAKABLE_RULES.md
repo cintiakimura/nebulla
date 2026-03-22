@@ -136,7 +136,7 @@ So: **yes, I understood.** For users to have the same experience when they use G
 
 ## 9. Platform — backend-first, env, VETR verify, npm-once (kyn)
 
-**Single Git repo, one API:** Grok (xAI), Supabase, Builder.io, and Stripe are driven from the **backend**; secrets live in **host env** (`.env`, Vercel, Railway, etc.). The browser only does UI + OAuth redirects to providers. See `docs/BACKEND_FIRST.md`.
+**Single Git repo, one API:** Grok (xAI), Supabase, Google Stitch, and Stripe are driven from the **backend**; secrets live in **host env** (`.env`, Vercel, Railway, etc.). The browser only does UI + OAuth redirects to providers. See `docs/BACKEND_FIRST.md`.
 
 **Mandatory behaviour when guiding setup or debugging:**
 
@@ -148,12 +148,12 @@ So: **yes, I understood.** For users to have the same experience when they use G
    - **`npm run dev`** — start the app (Express + Vite from `server.ts`).
 
 2. **Env discovery (no secret values exposed):** Point users to **Settings → Refresh env check** and these endpoints:
-   - `GET /api/integrations/summary` — map of what is configured (Grok, Supabase, Builder, Stripe, Vercel).
+   - `GET /api/integrations/summary` — map of what is configured (Grok, Supabase, Stitch, Stripe, Vercel).
    - `GET /api/config/secrets-audit` — boolean checklist per env name.
    - `GET /api/config/production-readiness` — checklist + core gaps.
    - `POST /api/config/secrets-alignment` — server vs browser “Secrets” flags.
 
-3. **Production hardening:** `STRICT_SERVER_API_KEYS=1` on the server → ignore browser `x-grok-api-key` / `x-builder-private-key`; keys **only** from host env.
+3. **Production hardening:** `STRICT_SERVER_API_KEYS=1` on the server → ignore browser `x-grok-api-key` / `x-stitch-api-key`; keys **only** from host env.
 
 4. **Optional Vercel metadata:** `VERCEL_ACCESS_TOKEN` + `VERCEL_PROJECT_ID` → richer block under `vercel` in `/api/integrations/summary` (project name, latest deployment).
 

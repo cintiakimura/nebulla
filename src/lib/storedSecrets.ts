@@ -1,6 +1,6 @@
 /**
  * User-supplied API keys stored in localStorage. When set, they are sent to the backend as
- * headers (x-grok-api-key, x-builder-private-key) so routes match server .env behavior.
+ * headers (x-grok-api-key, x-stitch-api-key) so routes match server .env behavior.
  * Supabase service role stays server-only; publishable key still comes from /api/config.
  */
 
@@ -10,7 +10,7 @@ const PREFIX = "kyn_secret_";
 export const SECRET_KEYS = [
   "XAI_API_KEY",
   "GROK_API_KEY",
-  "BUILDER_PRIVATE_KEY",
+  "STITCH_API_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_PUBLIC_KEY",
 ] as const;
@@ -44,13 +44,13 @@ export function hasStoredSecret(key: string): boolean {
   return v.length > 0 && v !== "PLACEHOLDER";
 }
 
-/** Headers for Grok / Builder when user saved keys in Settings (sent with API calls). */
+/** Headers for Grok / Stitch when user saved keys in Settings (sent with API calls). */
 export function getBackendSecretHeaders(): Record<string, string> {
   const h: Record<string, string> = {};
   const grok = getStoredSecret("XAI_API_KEY") || getStoredSecret("GROK_API_KEY");
   if (grok) h["x-grok-api-key"] = grok;
-  const builder = getStoredSecret("BUILDER_PRIVATE_KEY");
-  if (builder) h["x-builder-private-key"] = builder;
+  const stitch = getStoredSecret("STITCH_API_KEY");
+  if (stitch) h["x-stitch-api-key"] = stitch;
   return h;
 }
 

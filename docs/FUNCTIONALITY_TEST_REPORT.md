@@ -15,7 +15,7 @@
 | **Projects CRUD** | ✅ Pass | List, create, get, update with open-mode |
 | **Agent config** | ✅ Pass | Grok-Eve config and preCodeQuestions |
 | **Agent chat (Grok)** | ✅ Pass* | 200 with reply, or 503 (no key), or 400 (API error) |
-| **Builder UI generate** | ✅ Pass | 503 when BUILDER_PRIVATE_KEY not set (expected) |
+| **Builder UI generate** | ✅ Pass | 503 when STITCH_API_KEY not set (expected) |
 | **Stripe / payments** | ✅ Pass | 410 (payments removed) |
 | **Deploy mocks** | ✅ Pass | Mock deploy OK |
 
@@ -73,7 +73,7 @@
 
 ## 6. Builder UI generate
 
-- **POST /api/builder/generate** — Returns 503 when `BUILDER_PRIVATE_KEY` is not set; test treats 503 as pass.
+- **POST /api/builder/generate** — Returns 503 when `STITCH_API_KEY` is not set; test treats 503 as pass.
 
 ---
 

@@ -146,7 +146,7 @@ Document created to confirm: rules received, understood, and how they apply to y
 
 9. Platform — backend-first, env, VETR verify, npm-once (kyn) — UNBREAKABLE
 
-Single Git monorepo: Grok, Supabase, Builder.io, Stripe are integrated through this backend; secrets in host .env / Vercel. Browser = UI + OAuth only. Full detail: UNBREAKABLE_RULES.md section 9 and docs/BACKEND_FIRST.md.
+Single Git monorepo: Grok, Supabase, Google Stitch, Stripe are integrated through this backend; secrets in host .env / Vercel. Browser = UI + OAuth only. Full detail: UNBREAKABLE_RULES.md section 9 and docs/BACKEND_FIRST.md.
 
 When helping users with setup: do NOT chain many npm commands. Tell them: (1) npm install — installs every dependency from package.json; postinstall runs automatically with next-step hints. (2) npm run dev to start. (3) npm run kyn:ready for one-shot lint + build + API smoke tests before ship. (4) npm run kyn:setup on fresh clone (install + doctor). (5) npm run kyn:doctor for quick .env check.
 

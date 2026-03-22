@@ -60,7 +60,7 @@ Status key: **OK** = implemented and working | **Partial** = works with config/e
 | **/api/agent/config** | GET | OK | agentId, systemPrompt, preCodeQuestions |
 | **/api/agent/chat** | POST | Config | Grok chat; 503 if `GROK_API_KEY` not set |
 | **/api/tts** | POST | Config | Grok TTS (Eve); 503 if `GROK_API_KEY` not set |
-| **/api/builder/generate** | POST | Config | Builder.io; 503 if `BUILDER_PRIVATE_KEY` not set; free-tier daily limit |
+| **/api/builder/generate** | POST | Config | Google Stitch; 503 if `STITCH_API_KEY` / `GOOGLE_STITCH_API_KEY` not set; free-tier daily limit |
 | **/api/create-checkout-session** | POST | Config | Stripe Checkout; 503 if `STRIPE_SECRET_KEY` not set; needs price IDs |
 | **/api/update-paid-status** | POST | Config | Upsert Supabase `users` paid/plan; 503 if Supabase not set |
 | **/api/deploy** | POST | Partial | Mock only |
@@ -84,7 +84,7 @@ Status key: **OK** = implemented and working | **Partial** = works with config/e
 | Integration | Status | Notes |
 |-------------|--------|------|
 | **Grok (xAI)** | Config | Chat + TTS; `GROK_API_KEY` in backend env |
-| **Builder.io** | Config | UI generation; `BUILDER_PRIVATE_KEY`; optional free daily limit |
+| **Google Stitch** | Config | UI generation; `STITCH_API_KEY` (or `GOOGLE_STITCH_API_KEY`); optional `STITCH_PROJECT_ID`; optional free daily limit |
 | **Stripe** | Config | Checkout + update-paid-status; `STRIPE_SECRET_KEY`, price IDs |
 | **Supabase OAuth (GitHub/Google)** | Config | Settings "Connect GitHub" / "Connect Google" → `signInWithOAuth`; requires providers enabled and redirect URL in Supabase |
 

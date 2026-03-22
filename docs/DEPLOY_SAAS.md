@@ -19,7 +19,7 @@ Set these on the backend. **Required for full SaaS:**
 | `GROK_API_KEY` | xAI API key (console.x.ai) |
 | `ALLOWED_ORIGIN` | Frontend origin, e.g. `https://kyn.app` (for CORS) |
 
-Optional: `FREE_PROJECT_LIMIT`, `FREE_GROK_DAILY_LIMIT`, `BUILDER_PRIVATE_KEY`, `GROK_MODEL`.
+Optional: `FREE_PROJECT_LIMIT`, `FREE_GROK_DAILY_LIMIT`, `STITCH_API_KEY`, `GROK_MODEL`.
 
 ### Frontend (Vercel)
 
