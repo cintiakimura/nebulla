@@ -1,63 +1,239 @@
 @import "tailwindcss";
 
-/* Blue theme — #06061F background, white text, #007ACC accent, #6F748A secondary. */
+/*
+ * Celestial Fluidity — “The Infinite Horizon”
+ * Midnight foundation, nebula luminescence, glass + tonal separation (no harsh grid lines).
+ */
+
 @theme inline {
-  --color-vs-bg: #06061F;
-  --color-vs-editor: #06061F;
-  --color-vs-accent: #007ACC;
-  --color-vs-foreground: #ffffff;
-  --color-vs-muted: #6F748A;
-  --color-vs-hover: #0B0B2A;
-  --color-vs-border: #1F213C;
-  --color-vs-status: #06061F;
-  --color-vs-secondary: #007ACC;
+  /* Surfaces — layered midnight blues (no pure grey) */
+  --color-background: #040f1a;
+  --color-foreground: #c8d9e8;
+  --color-primary: #00e6e6;
+  --color-primary-dim: #00b8b8;
+  --color-secondary: #a533ff;
+
+  /* Legacy VS-style names → celestial (existing class names keep working) */
+  --color-vs-bg: #040f1a;
+  --color-vs-editor: #051422;
+  --color-vs-accent: #00e6e6;
+  --color-vs-foreground: #c8d9e8;
+  --color-vs-muted: #7a9aad;
+  --color-vs-hover: #0b2134;
+  --color-vs-border: rgba(51, 74, 97, 0.14);
+  --color-vs-status: #040f1a;
+  --color-vs-secondary: #c1fffe;
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
+  --radius-3xl: 3rem;
 }
 
 @layer base {
   :root {
-    --color-primary: #007ACC;
-    --color-background: #06061F;
-    --color-text: #ffffff;
-    --bg-primary: #06061F;
-    --bg-editor: #06061F;
-    --bg-sidebar: #06061F;
-    --accent: #007ACC;
-    --accent-hover: #1a8ad4;
-    --secondary: #007ACC;
-    --text-primary: #ffffff;
-    --text-secondary: #6F748A;
-    --hover: #0B0B2A;
-    --status-bg: #06061F;
-    --border: #1F213C;
-    --border-subtle: #06061F;
+    /* Celestial tokens */
+    --celestial-surface: #040f1a;
+    --celestial-surface-dim: #031018;
+    --celestial-surface-container-low: #051422;
+    --celestial-surface-container: rgba(11, 33, 52, 0.55);
+    --celestial-surface-container-high: #0b2134;
+    --celestial-surface-container-highest: #102a40;
+
+    --celestial-primary: #c1fffe;
+    --celestial-primary-dim: #00e6e6;
+    --celestial-primary-fixed: #d8fffd;
+    --celestial-primary-container: linear-gradient(135deg, #c1fffe 0%, #00e6e6 100%);
+
+    --celestial-secondary-container: #3c0066;
+    --celestial-on-secondary-fixed: #60009f;
+    --celestial-nebula-violet: #8800de;
+    --celestial-secondary-dim: #a533ff;
+
+    --celestial-on-surface: #b8cad8;
+    --celestial-on-surface-muted: #7a9aad;
+    --celestial-on-surface-bright: #e2f0fa;
+
+    --celestial-outline-variant: #334a61;
+    --celestial-ghost-outline: color-mix(in srgb, var(--celestial-outline-variant) 10%, transparent);
+    --celestial-ghost-border: rgba(51, 74, 97, 0.12);
+    --celestial-separator-soft: rgba(193, 255, 254, 0.07);
+
+    --celestial-ambient-shadow: 0 24px 48px -12px rgba(96, 0, 159, 0.05);
+
+    /* Back-compat bundle */
+    --color-primary: #00e6e6;
+    --color-background: #040f1a;
+    --color-text: #c8d9e8;
+    --bg-primary: #040f1a;
+    --bg-editor: #051422;
+    --bg-sidebar: #0b2134;
+    --accent: #00e6e6;
+    --accent-hover: #33eeea;
+    --secondary: #c1fffe;
+    --text-primary: #c8d9e8;
+    --text-secondary: #7a9aad;
+    --hover: #0b2134;
+    --status-bg: #040f1a;
+    --border: rgba(51, 74, 97, 0.18);
+    --border-subtle: rgba(193, 255, 254, 0.06);
     --syntax-string: #ce9178;
-    --syntax-keyword: #569cd6;
-    --syntax-function: #dcdcaa;
+    --syntax-keyword: #7dd3fc;
+    --syntax-function: #fde68a;
     --syntax-comment: #6a9955;
   }
 
+  html {
+    @apply antialiased;
+  }
+
   body {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: "Inter", ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+    background-color: var(--celestial-surface);
+    color: var(--celestial-on-surface);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+    position: relative;
+  }
+
+  /* Nebula bleed — large radial washes (non-interactive) */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 120% 80% at 100% -20%, rgba(60, 0, 102, 0.22) 0%, transparent 55%),
+      radial-gradient(ellipse 90% 70% at -10% 110%, rgba(136, 0, 222, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 50% at 50% 100%, rgba(0, 230, 230, 0.04) 0%, transparent 45%);
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 
   .font-mono {
     font-family: ui-monospace, "Cascadia Code", "Source Code Pro", "Consolas", monospace;
     font-size: 14px;
   }
+
+  h1,
+  h2,
+  h3,
+  .heading-display {
+    font-family: var(--font-display);
+  }
 }
 
 @layer components {
+  /* Glass — floating nav / modals */
+  .celestial-glass {
+    background: color-mix(in srgb, var(--celestial-surface-container-high) 58%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: var(--celestial-ambient-shadow);
+  }
+
+  .celestial-glass-strong {
+    background: color-mix(in srgb, var(--celestial-surface-container-high) 72%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  /* Ghost edge — accessibility without hard rules */
+  .celestial-ghost-ring {
+    box-shadow: 0 0 0 1px var(--celestial-ghost-outline);
+  }
+
+  /* Primary CTA — luminous pulsar */
+  .btn-celestial-primary {
+    border: none;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, var(--celestial-primary) 0%, var(--celestial-primary-dim) 100%);
+    color: #042028;
+    font-weight: 600;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .btn-celestial-primary:hover {
+    box-shadow: 0 0 20px color-mix(in srgb, var(--celestial-primary) 30%, transparent);
+    transform: scale(1.02);
+  }
+
+  .btn-celestial-primary:active {
+    transform: scale(0.99);
+  }
+
+  /* Inputs — bottom ghost or soft well */
+  .celestial-input {
+    border-radius: 1.5rem;
+    background: color-mix(in srgb, var(--celestial-surface-container-low) 85%, transparent);
+    border: none;
+    box-shadow: inset 0 -1px 0 0 var(--celestial-ghost-border);
+    transition:
+      box-shadow 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .celestial-input:focus {
+    outline: none;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--celestial-primary) 25%, transparent),
+      0 0 24px color-mix(in srgb, var(--celestial-primary-dim) 18%, transparent);
+  }
+
   .btn-accent {
-    background-color: var(--accent);
-    color: #ffffff;
+    background: linear-gradient(135deg, var(--celestial-primary) 0%, var(--celestial-primary-dim) 100%);
+    color: #042028;
   }
+
   .btn-accent:hover {
-    background-color: var(--accent-hover);
+    filter: brightness(1.06);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--celestial-primary) 28%, transparent);
   }
+
   .panel-editor {
-    background-color: var(--bg-editor);
-    border-color: var(--border);
+    background-color: var(--celestial-surface-container-low);
+    box-shadow: 0 0 0 1px var(--celestial-ghost-outline);
+  }
+
+  /* Nebula pulse — high-value action feedback */
+  @keyframes celestial-nebula-pulse {
+    0% {
+      opacity: 0.55;
+      transform: scale(0.2);
+    }
+    70% {
+      opacity: 0.12;
+      transform: scale(2.2);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2.8);
+    }
+  }
+
+  .celestial-nebula-ripple {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    margin: -60px 0 0 -60px;
+    background: radial-gradient(circle, var(--celestial-secondary-dim) 0%, transparent 70%);
+    animation: celestial-nebula-pulse 0.85s ease-out forwards;
+    z-index: 9999;
   }
 }

@@ -29,15 +29,15 @@ export default function App() {
 
   if (!configReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-sans bg-background text-white">
-        <p>Loading…</p>
+      <div className="min-h-screen flex items-center justify-center font-sans bg-background text-foreground">
+        <p className="font-display text-lg text-primary/90">Loading…</p>
       </div>
     );
   }
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen font-sans bg-background text-white selection:bg-primary/30">
+      <div className="min-h-screen font-sans bg-background text-foreground selection:bg-primary/25 selection:text-[#042028]">
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/landing" element={<Landing />} />

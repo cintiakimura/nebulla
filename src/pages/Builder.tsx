@@ -29,11 +29,15 @@ import UpgradeBubble from "../components/UpgradeBubble";
 import { runBuilderAgentChain } from "../lib/builderAgentChain";
 import { loadAgentTaskMemory } from "../lib/multiAgentMemory";
 
-/** Builder: one dark blue canvas; borders are 1px, only slightly lighter than BG (no white strokes). */
-const BUILDER_BG = "#020c17";
-const BUILDER_ACCENT = "#081a2e";
-const BUILDER_MUTED = "#6c7286";
-const BUILDER_BORDER = "#112536";
+/** Builder — Celestial Fluidity: tonal layers + soft separators (see src/index.css). Layout unchanged. */
+const BUILDER_BG = "var(--celestial-surface)";
+const BUILDER_ACCENT = "var(--celestial-surface-container-high)";
+const BUILDER_MUTED = "var(--celestial-on-surface-muted)";
+const BUILDER_BORDER = "var(--celestial-separator-soft)";
+const BUILDER_TEXT = "var(--celestial-on-surface)";
+const BUILDER_TEXT_BRIGHT = "var(--celestial-on-surface-bright)";
+const BUILDER_RADIUS = "0.75rem";
+const BUILDER_RADIUS_LG = "1.25rem";
 
 function readStoredPanelSize(key: string, fallback: number, min: number, max: number) {
   try {
@@ -125,7 +129,7 @@ function BuilderBottomPanel({
             onClick={() => setBottomPanelTab("terminal")}
             className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "terminal" ? "border-cyan-500/60" : "border-transparent"}`}
             style={{
-              color: bottomPanelTab === "terminal" ? "#a8b0c0" : BUILDER_MUTED,
+              color: bottomPanelTab === "terminal" ? BUILDER_TEXT : BUILDER_MUTED,
               backgroundColor: bottomPanelTab === "terminal" ? BUILDER_BG : "transparent",
             }}
           >
@@ -137,7 +141,7 @@ function BuilderBottomPanel({
             onClick={() => setBottomPanelTab("output")}
             className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "output" ? "border-cyan-500/60" : "border-transparent"}`}
             style={{
-              color: bottomPanelTab === "output" ? "#a8b0c0" : BUILDER_MUTED,
+              color: bottomPanelTab === "output" ? BUILDER_TEXT : BUILDER_MUTED,
               backgroundColor: bottomPanelTab === "output" ? BUILDER_BG : "transparent",
             }}
           >
@@ -149,7 +153,7 @@ function BuilderBottomPanel({
             onClick={() => setBottomPanelTab("problems")}
             className={`h-full px-4 flex items-center gap-2 border-b-2 transition-colors ${bottomPanelTab === "problems" ? "border-cyan-500/60" : "border-transparent"}`}
             style={{
-              color: bottomPanelTab === "problems" ? "#a8b0c0" : BUILDER_MUTED,
+              color: bottomPanelTab === "problems" ? BUILDER_TEXT : BUILDER_MUTED,
               backgroundColor: bottomPanelTab === "problems" ? BUILDER_BG : "transparent",
             }}
           >
@@ -169,7 +173,7 @@ function BuilderBottomPanel({
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0 font-mono text-sm" style={{ color: "#a8b0c0" }}>
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0 font-mono text-sm" style={{ color: BUILDER_TEXT }}>
         {bottomPanelTab === "terminal" && (
           <div className="flex flex-col h-full min-h-0">
             {sandpackConsole ? (
@@ -255,7 +259,7 @@ function BuilderStatusBar({
     >
       <div className="flex items-center gap-4">
         {paidStatus.paid ? (
-          <span className="flex items-center gap-1 text-[#a8b0c0]">
+          <span className="flex items-center gap-1 text-[color:var(--celestial-on-surface)]">
             <Github size={12} /> main*
           </span>
         ) : (
@@ -275,7 +279,7 @@ function BuilderStatusBar({
           type="button"
           onClick={() => setTerminalOpen(!terminalOpen)}
           className="hover:opacity-90 px-1 rounded"
-          style={{ color: "#a8b0c0" }}
+          style={{ color: BUILDER_TEXT }}
           title={terminalOpen ? "Hide preview console panel" : "Show preview console panel"}
         >
           <TerminalIcon size={12} />
@@ -1625,7 +1629,7 @@ export default function Builder() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans flex-col" style={{ backgroundColor: BUILDER_BG, color: "#a8b0c0" }}>
+    <div className="flex h-screen overflow-hidden font-sans flex-col" style={{ backgroundColor: BUILDER_BG, color: BUILDER_TEXT }}>
       <div
         ref={builderMainScrollRef}
         className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
@@ -1633,8 +1637,12 @@ export default function Builder() {
       >
         <div className="flex min-h-0 h-full min-w-[60rem]" style={{ backgroundColor: BUILDER_BG }}>
       <div
-        className="w-14 flex flex-col items-center py-3 z-10 shrink-0"
-        style={{ backgroundColor: BUILDER_ACCENT, borderRight: `1px solid ${BUILDER_BORDER}` }}
+        className="w-14 flex flex-col items-center py-3 z-10 shrink-0 backdrop-blur-md"
+        style={{
+          backgroundColor: "color-mix(in srgb, var(--celestial-surface-container-high) 88%, transparent)",
+          boxShadow: `inset -1px 0 0 0 var(--celestial-ghost-border)`,
+          borderRadius: `0 ${BUILDER_RADIUS_LG} ${BUILDER_RADIUS_LG} 0`,
+        }}
       >
         <button
           type="button"
@@ -1650,8 +1658,8 @@ export default function Builder() {
           onClick={() => setExplorerOpen((o) => !o)}
           className="p-2 rounded-md mb-2 transition-colors"
           style={{
-            color: explorerOpen ? "#a8b0c0" : BUILDER_MUTED,
-            backgroundColor: explorerOpen ? "rgba(2,12,23,0.45)" : "transparent",
+            color: explorerOpen ? BUILDER_TEXT : BUILDER_MUTED,
+            backgroundColor: explorerOpen ? "color-mix(in srgb, var(--celestial-surface) 55%, transparent)" : "transparent",
           }}
           title="Toggle explorer"
         >
@@ -1661,7 +1669,7 @@ export default function Builder() {
           type="button"
           onClick={() => openTab("preview")}
           className={`p-2 rounded-md mb-2 transition-colors ${activeTabId === "preview" ? "ring-1 ring-cyan-500/40" : ""}`}
-          style={{ color: activeTabId === "preview" ? "#a8b0c0" : BUILDER_MUTED }}
+          style={{ color: activeTabId === "preview" ? BUILDER_TEXT : BUILDER_MUTED }}
           title="Live Preview"
         >
           <Eye size={22} strokeWidth={1.5} />
@@ -1673,7 +1681,7 @@ export default function Builder() {
             className="p-2 rounded-md transition-colors"
             style={{
               color: agentDebugEnabled ? "#22d3ee" : BUILDER_MUTED,
-              backgroundColor: agentDebugEnabled ? "rgba(2,12,23,0.45)" : "transparent",
+              backgroundColor: agentDebugEnabled ? "color-mix(in srgb, var(--celestial-surface) 55%, transparent)" : "transparent",
             }}
             title={agentDebugEnabled ? "Multi-agent chain ON (Code → Deploy)" : "Multi-agent chain OFF"}
           >
@@ -1852,7 +1860,7 @@ export default function Builder() {
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center min-h-0">
               <div className="max-w-lg w-full space-y-6">
-              <h1 className="text-xl font-medium text-center" style={{ color: "#a8b0c0" }}>
+              <h1 className="text-xl font-medium text-center font-display tracking-tight" style={{ color: BUILDER_TEXT }}>
                 Start project brainstorming
               </h1>
               <div className="space-y-3">
@@ -1919,7 +1927,7 @@ export default function Builder() {
                     }
                   }}
                   placeholder="e.g. My app, Dashboard, Landing page"
-                  className="w-full px-4 py-3 rounded-lg placeholder:text-[#6c7286] focus:outline-none focus:ring-1 focus:ring-cyan-900/40 text-[#a8b0c0]"
+                  className="w-full px-4 py-3 rounded-2xl placeholder:text-[color:var(--celestial-on-surface-muted)] focus:outline-none focus:shadow-[0_0_0_1px_color-mix(in_srgb,var(--celestial-primary)_28%,transparent),0_0_20px_color-mix(in_srgb,var(--celestial-primary-dim)_14%,transparent)] text-[color:var(--celestial-on-surface)] bg-[color-mix(in_srgb,var(--celestial-surface-container-low)_90%,transparent)] shadow-[inset_0_-1px_0_0_var(--celestial-ghost-border)] border-0"
                   style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
                 />
                 <button
@@ -1982,7 +1990,7 @@ export default function Builder() {
                 style={{
                   borderRight: `1px solid ${BUILDER_BORDER}`,
                   backgroundColor: isActive ? BUILDER_BG : "transparent",
-                  color: isActive ? "#a8b0c0" : BUILDER_MUTED,
+                  color: isActive ? BUILDER_TEXT : BUILDER_MUTED,
                 }}
               >
                 {tabId === 'preview' ? <Eye size={14} /> : <FileCode size={14} className={tabId === '/App.tsx' ? 'text-[#569cd6]' : 'text-[#ce9178]'} />}
@@ -2009,7 +2017,7 @@ export default function Builder() {
               <div className="flex-1 min-h-0 relative overflow-hidden">
                 <div className="absolute inset-0 flex items-center justify-center p-8 z-[1]" style={{ backgroundColor: BUILDER_BG }}>
                   <div className="max-w-md rounded-lg p-6 text-center" style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}>
-                    <p className="text-sm mb-4" style={{ color: "#a8b0c0" }}>Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
+                    <p className="text-sm mb-4" style={{ color: BUILDER_TEXT }}>Connect GitHub and set your domain in Settings, then return here to use the preview and editor.</p>
                     <button
                       type="button"
                       onClick={() => navigate("/settings")}
@@ -2057,7 +2065,7 @@ export default function Builder() {
                   >
                     Live terminal
                   </div>
-                  <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed p-2" style={{ color: "#a8b0c0" }}>
+                  <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed p-2" style={{ color: BUILDER_TEXT }}>
                     {logs.map((log, i) => (
                       <div key={i} className="mb-0.5 break-words">
                         <span style={{ color: BUILDER_MUTED }} className="mr-1 select-none">
@@ -2143,7 +2151,7 @@ export default function Builder() {
                               showSetupProgress
                               showRestartButton={false}
                               showResetConsoleButton
-                              className="h-full min-h-0 !bg-transparent text-[11px] text-[#a8b0c0]"
+                              className="h-full min-h-0 !bg-transparent text-[11px] text-[color:var(--celestial-on-surface)]"
                             />
                           </div>
                         }
@@ -2201,28 +2209,34 @@ export default function Builder() {
           overflow: "auto",
           boxSizing: "border-box",
           backgroundColor: BUILDER_BG,
-          borderLeft: `1px solid ${BUILDER_BORDER}`,
+          boxShadow: `inset 1px 0 0 0 var(--celestial-ghost-border)`,
+          borderTopLeftRadius: BUILDER_RADIUS_LG,
+          borderBottomLeftRadius: BUILDER_RADIUS_LG,
         }}
       >
         <div
-          className="p-2 flex flex-col gap-2 shrink-0"
-          style={{ borderBottom: `1px solid ${BUILDER_BORDER}`, backgroundColor: BUILDER_ACCENT }}
+          className="p-2 flex flex-col gap-2 shrink-0 celestial-glass-strong rounded-tl-[1.25rem]"
+          style={{ borderBottom: `1px solid ${BUILDER_BORDER}` }}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold" style={{ color: "#e2e6ef" }}>
+                <span className="text-xs font-semibold font-display tracking-tight" style={{ color: BUILDER_TEXT_BRIGHT }}>
                   Grok
                 </span>
                 <span
-                  className="text-[9px] px-1.5 py-px rounded font-medium uppercase tracking-wide"
-                  style={{ color: "#7dd3fc", backgroundColor: "rgba(14,165,233,0.12)", border: "1px solid rgba(34,211,238,0.2)" }}
+                  className="text-[9px] px-1.5 py-px rounded-full font-medium uppercase tracking-wide font-display"
+                  style={{
+                    color: "var(--celestial-primary-dim)",
+                    backgroundColor: "color-mix(in srgb, var(--celestial-primary) 12%, transparent)",
+                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--celestial-primary) 22%, transparent)",
+                  }}
                 >
                   Open chat
                 </span>
               </div>
               <p className="text-[10px] leading-snug mt-1" style={{ color: BUILDER_MUTED }}>
-                Voice: tap <strong className="text-[#a8b0c0] font-normal">mic</strong> → listens right away (hands-free) or use <strong className="text-[#a8b0c0] font-normal">Hold to send</strong>. Pause ~2s → auto-send. Eve speaks Grok’s reply. Tap mic again or say <strong className="text-[#a8b0c0] font-normal">stop listening</strong> to end.
+                Voice: tap <strong className="text-[var(--celestial-primary)] font-normal">mic</strong> → listens right away (hands-free) or use <strong className="text-[var(--celestial-primary)] font-normal">Hold to send</strong>. Pause ~2s → auto-send. Eve speaks Grok’s reply. Tap mic again or say <strong className="text-[var(--celestial-primary)] font-normal">stop listening</strong> to end.
               </p>
               <label className="flex items-center gap-1.5 mt-2 cursor-pointer select-none text-[10px]" style={{ color: BUILDER_MUTED }}>
                 <input
@@ -2237,7 +2251,7 @@ export default function Builder() {
                       /* ignore */
                     }
                   }}
-                  className="rounded border border-[#164e60] bg-[#020c17]"
+                  className="rounded-xl border-0 bg-[var(--celestial-surface-container-low)] shadow-[inset_0_-1px_0_0_var(--celestial-ghost-border)]"
                 />
                 Smooth auto-scroll while chatting
               </label>
@@ -2245,26 +2259,33 @@ export default function Builder() {
             <Code2 size={14} className="shrink-0 mt-0.5" style={{ color: BUILDER_MUTED }} aria-hidden />
           </div>
           <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
-            Grok echoes what you want before building; say <strong className="text-[#a8b0c0] font-normal">yes</strong> to proceed. Say <strong className="text-[#a8b0c0] font-normal">mute</strong> / <strong className="text-[#a8b0c0] font-normal">unmute</strong> or use the Mute control. Multi-agent runs when your message looks like a code task (debug chain on).
+            Grok echoes what you want before building; say <strong className="text-[var(--celestial-primary)] font-normal">yes</strong> to proceed. Say <strong className="text-[var(--celestial-primary)] font-normal">mute</strong> / <strong className="text-[var(--celestial-primary)] font-normal">unmute</strong> or use the Mute control. Multi-agent runs when your message looks like a code task (debug chain on).
           </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
           <input {...getInputProps()} />
           <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={handleFileSelect} />
           <div
-            className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "rounded" : ""}`}
+            className={`flex-1 overflow-auto p-3 space-y-3 ${isDragActive ? "rounded-2xl" : ""}`}
             style={
               isDragActive
-                ? { backgroundColor: "rgba(8,26,46,0.5)", boxShadow: `0 0 0 1px ${BUILDER_BORDER}` }
+                ? {
+                    backgroundColor: "color-mix(in srgb, var(--celestial-surface-container-high) 55%, transparent)",
+                    boxShadow: "0 0 0 1px var(--celestial-ghost-outline)",
+                  }
                 : undefined
             }
           >
             {chatMessages.length === 0 && (
               <div
-                className="rounded-lg px-3 py-3 text-xs leading-relaxed"
-                style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}`, color: BUILDER_MUTED }}
+                className="rounded-2xl px-3 py-3 text-xs leading-relaxed"
+                style={{
+                  backgroundColor: "var(--celestial-surface-container-low)",
+                  boxShadow: "0 0 0 1px var(--celestial-ghost-outline)",
+                  color: BUILDER_MUTED,
+                }}
               >
-                <p className="font-medium mb-1" style={{ color: "#a8b0c0" }}>
+                <p className="font-medium mb-1 font-display" style={{ color: BUILDER_TEXT }}>
                   Start anywhere
                 </p>
                 <p>
@@ -2277,7 +2298,7 @@ export default function Builder() {
                 <div className="text-xs mb-0.5" style={{ color: BUILDER_MUTED }}>
                   {msg.role === "user" ? "You" : "Grok"}
                 </div>
-                <div className="text-sm select-text break-words pr-8" style={{ color: "#a8b0c0" }}>
+                <div className="text-sm select-text break-words pr-8" style={{ color: BUILDER_TEXT }}>
                   {msg.content}
                 </div>
                 {msg.images && msg.images.length > 0 && (
@@ -2331,7 +2352,7 @@ export default function Builder() {
               <div className="text-xs mb-1" style={{ color: BUILDER_MUTED }}>
                 Live transcription
               </div>
-              <div className="text-sm italic select-text" style={{ color: "#a8b0c0" }}>
+              <div className="text-sm italic select-text" style={{ color: BUILDER_TEXT }}>
                 {transcript || "..."}
               </div>
             </div>
@@ -2368,11 +2389,9 @@ export default function Builder() {
                         ? `Pause ~${VOICE_SILENCE_MS / 1000}s after speaking — auto-send`
                         : "Ask Grok anything…"
                 }
-                className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`celestial-input flex-1 min-w-0 px-3 py-2 text-sm placeholder:text-[color:var(--celestial-on-surface-muted)] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                 style={{
-                  backgroundColor: BUILDER_BG,
-                  border: `1px solid ${BUILDER_BORDER}`,
-                  color: "#a8b0c0",
+                  color: BUILDER_TEXT,
                 }}
                 disabled={readOnly}
                 title={readOnly ? "Upgrade for full access" : undefined}
@@ -2382,7 +2401,12 @@ export default function Builder() {
                 onClick={handleSendText}
                 disabled={!chatInput.trim() || readOnly}
                 className="w-8 h-8 flex items-center justify-center rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 hover:opacity-90"
-                style={{ backgroundColor: "#0e3a4a", color: "#a8b0c0", border: "1px solid #164e60" }}
+                style={{
+                  background: "linear-gradient(135deg, color-mix(in srgb, var(--celestial-primary) 22%, var(--celestial-surface-container-high)) 0%, var(--celestial-surface-container-high) 100%)",
+                  color: "#042028",
+                  border: "none",
+                  boxShadow: "0 0 0 1px var(--celestial-ghost-outline), 0 0 16px color-mix(in srgb, var(--celestial-primary) 15%, transparent)",
+                }}
                 title={readOnly ? "Upgrade for full access" : "Send"}
               >
                 <Send size={14} />
@@ -2453,7 +2477,7 @@ export default function Builder() {
                   }
                 }}
                 className="rounded px-1.5 py-0.5 text-[10px] max-w-[9rem]"
-                style={{ backgroundColor: BUILDER_BG, border: `1px solid ${BUILDER_BORDER}`, color: "#a8b0c0" }}
+                style={{ backgroundColor: BUILDER_BG, border: `1px solid ${BUILDER_BORDER}`, color: BUILDER_TEXT }}
               >
                 <option value="continuous">Hands-free (pause → send)</option>
                 <option value="push_to_talk">Hold mic → release to send</option>
@@ -2592,13 +2616,13 @@ export default function Builder() {
             style={{ backgroundColor: BUILDER_ACCENT, border: `1px solid ${BUILDER_BORDER}` }}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-sm mb-3" style={{ color: "#a8b0c0" }}>Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
+            <p className="text-sm mb-3" style={{ color: BUILDER_TEXT }}>Grok isn’t available. Set XAI_API_KEY (or GROK_API_KEY) in your backend .env to enable chat.</p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowGrokKeyModal(false)}
                 className="px-3 py-2 rounded text-sm"
-                style={{ color: "#a8b0c0", border: `1px solid ${BUILDER_BORDER}` }}
+                style={{ color: BUILDER_TEXT, border: `1px solid ${BUILDER_BORDER}` }}
               >
                 Close
               </button>
@@ -2621,14 +2645,14 @@ export default function Builder() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium" style={{ color: "#a8b0c0" }}>Too many requests</span>
+              <span className="text-sm font-medium" style={{ color: BUILDER_TEXT }}>Too many requests</span>
               {rateLimitCountdown <= 0 ? (
                 <button onClick={() => setRateLimitModalOpen(false)} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                   <X size={16} />
                 </button>
               ) : null}
             </div>
-            <p className="text-sm mb-3" style={{ color: "#a8b0c0" }}>
+            <p className="text-sm mb-3" style={{ color: BUILDER_TEXT }}>
               Wait {rateLimitCountdown > 0 ? rateLimitCountdown : 0} second{rateLimitCountdown !== 1 ? "s" : ""} and try again, or upgrade for unlimited.
             </p>
             <Link
@@ -2655,7 +2679,7 @@ export default function Builder() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium" style={{ color: "#a8b0c0" }}>Upgrade to deploy</span>
+              <span className="text-sm font-medium" style={{ color: BUILDER_TEXT }}>Upgrade to deploy</span>
               <button onClick={() => setUpgradeModalOpen(false)} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
@@ -2685,7 +2709,7 @@ export default function Builder() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium" style={{ color: "#a8b0c0" }}>New project</span>
+              <span className="text-sm font-medium" style={{ color: BUILDER_TEXT }}>New project</span>
               <button type="button" onClick={() => { setShowCreateProjectModal(false); setNewProjectName(""); }} className="p-1 rounded text-muted hover:text-white hover:bg-[#2d3f4f]">
                 <X size={16} />
               </button>
@@ -2706,7 +2730,7 @@ export default function Builder() {
                 }
               }}
               placeholder="e.g. My app, Dashboard"
-              className="w-full px-3 py-2 rounded placeholder:text-[#6c7286] focus:outline-none focus:ring-1 focus:ring-cyan-900/40 text-sm mb-4 text-[#a8b0c0]"
+              className="w-full px-3 py-2 rounded-2xl placeholder:text-[color:var(--celestial-on-surface-muted)] focus:outline-none focus:shadow-[0_0_0_1px_color-mix(in_srgb,var(--celestial-primary)_25%,transparent)] text-sm mb-4 text-[color:var(--celestial-on-surface)] bg-[color-mix(in_srgb,var(--celestial-surface-container-low)_88%,transparent)] shadow-[inset_0_-1px_0_0_var(--celestial-ghost-border)] border-0"
               style={{ backgroundColor: BUILDER_BG, border: `1px solid ${BUILDER_BORDER}` }}
               autoFocus
             />
@@ -2718,7 +2742,7 @@ export default function Builder() {
                   setNewProjectName("");
                 }}
                 className="px-3 py-2 rounded text-sm"
-                style={{ color: "#a8b0c0", border: `1px solid ${BUILDER_BORDER}` }}
+                style={{ color: BUILDER_TEXT, border: `1px solid ${BUILDER_BORDER}` }}
               >
                 Cancel
               </button>

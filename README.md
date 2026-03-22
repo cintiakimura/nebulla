@@ -6,6 +6,8 @@ One-time setup after login—no repeats. Platform owner fills env once.
 
 **AI / Cursor agents:** see **`AGENTS.md`** (backend-first, Grok + Stitch, no Builder.io).
 
+**UI / design:** **Celestial Fluidity** tokens and rules — `src/index.css`, **`docs/DESIGN_SYSTEM_CELESTIAL.md`** (Manrope + Space Grotesk, midnight surfaces, glass + tonal separation).
+
 ## Known npm warnings (safe to ignore)
 
 When you run `npm install` or `npm run build`, you may see deprecation warnings from **transitive** dependencies (not from this repo directly):
