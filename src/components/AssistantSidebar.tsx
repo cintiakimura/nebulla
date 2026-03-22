@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
+import { GoogleGenAI, Modality, LiveServerMessage, Type } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 
 let nextPlayTime = 0;
@@ -29,7 +29,7 @@ function playPcmChunk(base64Data: string, audioCtx: AudioContext) {
   nextPlayTime += buffer.duration;
 }
 
-export function AssistantSidebar() {
+export function AssistantSidebar({ width = 320 }: { width?: number }) {
   const [isLive, setIsLive] = useState(false);
   const [isMicOpen, setIsMicOpen] = useState(false);
   const [messages, setMessages] = useState<{role: string, text: string}[]>([
@@ -143,8 +143,8 @@ Keep the conversation open and natural. Be concise and friendly.`,
               name: 'startBuilding',
               description: 'Trigger this when the user confirms they want you to build the requested feature.',
               parameters: {
-                type: 'OBJECT',
-                properties: { taskDescription: { type: 'STRING', description: 'The detailed description of what to build.' } },
+                type: Type.OBJECT,
+                properties: { taskDescription: { type: Type.STRING, description: 'The detailed description of what to build.' } },
                 required: ['taskDescription']
               }
             }]
@@ -258,28 +258,25 @@ Keep the conversation open and natural. Be concise and friendly.`,
       } catch (error: any) {
         console.error("Gemini API Error:", error);
         let errorMsg = 'Error connecting to Gemini API.';
-        if (error?.status === 403) errorMsg = 'Error: API Key is invalid or missing required scopes.';
+        if (error?.status === 403) {
+          errorMsg = 'Error: API Key is invalid or missing required scopes.';
+        } else if (error instanceof TypeError && error.message === 'Failed to fetch') {
+          errorMsg = 'Error: Failed to fetch. This usually means your GEMINI_API_KEY is invalid, missing, or blocked by CORS due to an invalid key.';
+        } else if (error?.message?.includes('Failed to fetch')) {
+          errorMsg = 'Error: Failed to fetch. Please verify your GEMINI_API_KEY is correct and has the necessary permissions.';
+        }
         setMessages(prev => [...prev, { role: 'system', text: errorMsg }]);
       }
     }
   };
 
   return (
-    <aside className="flex flex-col border-l border-white/5 bg-[#040f1a]/40 backdrop-blur-md w-80">
+    <aside className="flex flex-col border-l border-white/5 bg-[#040f1a]/40 backdrop-blur-md shrink-0" style={{ width }}>
       <div className="p-4 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-13 font-headline text-slate-300 no-bold">Nebula Partner</span>
           {isLive && <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse"></span>}
         </div>
-        <button 
-          onClick={toggleLive}
-          className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isLive ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'hover:bg-white/5 text-slate-400 hover:text-cyan-300'}`}
-          title={isLive ? "End Call" : "Start Call"}
-        >
-          <span className="material-symbols-outlined text-18" style={{ fontVariationSettings: "'FILL' 1" }}>
-            {isLive ? 'call_end' : 'call'}
-          </span>
-        </button>
       </div>
       
       {buildQueue.length > 0 && (
