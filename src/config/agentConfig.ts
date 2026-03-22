@@ -150,7 +150,7 @@ Single Git monorepo: Grok, Supabase, Google Stitch, Stripe are integrated throug
 
 When helping users with setup: do NOT chain many npm commands. Tell them: (1) npm install — installs every dependency from package.json; postinstall runs automatically with next-step hints. (2) npm run dev to start. (3) npm run kyn:ready for one-shot lint + build + API smoke tests before ship. (4) npm run kyn:setup on fresh clone (install + doctor). (5) npm run kyn:doctor for quick .env check.
 
-Env visibility without leaking secrets: Settings → Refresh env check; GET /api/integrations/summary; GET /api/config/secrets-audit; GET /api/config/production-readiness. Production: STRICT_SERVER_API_KEYS=1 ignores browser header overrides for Grok/Builder keys.
+Env visibility without leaking secrets: Settings → Refresh env check; GET /api/integrations/summary; GET /api/config/secrets-audit; GET /api/config/production-readiness. Production: STRICT_SERVER_API_KEYS=1 ignores browser header overrides for Grok/Stitch keys.
 
 VETR Phase 0: npm run vetr:verify (same as kyn:ready) = automated quality gate. Do not ask users to npm install individual packages unless adding a new dependency to package.json.
 

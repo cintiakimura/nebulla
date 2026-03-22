@@ -8,7 +8,7 @@ This app is structured so **secrets and vendor APIs** are controlled from the **
 |--------|-----|
 | **Grok (xAI)** | `XAI_API_KEY` or `GROK_API_KEY` — chat, TTS, images, realtime token via `/api/*` |
 | **Supabase** | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` — DB, auth validation, RLS bypass on server only |
-| **Google Stitch** | `STITCH_API_KEY` or `GOOGLE_STITCH_API_KEY` — `POST /api/builder/generate` (optional `STITCH_PROJECT_ID`) |
+| **Google Stitch** | `STITCH_API_KEY` or `GOOGLE_STITCH_API_KEY` — `POST /api/stitch/generate` (optional `STITCH_PROJECT_ID`) |
 | **Stripe** | `STRIPE_SECRET_KEY`, webhooks — server only |
 | **Vercel** | Host + optional `VERCEL_ACCESS_TOKEN` + `VERCEL_PROJECT_ID` for `GET /api/integrations/summary` metadata |
 

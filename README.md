@@ -4,6 +4,8 @@
 
 One-time setup after login—no repeats. Platform owner fills env once.
 
+**AI / Cursor agents:** see **`AGENTS.md`** (backend-first, Grok + Stitch, no Builder.io).
+
 ## Known npm warnings (safe to ignore)
 
 When you run `npm install` or `npm run build`, you may see deprecation warnings from **transitive** dependencies (not from this repo directly):
@@ -65,7 +67,7 @@ If you only deploy the static frontend, there is no server to handle `POST /api/
 - **Free tier:** 3 projects, 10 Grok chats/day. Backend enforces limits; Supabase `users.is_pro` / `users.grok_calls_today` track usage.
 - **Pro (€19.90/mo):** Unlimited projects, Grok, export zip, GitHub, custom domains. Stripe subscription; webhook sets `is_pro`.
 - **Stripe setup:** Create a €19.90/mo recurring price in Stripe Dashboard → Products → Add product → Recurring. Set `STRIPE_PRO_PRICE_ID` (or `STRIPE_KING_PRO_PRICE_ID`) and `STRIPE_SECRET_KEY`. Add webhook endpoint `https://your-backend/api/stripe/webhook` for `checkout.session.completed`, `customer.subscription.deleted`, `customer.subscription.updated`; set `STRIPE_WEBHOOK_SECRET`. Webhook uses raw body for signature verification.
-- **UI code generation:** `POST /api/builder/generate` uses **Google Stitch** (`@google/stitch-sdk`): generates HTML, wraps it as React for the Builder preview. Set `STITCH_API_KEY` (or `GOOGLE_STITCH_API_KEY`) in `.env` / Vercel; optional `STITCH_PROJECT_ID`. Free tier: `STITCH_GENERATION_FREE_DAILY_LIMIT` (or legacy `BUILDER_GENERATION_FREE_DAILY_LIMIT`, default 10) per user per day; Pro unlimited. Grok can refine or add logic on follow-up.
+- **UI code generation:** `POST /api/stitch/generate` uses **Google Stitch** (`@google/stitch-sdk`): generates HTML, wraps it as React for the Builder preview. Set `STITCH_API_KEY` (or `GOOGLE_STITCH_API_KEY`) in `.env` / Vercel; optional `STITCH_PROJECT_ID`. Free tier: `STITCH_GENERATION_FREE_DAILY_LIMIT` (or legacy `BUILDER_GENERATION_FREE_DAILY_LIMIT`, default 10) per user per day; Pro unlimited. Grok can refine or add logic on follow-up.
 
 ## Features
 

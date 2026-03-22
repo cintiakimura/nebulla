@@ -363,8 +363,8 @@ export default function Builder() {
   const chatPanelRef = useRef<HTMLDivElement>(null);
   const [agentRunning, setAgentRunning] = useState(false);
   /**
-   * One Grok-style voice session: mic + read replies aloud (Eve). Tap waveform to open, tap again to send while
-   * listening, tap while idle to end session. Mic pauses while Grok speaks (no feedback loop).
+   * Grok voice: Eve TTS + browser STT. Hands-free: open → listen immediately; pause ~2s → auto-send; tap mic to end.
+   * Press-hold mode: hold mic, release to send. Mute stops listening; say "mute" / "unmute" or use Mute button.
    */
   const [voiceModeOpen, setVoiceModeOpen] = useState(() => {
     try {
@@ -382,8 +382,42 @@ export default function Builder() {
   }, [voiceModeOpen]);
   /** True while Grok TTS (Eve) audio is actually playing — makes “voice” obvious in the UI. */
   const [grokSpeaking, setGrokSpeaking] = useState(false);
-  /** True while POST /api/agent/chat (or multi-agent) is in flight — shows “thinking” and blocks idle voice-close. */
+  /** True while POST /api/agent/chat (or multi-agent) is in flight — shows “thinking”. */
   const [grokPending, setGrokPending] = useState(false);
+  const grokPendingRef = useRef(false);
+  useEffect(() => {
+    grokPendingRef.current = grokPending;
+  }, [grokPending]);
+  /** Mic muted: session can stay open but we do not listen / auto-send. */
+  const [voiceMicMuted, setVoiceMicMuted] = useState(false);
+  const voiceMicMutedRef = useRef(false);
+  useEffect(() => {
+    voiceMicMutedRef.current = voiceMicMuted;
+  }, [voiceMicMuted]);
+  /** continuous = hands-free + silence auto-send; push_to_talk = hold mic, release to send. */
+  const [voiceCaptureMode, setVoiceCaptureMode] = useState<"continuous" | "push_to_talk">(() => {
+    try {
+      return localStorage.getItem("kyn_voice_capture_mode") === "push_to_talk" ? "push_to_talk" : "continuous";
+    } catch {
+      return "continuous";
+    }
+  });
+  const voiceCaptureModeRef = useRef(voiceCaptureMode);
+  useEffect(() => {
+    voiceCaptureModeRef.current = voiceCaptureMode;
+  }, [voiceCaptureMode]);
+  const pttPointerActiveRef = useRef(false);
+  const pttConsumeClickRef = useRef(false);
+  /** UI only: PTT button actively held (refs don’t re-render). */
+  const [pttHolding, setPttHolding] = useState(false);
+  const [chatAutoScroll, setChatAutoScroll] = useState(() => {
+    try {
+      return localStorage.getItem("kyn_chat_autoscroll") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const chatThreadRef = useRef<HTMLDivElement>(null);
   const prevGrokSpeakingRef = useRef(false);
   const grokSpeakingRef = useRef(false);
   useEffect(() => {
@@ -770,7 +804,7 @@ export default function Builder() {
     isMicrophoneAvailable,
   } = useSpeechRecognition();
 
-  const VOICE_SILENCE_MS = 3000;
+  const VOICE_SILENCE_MS = 2000;
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transcriptRef = useRef("");
   const submitVoiceRef = useRef<(spoken: string) => void>(() => {});
@@ -780,11 +814,93 @@ export default function Builder() {
     transcriptRef.current = typeof transcript === "string" ? transcript : "";
   }, [transcript]);
 
+  const closeVoiceSession = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    try {
+      SpeechRecognition.stopListening();
+    } catch {
+      /* ignore */
+    }
+    resetTranscript();
+    grokAudioRef.current?.pause();
+    grokAudioRef.current = null;
+    setGrokSpeaking(false);
+    setVoiceModeOpen(false);
+    setVoiceMicMuted(false);
+    pttPointerActiveRef.current = false;
+    setPttHolding(false);
+    pttConsumeClickRef.current = false;
+    try {
+      localStorage.setItem("kyn_voice_mode", "0");
+    } catch {
+      /* ignore */
+    }
+    setLogs((prev) => [...prev, "[Voice]: Session ended."]);
+  };
+
+  const openVoiceSession = () => {
+    void (async () => {
+      setVoiceModeOpen(true);
+      setVoiceMicMuted(false);
+      try {
+        localStorage.setItem("kyn_voice_mode", "1");
+      } catch {
+        /* ignore */
+      }
+      resetTranscript();
+      try {
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((t) => t.stop());
+        }
+      } catch (e) {
+        setLogs((prev) => [
+          ...prev,
+          `[Voice]: Microphone permission denied — ${e instanceof Error ? e.message : String(e)}`,
+        ]);
+        closeVoiceSession();
+        return;
+      }
+      const mode = voiceCaptureModeRef.current;
+      try {
+        if (mode === "continuous") {
+          await SpeechRecognition.startListening({
+            continuous: true,
+            interimResults: true,
+            language: "en-US",
+          });
+          setLogs((prev) => [
+            ...prev,
+            `[Voice]: Listening — pause ~${VOICE_SILENCE_MS / 1000}s after speaking to send. Tap mic to end. Say "stop listening" to end.`,
+          ]);
+        } else {
+          setLogs((prev) => [
+            ...prev,
+            "[Voice]: Hold mic, speak, release to send. Tap mic when finished to close.",
+          ]);
+        }
+      } catch (e2) {
+        setLogs((prev) => [
+          ...prev,
+          `[Voice]: Could not start speech recognition — ${e2 instanceof Error ? e2.message : String(e2)}`,
+        ]);
+        closeVoiceSession();
+      }
+    })();
+  };
+
   useEffect(() => {
     return () => {
       grokAudioRef.current?.pause();
       grokAudioRef.current = null;
-      setGrokSpeaking(false);
+      try {
+        SpeechRecognition.stopListening();
+      } catch {
+        /* ignore */
+      }
     };
   }, []);
 
@@ -817,7 +933,13 @@ export default function Builder() {
           ]);
           if (voiceModeOpenRef.current) {
             window.setTimeout(() => {
-              if (grokSpeakingRef.current || !voiceModeOpenRef.current) return;
+              if (
+                grokSpeakingRef.current ||
+                !voiceModeOpenRef.current ||
+                voiceMicMutedRef.current ||
+                voiceCaptureModeRef.current !== "continuous"
+              )
+                return;
               void SpeechRecognition.startListening({
                 continuous: true,
                 interimResults: true,
@@ -831,7 +953,13 @@ export default function Builder() {
         setLogs((prev) => [...prev, "[TTS]: Grok Eve error — check /api/tts and network."]);
         if (voiceModeOpenRef.current) {
           window.setTimeout(() => {
-            if (grokSpeakingRef.current || !voiceModeOpenRef.current) return;
+            if (
+              grokSpeakingRef.current ||
+              !voiceModeOpenRef.current ||
+              voiceMicMutedRef.current ||
+              voiceCaptureModeRef.current !== "continuous"
+            )
+              return;
             void SpeechRecognition.startListening({
               continuous: true,
               interimResults: true,
@@ -1019,10 +1147,46 @@ export default function Builder() {
     }
   };
 
-  /** Voice: after ~3s silence, auto-send (no second tap). Uses latest sendToGrok. */
+  /** Voice: after silence, auto-send (hands-free). Voice commands: stop / mute / unmute. */
   submitVoiceRef.current = (spoken: string) => {
     const t = spoken.trim();
     if (!t) return;
+    if (/^(stop listening|end chat|stop voice|close voice|quit voice)$/i.test(t)) {
+      closeVoiceSession();
+      return;
+    }
+    if (/^mute\b/i.test(t) && t.length < 28) {
+      setVoiceMicMuted(true);
+      try {
+        SpeechRecognition.stopListening();
+      } catch {
+        /* ignore */
+      }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      resetTranscript();
+      setLogs((prev) => [...prev, '[Voice]: Muted — tap "Mic on" or say "unmute".']);
+      return;
+    }
+    if (/^unmute\b/i.test(t) && t.length < 28) {
+      setVoiceMicMuted(false);
+      if (
+        voiceModeOpenRef.current &&
+        voiceCaptureModeRef.current === "continuous" &&
+        !grokSpeakingRef.current &&
+        !grokPendingRef.current
+      ) {
+        void SpeechRecognition.startListening({
+          continuous: true,
+          interimResults: true,
+          language: "en-US",
+        }).catch(() => {});
+      }
+      setLogs((prev) => [...prev, "[Voice]: Unmuted."]);
+      return;
+    }
     addLog(`[Voice Input]: ${t}`);
     addLog(`[Grok]: Analyzing request...`);
     SpeechRecognition.stopListening();
@@ -1038,7 +1202,7 @@ export default function Builder() {
       void (async () => {
         try {
           const userId = await getUserId();
-          const res = await fetch(`${getApiBase()}/api/builder/generate`, {
+          const res = await fetch(`${getApiBase()}/api/stitch/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
             body: JSON.stringify({ prompt: uiPrompt, userId }),
@@ -1067,7 +1231,7 @@ export default function Builder() {
               return next;
             });
           } else if (!res.ok) {
-            const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
+            const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Stitch API key in Settings.`;
             const errMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: fallback };
             setChatMessages((prev) => {
               const next = [...prev, errMsg];
@@ -1098,13 +1262,13 @@ export default function Builder() {
     addLog(`[You]: ${text.slice(0, 60)}${text.length > 60 ? '…' : ''}`);
     saveProject({ chat_messages: [...chatMessages, userMsg] });
 
-    // If user asked for UI/layout/design, call Google Stitch (/api/builder/generate) and apply generated code
+    // If user asked for UI/layout/design, call Google Stitch (POST /api/stitch/generate) and apply generated code
     const uiPrompt = extractUiGeneratePrompt(text);
     if (uiPrompt) {
       (async () => {
         try {
           const userId = await getUserId();
-          const res = await fetch(`${getApiBase()}/api/builder/generate`, {
+          const res = await fetch(`${getApiBase()}/api/stitch/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
             body: JSON.stringify({ prompt: uiPrompt, userId }),
@@ -1127,7 +1291,7 @@ export default function Builder() {
                 setChatMessages(prev => [...prev, errMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
               } else if (!res.ok) {
-                const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Builder key in Settings.`;
+                const fallback = `UI generation failed (HTTP ${res.status}). Check Backend URL and Stitch API key in Settings.`;
                 const errMsg = { id: crypto.randomUUID(), role: 'assistant' as const, content: fallback };
                 setChatMessages(prev => [...prev, errMsg]);
                 saveProject({ chat_messages: [...chatMessages, userMsg, errMsg] });
@@ -1143,83 +1307,92 @@ export default function Builder() {
     sendToGrok(text);
   };
 
-  /** Waveform: on = voice session; off = voice off. Send after ~3s pause in speech (see silence effect). */
-  const handleVoiceModeToggle = () => {
-    if (readOnly) return;
-    if (browserSupportsSpeechRecognition === false) return;
-
+  /** Tap mic: open + listen (hands-free) or full stop. PTT: hold mic, release to send (same button). */
+  const handleWaveformButtonClick = () => {
+    if (readOnly || browserSupportsSpeechRecognition === false) return;
+    if (pttConsumeClickRef.current) {
+      pttConsumeClickRef.current = false;
+      return;
+    }
     if (grokSpeaking) {
       grokAudioRef.current?.pause();
       grokAudioRef.current = null;
       setGrokSpeaking(false);
       return;
     }
-    if (grokPending) return;
-
-    if (voiceModeOpen) {
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-      SpeechRecognition.stopListening();
-      resetTranscript();
-      setVoiceModeOpen(false);
-      try {
-        localStorage.setItem("kyn_voice_mode", "0");
-      } catch {
-        /* ignore */
-      }
-      addLog("[Voice]: Voice session off.");
+    if (!voiceModeOpen) {
+      openVoiceSession();
       return;
     }
+    closeVoiceSession();
+  };
 
-    setVoiceModeOpen(true);
+  const handleMicPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (readOnly || browserSupportsSpeechRecognition === false) return;
+    if (voiceCaptureMode !== "push_to_talk" || !voiceModeOpen || voiceMicMuted || grokSpeaking || grokPending) return;
+    e.preventDefault();
+    pttPointerActiveRef.current = true;
+    setPttHolding(true);
+    void SpeechRecognition.startListening({
+      continuous: true,
+      interimResults: true,
+      language: "en-US",
+    }).catch(() => {});
+  };
+
+  const handleMicPointerUp = () => {
+    if (voiceCaptureMode !== "push_to_talk" || !voiceModeOpen) return;
+    if (!pttPointerActiveRef.current) return;
+    pttPointerActiveRef.current = false;
+    setPttHolding(false);
+    pttConsumeClickRef.current = true;
+    const spoken = (transcriptRef.current || "").trim();
     try {
-      localStorage.setItem("kyn_voice_mode", "1");
+      SpeechRecognition.stopListening();
     } catch {
       /* ignore */
     }
     resetTranscript();
-    void (async () => {
-      try {
-        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach((t) => t.stop());
-        }
-      } catch (e) {
-        addLog(
-          `[Voice]: Microphone permission denied or unavailable — ${e instanceof Error ? e.message : String(e)}`
-        );
-        setVoiceModeOpen(false);
+    if (spoken) {
+      submitVoiceRef.current(spoken);
+    }
+  };
+
+  const toggleVoiceMicMuted = () => {
+    setVoiceMicMuted((m) => {
+      const next = !m;
+      if (next) {
         try {
-          localStorage.setItem("kyn_voice_mode", "0");
+          SpeechRecognition.stopListening();
         } catch {
           /* ignore */
         }
-        return;
-      }
-      try {
-        await SpeechRecognition.startListening({
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+        resetTranscript();
+      } else if (voiceModeOpen && voiceCaptureMode === "continuous" && !grokSpeaking && !grokPending) {
+        void SpeechRecognition.startListening({
           continuous: true,
           interimResults: true,
           language: "en-US",
-        });
-        addLog(`[Voice]: On — pause ~${VOICE_SILENCE_MS / 1000}s after you stop talking to send. Tap waveform to turn voice off.`);
-      } catch (e2) {
-        addLog(`[Voice]: Could not start speech recognition — ${e2 instanceof Error ? e2.message : String(e2)}`);
-        setVoiceModeOpen(false);
-        try {
-          localStorage.setItem("kyn_voice_mode", "0");
-        } catch {
-          /* ignore */
-        }
+        }).catch(() => {});
       }
-    })();
+      return next;
+    });
   };
 
-  /** ~3s after last transcript change while voice is on → send (no second tap). */
+  /** After silence (hands-free only), auto-send. */
   useEffect(() => {
-    if (!voiceModeOpen || !listening || grokSpeaking || grokPending) {
+    if (
+      !voiceModeOpen ||
+      !listening ||
+      grokSpeaking ||
+      grokPending ||
+      voiceMicMuted ||
+      voiceCaptureMode !== "continuous"
+    ) {
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -1243,7 +1416,7 @@ export default function Builder() {
         silenceTimerRef.current = null;
       }
     };
-  }, [transcript, voiceModeOpen, listening, grokSpeaking, grokPending]);
+  }, [transcript, voiceModeOpen, listening, grokSpeaking, grokPending, voiceMicMuted, voiceCaptureMode]);
 
   /** While Grok TTS plays, stop the browser mic so it doesn’t transcribe Grok’s voice (feedback loop). */
   useEffect(() => {
@@ -1259,9 +1432,16 @@ export default function Builder() {
     prevGrokSpeakingRef.current = grokSpeaking;
     if (!voiceModeOpen || readOnly || browserSupportsSpeechRecognition === false) return;
     if (!ttsEnded) return;
-    if (listening || grokPending) return;
+    if (listening || grokPending || voiceMicMutedRef.current || voiceCaptureModeRef.current !== "continuous") return;
     const id = window.setTimeout(() => {
-      if (!voiceModeOpenRef.current || grokSpeakingRef.current || grokPending) return;
+      if (
+        !voiceModeOpenRef.current ||
+        grokSpeakingRef.current ||
+        grokPending ||
+        voiceMicMutedRef.current ||
+        voiceCaptureModeRef.current !== "continuous"
+      )
+        return;
       void SpeechRecognition.startListening({
         continuous: true,
         interimResults: true,
@@ -1277,9 +1457,16 @@ export default function Builder() {
     prevGrokPendingForMicRef.current = grokPending;
     if (!voiceModeOpen || readOnly || browserSupportsSpeechRecognition === false) return;
     if (!agentDone) return;
-    if (grokSpeaking) return;
+    if (grokSpeaking || voiceMicMuted || voiceCaptureMode !== "continuous") return;
     const id = window.setTimeout(() => {
-      if (!voiceModeOpenRef.current || grokSpeakingRef.current || grokPending) return;
+      if (
+        !voiceModeOpenRef.current ||
+        grokSpeakingRef.current ||
+        grokPending ||
+        voiceMicMutedRef.current ||
+        voiceCaptureModeRef.current !== "continuous"
+      )
+        return;
       void SpeechRecognition.startListening({
         continuous: true,
         interimResults: true,
@@ -1287,11 +1474,20 @@ export default function Builder() {
       }).catch(() => {});
     }, 600);
     return () => clearTimeout(id);
-  }, [grokPending, voiceModeOpen, grokSpeaking, readOnly, browserSupportsSpeechRecognition]);
+  }, [grokPending, voiceModeOpen, grokSpeaking, readOnly, browserSupportsSpeechRecognition, voiceMicMuted, voiceCaptureMode]);
 
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, msg]);
   };
+
+  useEffect(() => {
+    if (!chatAutoScroll) return;
+    const el = chatThreadRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+  }, [chatMessages, transcript, grokPending, grokSpeaking, listening, chatAutoScroll]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     multiple: true,
@@ -2026,13 +2222,30 @@ export default function Builder() {
                 </span>
               </div>
               <p className="text-[10px] leading-snug mt-1" style={{ color: BUILDER_MUTED }}>
-                Chat vs code is <strong className="text-[#a8b0c0] font-normal">automatic</strong> from what you say. Voice: waveform on → speak; pause ~3s to send; waveform off → voice session ends.
+                Voice: tap <strong className="text-[#a8b0c0] font-normal">mic</strong> → listens right away (hands-free) or use <strong className="text-[#a8b0c0] font-normal">Hold to send</strong>. Pause ~2s → auto-send. Eve speaks Grok’s reply. Tap mic again or say <strong className="text-[#a8b0c0] font-normal">stop listening</strong> to end.
               </p>
+              <label className="flex items-center gap-1.5 mt-2 cursor-pointer select-none text-[10px]" style={{ color: BUILDER_MUTED }}>
+                <input
+                  type="checkbox"
+                  checked={chatAutoScroll}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setChatAutoScroll(on);
+                    try {
+                      localStorage.setItem("kyn_chat_autoscroll", on ? "1" : "0");
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  className="rounded border border-[#164e60] bg-[#020c17]"
+                />
+                Smooth auto-scroll while chatting
+              </label>
             </div>
             <Code2 size={14} className="shrink-0 mt-0.5" style={{ color: BUILDER_MUTED }} aria-hidden />
           </div>
           <p className="text-[9px] leading-tight" style={{ color: BUILDER_MUTED }}>
-            Grok echoes what you want before building; say <strong className="text-[#a8b0c0] font-normal">yes</strong> to proceed. Multi-agent pipeline runs when your message looks like a code task (and debug chain is on in Settings).
+            Grok echoes what you want before building; say <strong className="text-[#a8b0c0] font-normal">yes</strong> to proceed. Say <strong className="text-[#a8b0c0] font-normal">mute</strong> / <strong className="text-[#a8b0c0] font-normal">unmute</strong> or use the Mute control. Multi-agent runs when your message looks like a code task (debug chain on).
           </p>
         </div>
         <div className="flex-1 flex flex-col min-h-0" {...getRootProps()}>
@@ -2055,7 +2268,7 @@ export default function Builder() {
                   Start anywhere
                 </p>
                 <p>
-                  Type here anytime, or tap the <span className="text-cyan-400/90">waveform</span> to talk (voice session + Eve reads replies — one button, like the Grok app).
+                  Type here anytime, or tap the <span className="text-cyan-400/90">mic</span> — listening starts immediately; Grok answers with Eve’s voice. No extra Send for voice (pause after speaking).
                 </p>
               </div>
             )}
@@ -2151,8 +2364,8 @@ export default function Builder() {
                     ? "Upgrade for full access"
                     : grokPending
                       ? "Grok is thinking…"
-                      : listening
-                        ? `Pause ~${VOICE_SILENCE_MS / 1000}s after you stop talking to send`
+                      : listening && voiceCaptureMode === "continuous"
+                        ? `Pause ~${VOICE_SILENCE_MS / 1000}s after speaking — auto-send`
                         : "Ask Grok anything…"
                 }
                 className={`flex-1 min-w-0 px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 placeholder:text-[#6C7286] ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
@@ -2196,14 +2409,71 @@ export default function Builder() {
               </span>
             </div>
           )}
+          {voiceMicMuted && voiceModeOpen && (
+            <div
+              className="flex items-center gap-2 px-2 py-1 rounded-md text-[10px]"
+              style={{ backgroundColor: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", color: "#fcd34d" }}
+              role="status"
+            >
+              <MicOff size={14} className="shrink-0" aria-hidden />
+              <span>Mic muted — not listening. Tap Mute to unmute or say &quot;unmute&quot;.</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-2 px-1 pb-1">
+            <label className="text-[10px] flex items-center gap-1" style={{ color: BUILDER_MUTED }}>
+              <span className="sr-only">Input mode</span>
+              <select
+                value={voiceCaptureMode}
+                onChange={(e) => {
+                  const v = e.target.value === "push_to_talk" ? "push_to_talk" : "continuous";
+                  setVoiceCaptureMode(v);
+                  try {
+                    localStorage.setItem("kyn_voice_capture_mode", v);
+                  } catch {
+                    /* ignore */
+                  }
+                  if (voiceModeOpen) {
+                    try {
+                      SpeechRecognition.stopListening();
+                    } catch {
+                      /* ignore */
+                    }
+                    resetTranscript();
+                    if (silenceTimerRef.current) {
+                      clearTimeout(silenceTimerRef.current);
+                      silenceTimerRef.current = null;
+                    }
+                    if (v === "continuous" && !voiceMicMuted && !grokSpeaking && !grokPending) {
+                      void SpeechRecognition.startListening({
+                        continuous: true,
+                        interimResults: true,
+                        language: "en-US",
+                      }).catch(() => {});
+                    }
+                  }
+                }}
+                className="rounded px-1.5 py-0.5 text-[10px] max-w-[9rem]"
+                style={{ backgroundColor: BUILDER_BG, border: `1px solid ${BUILDER_BORDER}`, color: "#a8b0c0" }}
+              >
+                <option value="continuous">Hands-free (pause → send)</option>
+                <option value="push_to_talk">Hold mic → release to send</option>
+              </select>
+            </label>
+          </div>
           <div className="flex items-center justify-center gap-4 sm:gap-5 flex-wrap">
           <button
             type="button"
-            onClick={handleVoiceModeToggle}
+            onClick={handleWaveformButtonClick}
+            onPointerDown={handleMicPointerDown}
+            onPointerUp={handleMicPointerUp}
+            onPointerLeave={voiceCaptureMode === "push_to_talk" ? handleMicPointerUp : undefined}
             disabled={readOnly || browserSupportsSpeechRecognition === false}
-            className={`flex flex-col items-center justify-center gap-0.5 min-w-[72px] px-3 py-2 rounded-full transition-all shrink-0 ${
+            aria-pressed={voiceModeOpen}
+            className={`flex flex-col items-center justify-center gap-0.5 min-w-[72px] px-3 py-2 rounded-full transition-all shrink-0 touch-none ${
               readOnly || browserSupportsSpeechRecognition === false ? "opacity-60 cursor-not-allowed" : "hover:opacity-95"
-            } ${voiceModeOpen ? "ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.15)]" : ""}`}
+            } ${voiceModeOpen ? "ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.15)]" : ""} ${
+              voiceCaptureMode === "push_to_talk" && voiceModeOpen && pttHolding ? "ring-amber-400/60" : ""
+            }`}
             style={{
               color: voiceModeOpen ? "#e0f2fe" : BUILDER_MUTED,
               backgroundColor: voiceModeOpen ? BUILDER_BG : "transparent",
@@ -2217,14 +2487,35 @@ export default function Builder() {
                   : isMicrophoneAvailable === false
                     ? "Allow microphone when prompted"
                     : !voiceModeOpen
-                      ? "Voice: open session (mic + Eve replies). Same idea as the Grok app waveform."
-                      : listening
-                        ? "Tap again to send what you said"
-                        : "Tap to end voice session (or wait for Grok to finish)"
+                      ? "Tap: start voice — listens immediately (hands-free) or hold mic in Hold mode"
+                      : voiceCaptureMode === "push_to_talk"
+                        ? "Hold to speak, release to send. Tap when idle to end session."
+                        : listening
+                          ? `Listening — pause ~${VOICE_SILENCE_MS / 1000}s to auto-send`
+                          : "Tap to end voice session"
             }
           >
             <AudioWaveform size={22} strokeWidth={voiceModeOpen ? 2.25 : 2} className={voiceModeOpen ? "text-cyan-300" : ""} aria-hidden />
-            <span className="text-[10px] font-semibold tracking-wide">{voiceModeOpen ? "Voice on" : "Voice"}</span>
+            <span className="text-[10px] font-semibold tracking-wide">
+              {!voiceModeOpen ? "Mic" : voiceCaptureMode === "push_to_talk" ? "Hold" : listening ? "Listening" : "On"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={toggleVoiceMicMuted}
+            disabled={!voiceModeOpen || readOnly}
+            className={`flex flex-col items-center justify-center gap-0.5 min-w-[56px] px-2 py-2 rounded-lg transition-colors shrink-0 ${
+              !voiceModeOpen || readOnly ? "opacity-40 cursor-not-allowed" : "hover:opacity-90"
+            }`}
+            style={{
+              color: voiceMicMuted ? "#fbbf24" : BUILDER_MUTED,
+              border: `1px solid ${voiceMicMuted ? "rgba(251,191,36,0.5)" : BUILDER_BORDER}`,
+              backgroundColor: voiceMicMuted ? "rgba(251,191,36,0.08)" : "transparent",
+            }}
+            title={voiceModeOpen ? (voiceMicMuted ? "Unmute mic" : "Mute mic (stop listening until unmute)") : "Open voice first"}
+          >
+            {voiceMicMuted ? <MicOff size={18} aria-hidden /> : <Mic size={18} aria-hidden />}
+            <span className="text-[10px] font-medium">{voiceMicMuted ? "Unmute" : "Mute"}</span>
           </button>
           <button
             type="button"

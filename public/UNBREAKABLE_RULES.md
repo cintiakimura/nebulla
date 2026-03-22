@@ -136,6 +136,8 @@ So: **yes, I understood.** For users to have the same experience when they use G
 
 ## 9. Platform — backend-first, env, VETR verify, npm-once (kyn)
 
+**Cursor / AI agents:** see **`AGENTS.md`** for a short integration checklist (Grok + Stitch; no Builder.io).
+
 **Single Git repo, one API:** Grok (xAI), Supabase, Google Stitch, and Stripe are driven from the **backend**; secrets live in **host env** (`.env`, Vercel, Railway, etc.). The browser only does UI + OAuth redirects to providers. See `docs/BACKEND_FIRST.md`.
 
 **Mandatory behaviour when guiding setup or debugging:**

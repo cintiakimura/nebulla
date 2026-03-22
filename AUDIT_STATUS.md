@@ -60,7 +60,7 @@ Status key: **OK** = implemented and working | **Partial** = works with config/e
 | **/api/agent/config** | GET | OK | agentId, systemPrompt, preCodeQuestions |
 | **/api/agent/chat** | POST | Config | Grok chat; 503 if `GROK_API_KEY` not set |
 | **/api/tts** | POST | Config | Grok TTS (Eve); 503 if `GROK_API_KEY` not set |
-| **/api/builder/generate** | POST | Config | Google Stitch; 503 if `STITCH_API_KEY` / `GOOGLE_STITCH_API_KEY` not set; free-tier daily limit |
+| **/api/stitch/generate** | POST | Config | Google Stitch; 503 if `STITCH_API_KEY` / `GOOGLE_STITCH_API_KEY` not set; free-tier daily limit |
 | **/api/create-checkout-session** | POST | Config | Stripe Checkout; 503 if `STRIPE_SECRET_KEY` not set; needs price IDs |
 | **/api/update-paid-status** | POST | Config | Upsert Supabase `users` paid/plan; 503 if Supabase not set |
 | **/api/deploy** | POST | Partial | Mock only |
@@ -131,7 +131,7 @@ The **Final debugging test** (Dashboard → status bar / audit modal) runs a **f
 
 ### Example: full multi-turn VETR run (forced bug)
 
-To test, force a bug (e.g. comment out a key line in `server.ts` for `/api/agent/chat` or `/api/builder/generate`), then click **Final debugging test**. Expected: 3–5+ iterations with full phases each time.
+To test, force a bug (e.g. comment out a key line in `server.ts` for `/api/agent/chat` or `/api/stitch/generate`), then click **Final debugging test**. Expected: 3–5+ iterations with full phases each time.
 
 **Example modal progress (abbreviated):**
 

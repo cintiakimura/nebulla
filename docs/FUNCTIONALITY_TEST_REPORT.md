@@ -73,7 +73,7 @@
 
 ## 6. Builder UI generate
 
-- **POST /api/builder/generate** — Returns 503 when `STITCH_API_KEY` is not set; test treats 503 as pass.
+- **POST /api/stitch/generate** — Returns 503 when `STITCH_API_KEY` is not set; test treats 503 as pass.
 
 ---
 

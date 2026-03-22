@@ -1,6 +1,6 @@
 /**
  * Detect if a user message is asking for UI/layout/component/dashboard/design code generation.
- * Used to trigger Google Stitch UI generation (/api/builder/generate) from the Builder chat.
+ * Used to trigger Google Stitch UI generation (POST /api/stitch/generate) from the Builder chat.
  */
 const UI_INTENT_PATTERNS = [
   /generate\s+(?:a\s+)?(?:ui|ux|mockup|wireframe|visual|layout|component|page|dashboard)/i,

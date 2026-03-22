@@ -164,7 +164,7 @@ async function runTests() {
 
     console.log("\n--- 5. UI generation (Google Stitch) ---");
     try {
-      const uiRes = await fetch(testBase + "/api/builder/generate", {
+      const uiRes = await fetch(testBase + "/api/stitch/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: "A simple login button", userId: userId }),
@@ -172,9 +172,9 @@ async function runTests() {
       const uiData = await uiRes.json().catch(() => ({}));
       const hasCode = uiRes.ok && uiData && typeof uiData.code === "string";
       const ui503 = uiRes.status === 503 && (uiData.placeholder || uiData.error);
-      if (hasCode) record("POST /api/builder/generate", true, "code returned");
-      else if (ui503) record("POST /api/builder/generate", true, "503 (STITCH_API_KEY not set)");
-      else record("POST /api/builder/generate", false, uiRes.status + " " + JSON.stringify(uiData).slice(0, 60));
+      if (hasCode) record("POST /api/stitch/generate", true, "code returned");
+      else if (ui503) record("POST /api/stitch/generate", true, "503 (STITCH_API_KEY not set)");
+      else record("POST /api/stitch/generate", false, uiRes.status + " " + JSON.stringify(uiData).slice(0, 60));
     } catch (e) {
       record("Builder UI generate", false, e.message);
     }

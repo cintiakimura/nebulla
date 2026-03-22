@@ -222,9 +222,9 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     record("POST /api/tts", false, e instanceof Error ? e.message : String(e));
   }
 
-  // —— 8. Builder / UI generate ——
+  // —— 8. Stitch / UI generate ——
   try {
-    const uiRes = await fetch(`${base}/api/builder/generate`, {
+    const uiRes = await fetch(`${base}/api/stitch/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...secretHeaders },
       body: JSON.stringify({ prompt: "A simple login button", userId }),
@@ -232,11 +232,11 @@ export async function runQuickAudit(apiBase: string): Promise<AuditEntry[]> {
     const uiData = await uiRes.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
     const hasCode = uiRes.ok && typeof uiData?.code === "string";
     const ui503 = uiRes.status === 503 && (uiData?.placeholder || uiData?.error);
-    if (hasCode) record("POST /api/builder/generate", true, passDetail("code returned"));
-    else if (ui503) record("POST /api/builder/generate", true, "503 — STITCH_API_KEY not set");
-    else record("POST /api/builder/generate", false, `status ${uiRes.status}`);
+    if (hasCode) record("POST /api/stitch/generate", true, passDetail("code returned"));
+    else if (ui503) record("POST /api/stitch/generate", true, "503 — STITCH_API_KEY not set");
+    else record("POST /api/stitch/generate", false, `status ${uiRes.status}`);
   } catch (e) {
-    record("POST /api/builder/generate", false, e instanceof Error ? e.message : String(e));
+    record("POST /api/stitch/generate", false, e instanceof Error ? e.message : String(e));
   }
 
   // —— 9. Billing / Stripe ——

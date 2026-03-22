@@ -62,7 +62,7 @@
 
 | Test | Result | Note |
 |------|--------|------|
-| POST /api/builder/generate | PASS | 503 — STITCH_API_KEY not set (expected when key not in .env) |
+| POST /api/stitch/generate | PASS | 503 — STITCH_API_KEY not set (expected when key not in .env) |
 
 **Conclusion:** Endpoint responds; returns 503 with message when Stitch key is not configured. With `STITCH_API_KEY` set, expect 200 and `code` in response.
 
@@ -135,7 +135,7 @@ Server ready.
   [PASS] POST /api/agent/chat — reply received
 
 --- 5. UI generation (Google Stitch) ---
-  [PASS] POST /api/builder/generate — 503 (STITCH_API_KEY not set)
+  [PASS] POST /api/stitch/generate — 503 (STITCH_API_KEY not set)
 
 --- 6. Stripe & update-paid-status ---
   [FAIL] POST /api/create-checkout-session — 500

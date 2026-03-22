@@ -382,7 +382,7 @@ export default function Settings() {
               ) : null}
               {integrationsSummary.strictServerSecretsOnly ? (
                 <p className="text-xs text-amber-200">
-                  <code className="bg-sidebar-bg px-1">STRICT_SERVER_API_KEYS</code> — Grok/Builder keys only from server env
+                  <code className="bg-sidebar-bg px-1">STRICT_SERVER_API_KEYS</code> — Grok/Stitch keys only from server env
                   (browser header overrides off).
                 </p>
               ) : null}

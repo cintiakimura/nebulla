@@ -1121,7 +1121,7 @@ async function startServer() {
     uiGenCountByUser.set(userId, cur);
   }
 
-  app.post("/api/builder/generate", async (req, res) => {
+  app.post("/api/stitch/generate", async (req, res) => {
     try {
       const { prompt, userId } = req.body as { prompt?: string; userId?: string };
       if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
