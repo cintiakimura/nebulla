@@ -158,7 +158,7 @@ Keep the conversation open and natural. Be concise and friendly.`,
             startAudioCapture();
             sessionPromise.then(session => {
               session.sendRealtimeInput({ text: "Hi, I just connected. Please greet me as my dev partner." });
-            });
+            }).catch(err => console.error("Failed to send initial realtime input:", err));
           },
           onmessage: (message: LiveServerMessage) => {
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
@@ -184,7 +184,7 @@ Keep the conversation open and natural. Be concise and friendly.`,
                     response: { status: 'success', message: 'Task queued successfully.' }
                   }]
                 });
-              });
+              }).catch(err => console.error("Failed to send tool response:", err));
             }
           },
           onclose: () => { setIsLive(false); stopAudioCapture(); },

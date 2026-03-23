@@ -3,11 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { AssistantSidebar } from './components/AssistantSidebar';
 import { MasterPlan } from './components/MasterPlan';
 import { MindMap } from './components/MindMap';
 import { StitchMockup } from './components/StitchMockup';
+import { auth, db } from './firebase';
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const initialPages = [
   { id: '1', type: 'pageNode', data: { label: 'Authentication Portal', isCritical: true, isCreated: true, description: 'GitHub and Google OAuth integration interface.' }, position: { x: 50, y: 250 } },
@@ -37,6 +40,51 @@ export default function App() {
 
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+
+  const [user, setUser] = useState<User | null>(null);
+  const [files, setFiles] = useState<{name: string, isDirectory: boolean}[]>([]);
+  const [terminalHistory, setTerminalHistory] = useState<{command: string, output: string}[]>([]);
+  const [terminalInput, setTerminalInput] = useState('');
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [terminalHistory]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        const docRef = doc(db, 'projects', 'default');
+        getDoc(docRef).then(docSnap => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.pages) setPages(data.pages);
+            if (data.edges) setEdges(data.edges);
+          } else {
+            setDoc(docRef, {
+              id: 'default',
+              ownerId: currentUser.uid,
+              name: 'Nebula Project',
+              createdAt: new Date().toISOString(),
+              pages: initialPages,
+              edges: initialEdges
+            }).catch(console.error);
+          }
+        });
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/fs/list')
+      .then(res => res.json())
+      .then(data => {
+        if (data.files) setFiles(data.files);
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -68,12 +116,58 @@ export default function App() {
   }, [pages]);
 
   const handleSaveToMasterPlan = () => {
-    console.log("Saved to Master Plan");
+    if (user) {
+      setDoc(doc(db, 'projects', 'default'), {
+        pages,
+        edges
+      }, { merge: true }).then(() => {
+        console.log("Saved to Master Plan and Firestore");
+      }).catch(console.error);
+    } else {
+      console.log("Saved to Master Plan locally (not logged in)");
+    }
   };
 
   const handleLockDesign = () => {
     setShowStitchMockup(false);
     // Return to default view or mind map
+  };
+
+  const handleLogin = () => {
+    const provider = new GoogleAuthProvider();
+    signInWithPopup(auth, provider).catch(console.error);
+  };
+  
+  const handleLogout = () => {
+    signOut(auth).catch(console.error);
+  };
+
+  const handleTerminalSubmit = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && terminalInput.trim()) {
+      const command = terminalInput.trim();
+      setTerminalInput('');
+      setTerminalHistory(prev => [...prev, { command, output: 'Executing...' }]);
+      
+      try {
+        const res = await fetch('/api/terminal/exec', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command })
+        });
+        const data = await res.json();
+        setTerminalHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1].output = data.output;
+          return newHistory;
+        });
+      } catch (err: any) {
+        setTerminalHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1].output = err.message;
+          return newHistory;
+        });
+      }
+    }
   };
 
   return (
@@ -85,6 +179,16 @@ export default function App() {
           <h1 className="font-headline text-lg font-light tracking-tighter text-cyan-300 no-bold">nebulla</h1>
         </div>
         <div className="flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <img src={user.photoURL || ''} alt="User" className="w-6 h-6 rounded-full border border-white/10" referrerPolicy="no-referrer" />
+              <button onClick={handleLogout} className="text-xs text-slate-400 hover:text-cyan-300 transition-colors font-headline">Logout</button>
+            </div>
+          ) : (
+            <button onClick={handleLogin} className="text-xs px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 transition-colors font-headline">
+              Login
+            </button>
+          )}
         </div>
       </header>
 
@@ -153,18 +257,14 @@ export default function App() {
                 </button>
               </div>
               <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-                <div className="flex items-center gap-3 px-3 py-2 text-cyan-300 bg-white/5 rounded-lg transition-all cursor-pointer">
-                  <span className="material-symbols-outlined text-14">folder_open</span>
-                  <span className="text-13 no-bold">src</span>
-                </div>
-                <div className="flex items-center gap-3 px-3 py-2 ml-4 text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer">
-                  <span className="material-symbols-outlined text-14 text-cyan-500/50">javascript</span>
-                  <span className="text-13 no-bold">index.tsx</span>
-                </div>
-                <div className="flex items-center gap-3 px-3 py-2 ml-4 text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer">
-                  <span className="material-symbols-outlined text-14 text-purple-500/50">css</span>
-                  <span className="text-13 no-bold">globals.css</span>
-                </div>
+                {files.map((file, i) => (
+                  <div key={i} className={`flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer ${file.isDirectory ? 'font-bold' : 'ml-4'}`}>
+                    <span className={`material-symbols-outlined text-14 ${file.isDirectory ? 'text-cyan-400' : 'text-slate-500'}`}>
+                      {file.isDirectory ? 'folder' : 'draft'}
+                    </span>
+                    <span className="text-13 no-bold">{file.name}</span>
+                  </div>
+                ))}
               </nav>
 
               {/* Quick Actions */}
@@ -277,11 +377,27 @@ export default function App() {
                     close
                   </button>
                 </div>
-                <div className="flex-1 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto no-bold space-y-1">
-                  <div className="flex gap-2"><span className="text-cyan-500">λ</span> <span>npm run dev</span></div>
-                  <div className="text-slate-600 text-[10px]">ready - started server on 0.0.0.0:3000</div>
-                  <div className="text-slate-600 text-[10px]">event - compiled client and server successfully</div>
-                  <div className="flex gap-2"><span className="text-cyan-500">λ</span> <span className="animate-pulse">_</span></div>
+                <div className="flex-1 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto no-bold space-y-2 flex flex-col">
+                  {terminalHistory.map((item, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="flex gap-2"><span className="text-cyan-500">λ</span> <span>{item.command}</span></div>
+                      <div className="text-slate-500 whitespace-pre-wrap">{item.output}</div>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 items-center mt-auto">
+                    <span className="text-cyan-500">λ</span>
+                    <input 
+                      type="text" 
+                      value={terminalInput}
+                      onChange={e => setTerminalInput(e.target.value)}
+                      onKeyDown={handleTerminalSubmit}
+                      className="flex-1 bg-transparent border-none outline-none text-slate-300 placeholder-slate-600"
+                      placeholder="Type a command and press Enter..."
+                      autoComplete="off"
+                      spellCheck="false"
+                    />
+                  </div>
+                  <div ref={terminalEndRef} />
                 </div>
               </div>
             </>

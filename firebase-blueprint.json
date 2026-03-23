@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID" },
+        "email": { "type": "string", "format": "email", "description": "The user's email address" },
+        "role": { "type": "string", "enum": ["admin", "editor", "viewer"], "description": "The user's role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A project containing mind maps and settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The project ID" },
+        "ownerId": { "type": "string", "description": "The ID of the user who owns the project" },
+        "name": { "type": "string", "description": "The name of the project" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the project was created" }
+      },
+      "required": ["id", "ownerId", "name", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles"
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Stores projects"
+    }
+  }
+}
