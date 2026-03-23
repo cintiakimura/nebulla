@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { exec } from "child_process";
+import Stripe from 'stripe';
 
 async function startServer() {
   const app = express();
@@ -13,6 +14,40 @@ async function startServer() {
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  let stripeClient: Stripe | null = null;
+  function getStripe(): Stripe {
+    if (!stripeClient) {
+      const key = process.env.STRIPE_SECRET_KEY || 'mk_1Sei2ePNRjrb3o88qQWC7Hsz';
+      stripeClient = new Stripe(key);
+    }
+    return stripeClient;
+  }
+
+  app.post("/api/create-checkout-session", async (req, res) => {
+    try {
+      const stripe = getStripe();
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'eur',
+              product: 'prod_U61dZv59hzcx8d',
+              unit_amount: 1999, // 19.99 EUR
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/?success=true`,
+        cancel_url: `${req.headers.origin}/?canceled=true`,
+      });
+      res.json({ id: session.id, url: session.url });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Example backend function: read file system
