@@ -39,6 +39,7 @@ export function AssistantSidebar({ width = 320 }: { width?: number }) {
   const [buildQueue, setBuildQueue] = useState<string[]>([]);
   
   const sessionRef = useRef<any>(null);
+  const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const chatSessionRef = useRef<any>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const captureStreamRef = useRef<MediaStream | null>(null);
@@ -115,8 +116,10 @@ export function AssistantSidebar({ width = 320 }: { width?: number }) {
           binary += String.fromCharCode(bytes[i]);
         }
         
-        if (sessionRef.current) {
-          sessionRef.current.sendRealtimeInput({ audio: { mimeType: 'audio/pcm;rate=16000', data: btoa(binary) } });
+        if (sessionPromiseRef.current) {
+          sessionPromiseRef.current.then(session => {
+            session.sendRealtimeInput({ audio: { mimeType: 'audio/pcm;rate=16000', data: btoa(binary) } });
+          }).catch(err => console.error("Error sending audio:", err));
         }
       };
       
@@ -130,8 +133,15 @@ export function AssistantSidebar({ width = 320 }: { width?: number }) {
       captureAudioCtxRef.current = audioCtx;
       captureProcessorRef.current = processor;
       setIsMicOpen(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start audio capture", err);
+      let errorMsg = 'Failed to start audio capture.';
+      if (err.name === 'NotAllowedError' || err.message.includes('Permission denied')) {
+        errorMsg = 'Microphone permission denied. Please allow microphone access in your browser settings.';
+      }
+      setMessages(prev => [...prev, { role: 'system', text: errorMsg }]);
+      setIsLive(false);
+      disconnectLive();
     }
   };
 
@@ -167,24 +177,7 @@ export function AssistantSidebar({ width = 320 }: { width?: number }) {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } },
-          systemInstruction: `You are Nebula, a supportive and expert AI dev partner. 
-Your goal is to help the user build their application.
-When the user requests a feature or change:
-1. Repeat the request back to them to verify you understood correctly.
-2. Ask if they want you to build it.
-3. If they agree, say "Switching to build mode" and use the 'startBuilding' tool to queue the task.
-Keep the conversation open and natural. Be concise and friendly.`,
-          tools: [{
-            functionDeclarations: [{
-              name: 'startBuilding',
-              description: 'Trigger this when the user confirms they want you to build the requested feature.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: { taskDescription: { type: Type.STRING, description: 'The detailed description of what to build.' } },
-                required: ['taskDescription']
-              }
-            }]
-          }],
+          systemInstruction: "You are Nebula, a helpful and expert AI dev partner. Be concise, friendly, and natural in conversation.",
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
@@ -192,9 +185,6 @@ Keep the conversation open and natural. Be concise and friendly.`,
           onopen: () => {
             setIsLive(true);
             startAudioCapture();
-            sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: "Hi, I just connected. Please greet me as my dev partner." });
-            }).catch(err => console.error("Failed to send initial realtime input:", err));
           },
           onmessage: (message: LiveServerMessage) => {
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
@@ -205,22 +195,6 @@ Keep the conversation open and natural. Be concise and friendly.`,
               for (const part of parts) {
                 if (part.text) setMessages(prev => [...prev, { role: 'model', text: part.text }]);
               }
-            }
-            
-            const toolCall = message.serverContent?.modelTurn?.parts[0]?.functionCall;
-            if (toolCall && toolCall.name === 'startBuilding') {
-              const task = (toolCall.args as any).taskDescription;
-              setBuildQueue(prev => [...prev, task]);
-              setMessages(prev => [...prev, { role: 'system', text: `Queued build task: ${task}` }]);
-              
-              sessionPromise.then(session => {
-                session.sendToolResponse({
-                  functionResponses: [{
-                    name: 'startBuilding',
-                    response: { status: 'success', message: 'Task queued successfully.' }
-                  }]
-                });
-              }).catch(err => console.error("Failed to send tool response:", err));
             }
           },
           onclose: () => { setIsLive(false); stopAudioCapture(); },
@@ -235,6 +209,7 @@ Keep the conversation open and natural. Be concise and friendly.`,
         }
       });
       
+      sessionPromiseRef.current = sessionPromise;
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
       console.error("Failed to connect to Live API", err);
@@ -284,12 +259,14 @@ Keep the conversation open and natural. Be concise and friendly.`,
         let currentText = '';
         
         for await (const chunk of responseStream) {
-          currentText += chunk.text;
-          setMessages(prev => {
-            const newMsgs = [...prev];
-            newMsgs[newMsgs.length - 1] = { role: 'model', text: currentText };
-            return newMsgs;
-          });
+          if (chunk.text) {
+            currentText += chunk.text;
+            setMessages(prev => {
+              const newMsgs = [...prev];
+              newMsgs[newMsgs.length - 1] = { role: 'model', text: currentText };
+              return newMsgs;
+            });
+          }
         }
       } catch (error: any) {
         console.error("Gemini API Error:", error);

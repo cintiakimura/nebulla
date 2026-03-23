@@ -8,6 +8,7 @@ import { AssistantSidebar } from './components/AssistantSidebar';
 import { MasterPlan } from './components/MasterPlan';
 import { MindMap } from './components/MindMap';
 import { StitchMockup } from './components/StitchMockup';
+import { Dashboard, DashboardTab } from './components/Dashboard';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -63,6 +64,7 @@ export default function App() {
   const [showMindMap, setShowMindMap] = useState(false);
   const [showStitchMockup, setShowStitchMockup] = useState(false);
   const [showCodePreview, setShowCodePreview] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab | null>(null);
   
   const [pages, setPages] = useState(initialPages);
   const [edges, setEdges] = useState(initialEdges);
@@ -261,31 +263,58 @@ export default function App() {
           
           <div className="w-8 h-[1px] bg-white/10 my-1"></div>
           <button 
-            onClick={() => { setShowStitchMockup(true); setShowMindMap(false); setShowMasterPlan(false); }}
+            onClick={() => { setShowStitchMockup(true); setShowMindMap(false); setShowMasterPlan(false); setDashboardTab(null); }}
             className={`material-symbols-outlined transition-all ${showStitchMockup ? 'text-cyan-300' : 'text-slate-500 hover:text-cyan-300'}`}
             title="Stitch Mockup"
           >
             design_services
           </button>
           <button 
-            onClick={() => { setShowMindMap(true); setShowMasterPlan(false); setShowStitchMockup(false); }}
+            onClick={() => { setShowMindMap(true); setShowMasterPlan(false); setShowStitchMockup(false); setDashboardTab(null); }}
             className={`material-symbols-outlined transition-all ${showMindMap ? 'text-cyan-300' : 'text-slate-500 hover:text-cyan-300'}`}
             title="Mind Map"
           >
             account_tree
           </button>
           <button 
-            onClick={() => { setShowMasterPlan(true); setShowMindMap(false); setShowStitchMockup(false); }}
+            onClick={() => { setShowMasterPlan(true); setShowMindMap(false); setShowStitchMockup(false); setDashboardTab(null); }}
             className={`material-symbols-outlined transition-all ${showMasterPlan ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]' : 'text-slate-500 hover:text-yellow-400 hover:drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]'}`}
             title="Master Plan"
           >
             menu_book
           </button>
           <div className="w-8 h-[1px] bg-white/10 my-1"></div>
+          
+          <button 
+            onClick={() => { setDashboardTab('projects'); setShowStitchMockup(false); setShowMindMap(false); setShowMasterPlan(false); }}
+            className={`material-symbols-outlined transition-all ${dashboardTab === 'projects' ? 'text-cyan-300' : 'text-slate-500 hover:text-cyan-300'}`}
+            title="User Projects"
+          >
+            grid_view
+          </button>
+          <button 
+            onClick={() => { setDashboardTab('project-settings'); setShowStitchMockup(false); setShowMindMap(false); setShowMasterPlan(false); }}
+            className={`material-symbols-outlined transition-all ${dashboardTab === 'project-settings' ? 'text-cyan-300' : 'text-slate-500 hover:text-cyan-300'}`}
+            title="Project Settings"
+          >
+            dns
+          </button>
+          <button 
+            onClick={() => { setDashboardTab('secrets'); setShowStitchMockup(false); setShowMindMap(false); setShowMasterPlan(false); }}
+            className={`material-symbols-outlined transition-all ${dashboardTab === 'secrets' ? 'text-cyan-300' : 'text-slate-500 hover:text-cyan-300'}`}
+            title="Secrets & Integrations"
+          >
+            key
+          </button>
 
-          <button className="material-symbols-outlined text-slate-500 hover:text-cyan-300 transition-all">deployed_code</button>
           <div className="mt-auto flex flex-col gap-6 mb-4">
-            <button className="material-symbols-outlined text-slate-500 hover:text-cyan-300 transition-all">settings</button>
+            <button 
+              onClick={() => { setDashboardTab('user-settings'); setShowStitchMockup(false); setShowMindMap(false); setShowMasterPlan(false); }}
+              className={`material-symbols-outlined transition-all ${dashboardTab === 'user-settings' ? 'text-cyan-300' : 'text-slate-500 hover:text-cyan-300'}`}
+              title="User Settings"
+            >
+              settings
+            </button>
           </div>
         </aside>
 
@@ -345,16 +374,57 @@ export default function App() {
           {/* Tabs */}
           <div className="h-10 border-b border-white/5 bg-white/5 flex items-center px-2">
             <div className="flex items-center gap-2 px-4 py-1.5 bg-background border-t border-x border-white/5 rounded-t-lg text-13 text-cyan-300">
-              <span className="material-symbols-outlined text-14">javascript</span>
-              <span className="no-bold">index.tsx</span>
-              <span className="material-symbols-outlined text-14 hover:text-red-400 cursor-pointer">close</span>
+              {dashboardTab ? (
+                <>
+                  <span className="material-symbols-outlined text-14">
+                    {dashboardTab === 'projects' ? 'grid_view' :
+                     dashboardTab === 'project-settings' ? 'dns' :
+                     dashboardTab === 'secrets' ? 'key' : 'settings'}
+                  </span>
+                  <span className="no-bold">
+                    {dashboardTab === 'projects' ? 'User Projects' :
+                     dashboardTab === 'project-settings' ? 'Project Settings' :
+                     dashboardTab === 'secrets' ? 'Secrets & Integrations' : 'User Settings'}
+                  </span>
+                </>
+              ) : showStitchMockup ? (
+                <>
+                  <span className="material-symbols-outlined text-14">design_services</span>
+                  <span className="no-bold">Stitch Mockup</span>
+                </>
+              ) : showMasterPlan ? (
+                <>
+                  <span className="material-symbols-outlined text-14">menu_book</span>
+                  <span className="no-bold">Master Plan</span>
+                </>
+              ) : showMindMap ? (
+                <>
+                  <span className="material-symbols-outlined text-14">account_tree</span>
+                  <span className="no-bold">Mind Map</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-14">javascript</span>
+                  <span className="no-bold">index.tsx</span>
+                </>
+              )}
+              <span className="material-symbols-outlined text-14 hover:text-red-400 cursor-pointer" onClick={() => {
+                setDashboardTab(null);
+                setShowStitchMockup(false);
+                setShowMasterPlan(false);
+                setShowMindMap(false);
+              }}>close</span>
             </div>
           </div>
 
           {/* Canvas */}
           <div className="flex-1 p-6 overflow-y-auto bg-black/20 relative flex flex-col">
             <div className="flex-1 flex flex-col gap-6">
-              {showStitchMockup ? (
+              {dashboardTab ? (
+                <div className="flex-1 flex flex-col">
+                  <Dashboard activeTab={dashboardTab} onTabChange={setDashboardTab} />
+                </div>
+              ) : showStitchMockup ? (
                 <div className="flex-1 flex flex-col">
                   <StitchMockup onLock={handleLockDesign} />
                 </div>
@@ -373,9 +443,9 @@ export default function App() {
                   />
                 </div>
               ) : (
-                <div className="flex-1 overflow-y-auto">
-                  <div className="max-w-4xl mx-auto">
-                    <div className="aspect-video glass-panel rounded-md border border-white/5 flex flex-col overflow-hidden nebula-glow transition-all duration-500">
+                <div className="flex-1 overflow-hidden">
+                  <div className="w-full h-full max-w-5xl mx-auto">
+                    <div className="h-full glass-panel rounded-md border border-white/5 flex flex-col overflow-hidden nebula-glow transition-all duration-500">
                       <div className="h-10 px-4 flex items-center justify-between border-b border-white/5 bg-white/5">
                         <div className="flex gap-1.5">
                           <div className="w-2 h-2 rounded-full bg-slate-700"></div>
@@ -388,7 +458,7 @@ export default function App() {
                             onClick={() => setShowCodePreview(!showCodePreview)}
                             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-headline no-bold transition-all ${showCodePreview ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-slate-300'}`}
                           >
-                            <span className="material-symbols-outlined text-[14px]">code</span>
+                            <span className="material-symbols-outlined text-[12px]">code</span>
                             Code
                           </button>
                           <span className="material-symbols-outlined text-14 text-slate-500 cursor-pointer hover:text-slate-300 transition-colors">open_in_new</span>
