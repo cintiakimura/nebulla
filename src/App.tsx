@@ -61,7 +61,7 @@ const initialEdges = [
 ];
 
 export default function App() {
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(false);
   const [showMasterPlan, setShowMasterPlan] = useState(false);
   const [showMindMap, setShowMindMap] = useState(false);
   const [showStitchMockup, setShowStitchMockup] = useState(false);
@@ -432,7 +432,7 @@ export default function App() {
                 </div>
               ) : showStitchMockup ? (
                 <div className="flex-1 flex flex-col">
-                  <StitchMockup onLock={handleLockDesign} />
+                  <StitchMockup onLock={handleLockDesign} pagesText={pagesText} />
                 </div>
               ) : showMasterPlan ? (
                 <div className="flex-1 flex flex-col">
@@ -523,53 +523,59 @@ export function NebulaInterface() {
             </div>
           </div>
 
+          {/* Terminal Splitter */}
           {isTerminalOpen && (
-            <>
-              {/* Terminal Splitter */}
-              <div 
-                className="h-1 cursor-row-resize bg-transparent hover:bg-cyan-500/50 active:bg-cyan-500 transition-colors z-10 shrink-0" 
-                onMouseDown={() => setIsResizing('terminal')} 
-              />
-
-              {/* Terminal Area (Anchored) */}
-              <div className="bg-[#040f1a]/60 border-t border-white/5 flex flex-col shrink-0" style={{ height: terminalHeight }}>
-                <div className="h-8 px-4 flex items-center justify-between border-b border-white/5 bg-white/10 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-14 text-cyan-300">terminal</span>
-                    <span className="text-[10px] text-cyan-300 font-headline uppercase no-bold">Terminal</span>
-                  </div>
-                  <button 
-                    onClick={() => setIsTerminalOpen(false)}
-                    className="material-symbols-outlined text-14 text-slate-500 hover:text-cyan-300 transition-colors"
-                  >
-                    close
-                  </button>
-                </div>
-                <div className="flex-1 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto no-bold space-y-2 flex flex-col">
-                  {terminalHistory.map((item, i) => (
-                    <div key={i} className="flex flex-col gap-1">
-                      <div className="flex gap-2"><span className="text-cyan-500">λ</span> <span>{item.command}</span></div>
-                      <div className="text-slate-500 whitespace-pre-wrap">{item.output}</div>
-                    </div>
-                  ))}
-                  <div className="flex gap-2 items-center mt-auto">
-                    <span className="text-cyan-500">λ</span>
-                    <input 
-                      type="text" 
-                      value={terminalInput}
-                      onChange={e => setTerminalInput(e.target.value)}
-                      onKeyDown={handleTerminalSubmit}
-                      className="flex-1 bg-transparent border-none outline-none text-slate-300 placeholder-slate-600"
-                      placeholder="Type a command and press Enter..."
-                      autoComplete="off"
-                      spellCheck="false"
-                    />
-                  </div>
-                  <div ref={terminalEndRef} />
-                </div>
-              </div>
-            </>
+            <div 
+              className="h-1 cursor-row-resize bg-transparent hover:bg-cyan-500/50 active:bg-cyan-500 transition-colors z-10 shrink-0" 
+              onMouseDown={() => setIsResizing('terminal')} 
+            />
           )}
+
+          {/* Terminal Area (Anchored) */}
+          <div 
+            className="bg-[#040f1a]/60 border-t border-white/5 flex flex-col shrink-0 transition-all duration-300 ease-in-out overflow-hidden" 
+            style={{ height: isTerminalOpen ? terminalHeight : 32 }}
+          >
+            <div 
+              className="h-8 px-4 flex items-center justify-between border-b border-white/5 bg-white/10 shrink-0 cursor-pointer select-none"
+              onClick={() => setIsTerminalOpen(!isTerminalOpen)}
+            >
+              <div className="flex items-center gap-2">
+                <button 
+                  className={`material-symbols-outlined text-14 text-slate-500 hover:text-cyan-300 transition-transform duration-300 ${!isTerminalOpen ? '-rotate-90' : 'rotate-0'}`}
+                >
+                  expand_more
+                </button>
+                <span className="material-symbols-outlined text-14 text-cyan-300">terminal</span>
+                <span className="text-[10px] text-cyan-300 font-headline uppercase no-bold">Terminal</span>
+              </div>
+            </div>
+            
+            {isTerminalOpen && (
+              <div className="flex-1 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto no-bold space-y-2 flex flex-col">
+                {terminalHistory.map((item, i) => (
+                  <div key={i} className="flex flex-col gap-1">
+                    <div className="flex gap-2"><span className="text-cyan-500">λ</span> <span>{item.command}</span></div>
+                    <div className="text-slate-500 whitespace-pre-wrap">{item.output}</div>
+                  </div>
+                ))}
+                <div className="flex gap-2 items-center mt-auto">
+                  <span className="text-cyan-500">λ</span>
+                  <input 
+                    type="text" 
+                    value={terminalInput}
+                    onChange={e => setTerminalInput(e.target.value)}
+                    onKeyDown={handleTerminalSubmit}
+                    className="flex-1 bg-transparent border-none outline-none text-slate-300 placeholder-slate-600"
+                    placeholder="Type a command and press Enter..."
+                    autoComplete="off"
+                    spellCheck="false"
+                  />
+                </div>
+                <div ref={terminalEndRef} />
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Right Splitter */}
