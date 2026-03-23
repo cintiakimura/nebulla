@@ -47,6 +47,42 @@ export function AssistantSidebar({ width = 320 }: { width?: number }) {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMicOpenRef = useRef(isMicOpen);
+  
+  const [isRecordingText, setIsRecordingText] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInputText(prev => prev + (prev ? ' ' : '') + transcript);
+      };
+      
+      recognitionRef.current.onend = () => {
+        setIsRecordingText(false);
+      };
+      
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsRecordingText(false);
+      };
+    }
+  }, []);
+
+  const toggleTextRecording = () => {
+    if (isRecordingText) {
+      recognitionRef.current?.stop();
+      setIsRecordingText(false);
+    } else {
+      recognitionRef.current?.start();
+      setIsRecordingText(true);
+    }
+  };
 
   useEffect(() => {
     isMicOpenRef.current = isMicOpen;
@@ -326,20 +362,25 @@ Keep the conversation open and natural. Be concise and friendly.`,
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => { if(isLive) setIsMicOpen(true); }}
-              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isMicOpen ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.2)]' : 'hover:bg-white/5 text-slate-500 hover:text-cyan-300'}`}
-              title="Open Mic (Stays Open)"
+              onClick={toggleLive}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isLive ? 'bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(255,0,0,0.2)]' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'}`}
+              title={isLive ? "End Call" : "Start Call"}
             >
-              <span className="material-symbols-outlined text-18">graphic_eq</span>
+              <span className="material-symbols-outlined text-18">{isLive ? 'call_end' : 'call'}</span>
             </button>
             <button 
-              onClick={() => setIsMicOpen(false)}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 text-slate-500 hover:text-red-400 transition-all"
-              title="Close Mic"
+              onClick={() => { if(isLive) setIsMicOpen(!isMicOpen); }}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isMicOpen && isLive ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.2)]' : 'hover:bg-white/5 text-slate-500 hover:text-cyan-300'}`}
+              title={isMicOpen ? "Mute Mic" : "Unmute Mic"}
+              disabled={!isLive}
             >
-              <span className="material-symbols-outlined text-18">mic_off</span>
+              <span className="material-symbols-outlined text-18">{isMicOpen && isLive ? 'mic' : 'mic_off'}</span>
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 text-slate-500 hover:text-cyan-300 transition-all" title="Record Clip">
+            <button 
+              onClick={toggleTextRecording}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isRecordingText ? 'bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(255,0,0,0.2)]' : 'hover:bg-white/5 text-slate-500 hover:text-cyan-300'}`}
+              title={isRecordingText ? "Stop Recording" : "Dictate Text"}
+            >
               <span className="material-symbols-outlined text-18">mic</span>
             </button>
           </div>
