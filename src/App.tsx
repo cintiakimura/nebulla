@@ -12,6 +12,37 @@ import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
+const getFileIconInfo = (filename: string, isDirectory: boolean) => {
+  if (isDirectory) return { icon: 'folder', color: 'text-cyan-400' };
+  
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'ts':
+    case 'tsx':
+      return { icon: 'javascript', color: 'text-blue-400' };
+    case 'js':
+    case 'jsx':
+      return { icon: 'javascript', color: 'text-yellow-400' };
+    case 'json':
+      return { icon: 'data_object', color: 'text-green-400' };
+    case 'css':
+      return { icon: 'css', color: 'text-sky-400' };
+    case 'html':
+      return { icon: 'html', color: 'text-orange-400' };
+    case 'md':
+      return { icon: 'markdown', color: 'text-slate-300' };
+    case 'svg':
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'ico':
+      return { icon: 'image', color: 'text-purple-400' };
+    default:
+      return { icon: 'draft', color: 'text-slate-500' };
+  }
+};
+
 const initialPages = [
   { id: '1', type: 'pageNode', data: { label: 'Authentication Portal', isCritical: true, isCreated: true, description: 'GitHub and Google OAuth integration interface.' }, position: { x: 50, y: 250 } },
   { id: '2', type: 'pageNode', data: { label: 'Project Dashboard', isCritical: true, isCreated: false, description: 'Project creation, naming, and auto-provisioning status tracker.' }, position: { x: 350, y: 250 } },
@@ -29,6 +60,7 @@ export default function App() {
   const [showMasterPlan, setShowMasterPlan] = useState(false);
   const [showMindMap, setShowMindMap] = useState(false);
   const [showStitchMockup, setShowStitchMockup] = useState(false);
+  const [showCodePreview, setShowCodePreview] = useState(false);
   
   const [pages, setPages] = useState(initialPages);
   const [edges, setEdges] = useState(initialEdges);
@@ -256,15 +288,18 @@ export default function App() {
                   chevron_left
                 </button>
               </div>
-              <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-                {files.map((file, i) => (
-                  <div key={i} className={`flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer ${file.isDirectory ? 'font-bold' : 'ml-4'}`}>
-                    <span className={`material-symbols-outlined text-14 ${file.isDirectory ? 'text-cyan-400' : 'text-slate-500'}`}>
-                      {file.isDirectory ? 'folder' : 'draft'}
-                    </span>
-                    <span className="text-13 no-bold">{file.name}</span>
-                  </div>
-                ))}
+              <nav className="flex-1 py-4 flex flex-col gap-0 px-2 overflow-y-auto font-mono text-13">
+                {files.map((file, i) => {
+                  const { icon, color } = getFileIconInfo(file.name, file.isDirectory);
+                  return (
+                    <div key={i} className={`flex items-center gap-2 px-3 py-1 text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer ${file.isDirectory ? 'font-bold' : 'ml-4'}`}>
+                      <span className={`material-symbols-outlined text-13 ${color}`}>
+                        {icon}
+                      </span>
+                      <span className="no-bold">{file.name}</span>
+                    </div>
+                  );
+                })}
               </nav>
 
               {/* Quick Actions */}
@@ -334,19 +369,60 @@ export default function App() {
                           <div className="w-2 h-2 rounded-full bg-slate-700"></div>
                         </div>
                         <span className="text-xs text-slate-500 font-headline no-bold">Preview Mode</span>
-                        <span className="material-symbols-outlined text-14 text-slate-500">open_in_new</span>
-                      </div>
-                      <div className="flex-1 relative flex items-center justify-center bg-surface-container-lowest/20">
-                        <div className="w-full h-full opacity-30 bg-gradient-to-br from-cyan-900/50 to-purple-900/50" />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center gap-4">
-                          <h2 className="text-2xl font-headline no-bold text-primary">Nebula Interface</h2>
-                          <p className="text-13 text-on-surface-variant max-w-sm no-bold leading-relaxed">
-                            System initialized. Working within the synchronized data-stream.
-                          </p>
-                          <button className="mt-2 px-6 py-2 bg-primary-container/10 text-primary border border-primary/20 rounded-md text-13 font-headline no-bold hover:bg-primary-container/20 transition-all">
-                            Sync Workspace
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setShowCodePreview(!showCodePreview)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-headline no-bold transition-all ${showCodePreview ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-slate-300'}`}
+                          >
+                            <span className="material-symbols-outlined text-[14px]">code</span>
+                            Code
                           </button>
+                          <span className="material-symbols-outlined text-14 text-slate-500 cursor-pointer hover:text-slate-300 transition-colors">open_in_new</span>
                         </div>
+                      </div>
+                      <div className="flex-1 relative flex items-center justify-center bg-surface-container-lowest/20 overflow-hidden">
+                        {showCodePreview ? (
+                          <div className="absolute inset-0 bg-[#040f1a] p-4 overflow-auto font-mono text-13 text-slate-300">
+                            <pre className="m-0">
+                              <code>
+{`// Nebula Interface Component
+import React, { useState } from 'react';
+
+export function NebulaInterface() {
+  const [isSynced, setIsSynced] = useState(false);
+
+  const handleSync = () => {
+    console.log("Syncing workspace...");
+    setIsSynced(true);
+  };
+
+  return (
+    <div className="nebula-container">
+      <h2>Nebula Interface</h2>
+      <p>System initialized. Working within the synchronized data-stream.</p>
+      <button onClick={handleSync}>
+        {isSynced ? 'Workspace Synced' : 'Sync Workspace'}
+      </button>
+    </div>
+  );
+}`}
+                              </code>
+                            </pre>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="w-full h-full opacity-30 bg-gradient-to-br from-cyan-900/50 to-purple-900/50" />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center gap-4">
+                              <h2 className="text-2xl font-headline no-bold text-primary">Nebula Interface</h2>
+                              <p className="text-13 text-on-surface-variant max-w-sm no-bold leading-relaxed">
+                                System initialized. Working within the synchronized data-stream.
+                              </p>
+                              <button className="mt-2 px-6 py-2 bg-primary-container/10 text-primary border border-primary/20 rounded-md text-13 font-headline no-bold hover:bg-primary-container/20 transition-all">
+                                Sync Workspace
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

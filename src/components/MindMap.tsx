@@ -50,65 +50,98 @@ const PageNode = ({ data, id }: any) => {
 const nodeTypes = { pageNode: PageNode };
 
 export function MindMap({ pages, setPages, edges, setEdges, onSaveToMasterPlan }: any) {
-  const [pendingChanges, setPendingChanges] = useState<NodeChange[] | null>(null);
-  const [showDragConfirm, setShowDragConfirm] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newPageName, setNewPageName] = useState('');
   
-  const initialNodesRef = useRef<Node[]>([]);
-
-  // When a drag starts, record the current positions so we can revert if they say "No"
-  const onNodeDragStart = useCallback((event: any, node: Node, nodes: Node[]) => {
-    initialNodesRef.current = JSON.parse(JSON.stringify(pages));
-  }, [pages]);
-
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      // Apply changes immediately for smooth dragging
-      setPages((nds: Node[]) => applyNodeChanges(changes, nds));
-      
-      // Check if any change is a drag stop (position change finished)
-      const isDragStop = changes.some(c => c.type === 'position' && !c.dragging);
-      if (isDragStop) {
-        setPendingChanges(changes);
-        setShowDragConfirm(true);
-      }
-    },
-    [setPages]
-  );
-
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds: Edge[]) => applyEdgeChanges(changes, eds)),
-    [setEdges]
-  );
-
-  const onConnect = useCallback(
-    (params: Connection) => {
-      setEdges((eds: Edge[]) => addEdge({ ...params, animated: true, style: { stroke: '#00ffff' } }, eds));
-      onSaveToMasterPlan();
-    },
-    [setEdges, onSaveToMasterPlan]
-  );
-
-  const handleConfirmDrag = () => {
-    setShowDragConfirm(false);
-    setPendingChanges(null);
-    onSaveToMasterPlan();
-  };
-
-  const handleCancelDrag = () => {
-    setShowDragConfirm(false);
-    setPendingChanges(null);
-    // Revert to initial positions
-    setPages(initialNodesRef.current);
-  };
+  const [pendingConnection, setPendingConnection] = useState<Connection | null>(null);
+  const [showConnectConfirm, setShowConnectConfirm] = useState(false);
+  
+  const [edgeToDelete, setEdgeToDelete] = useState<string | null>(null);
+  const [showEdgeDeleteConfirm, setShowEdgeDeleteConfirm] = useState(false);
 
   const handleDeleteRequest = useCallback((id: string) => {
     setNodeToDelete(id);
     setShowDeleteConfirm(true);
   }, []);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const removeChanges = changes.filter(c => c.type === 'remove');
+      if (removeChanges.length > 0) {
+        // @ts-ignore
+        handleDeleteRequest(removeChanges[0].id);
+        const otherChanges = changes.filter(c => c.type !== 'remove');
+        if (otherChanges.length > 0) {
+          setPages((nds: Node[]) => applyNodeChanges(otherChanges, nds));
+        }
+        return;
+      }
+      
+      setPages((nds: Node[]) => applyNodeChanges(changes, nds));
+      
+      const isDragStop = changes.some(c => c.type === 'position' && !c.dragging);
+      if (isDragStop) {
+        onSaveToMasterPlan();
+      }
+    },
+    [setPages, handleDeleteRequest, onSaveToMasterPlan]
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      const removeChanges = changes.filter(c => c.type === 'remove');
+      if (removeChanges.length > 0) {
+        // @ts-ignore
+        setEdgeToDelete(removeChanges[0].id);
+        setShowEdgeDeleteConfirm(true);
+        const otherChanges = changes.filter(c => c.type !== 'remove');
+        if (otherChanges.length > 0) {
+          setEdges((eds: Edge[]) => applyEdgeChanges(otherChanges, eds));
+        }
+        return;
+      }
+      setEdges((eds: Edge[]) => applyEdgeChanges(changes, eds));
+    },
+    [setEdges]
+  );
+
+  const onConnect = useCallback(
+    (params: Connection) => {
+      setPendingConnection(params);
+      setShowConnectConfirm(true);
+    },
+    []
+  );
+
+  const confirmConnect = () => {
+    if (pendingConnection) {
+      setEdges((eds: Edge[]) => addEdge({ ...pendingConnection, animated: true, style: { stroke: '#00ffff' } }, eds));
+      onSaveToMasterPlan();
+    }
+    setShowConnectConfirm(false);
+    setPendingConnection(null);
+  };
+
+  const cancelConnect = () => {
+    setShowConnectConfirm(false);
+    setPendingConnection(null);
+  };
+
+  const confirmEdgeDelete = () => {
+    if (edgeToDelete) {
+      setEdges((eds: Edge[]) => eds.filter(e => e.id !== edgeToDelete));
+      onSaveToMasterPlan();
+    }
+    setShowEdgeDeleteConfirm(false);
+    setEdgeToDelete(null);
+  };
+
+  const cancelEdgeDelete = () => {
+    setShowEdgeDeleteConfirm(false);
+    setEdgeToDelete(null);
+  };
 
   const confirmDelete = () => {
     if (nodeToDelete) {
@@ -161,7 +194,6 @@ export function MindMap({ pages, setPages, edges, setEdges, onSaveToMasterPlan }
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeDragStart={onNodeDragStart}
         nodeTypes={nodeTypes}
         fitView
         className="bg-transparent"
@@ -180,15 +212,32 @@ export function MindMap({ pages, setPages, edges, setEdges, onSaveToMasterPlan }
         </Panel>
       </ReactFlow>
 
-      {/* Drag Confirm Modal */}
-      {showDragConfirm && (
+      {/* Connect Edge Confirm Modal */}
+      {showConnectConfirm && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-[#040f1a] border border-white/10 p-6 rounded-lg shadow-2xl max-w-sm w-full">
-            <h3 className="text-lg font-headline text-cyan-300 mb-2">Confirm Flow Change</h3>
-            <p className="text-13 text-slate-300 mb-6">Are you sure you want to make this change? This will update the Master Plan.</p>
+            <h3 className="text-lg font-headline text-cyan-300 mb-2">Connect Pages?</h3>
+            <p className="text-13 text-slate-300 mb-6">Are you sure you want to connect these pages? This will update the application's architecture and navigation flow.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={handleCancelDrag} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">No, Undo</button>
-              <button onClick={handleConfirmDrag} className="px-4 py-2 rounded text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors">Yes, Save</button>
+              <button onClick={cancelConnect} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">Cancel</button>
+              <button onClick={confirmConnect} className="px-4 py-2 rounded text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors">Yes, Connect</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Edge Confirm Modal */}
+      {showEdgeDeleteConfirm && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#040f1a] border border-red-500/30 p-6 rounded-lg shadow-2xl max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="material-symbols-outlined text-red-400 text-24">warning</span>
+              <h3 className="text-lg font-headline text-red-400">Delete Connection?</h3>
+            </div>
+            <p className="text-13 text-slate-300 mb-6">Are you sure you want to remove this connection? This will impact the application's routing and architecture.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={cancelEdgeDelete} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">Cancel</button>
+              <button onClick={confirmEdgeDelete} className="px-4 py-2 rounded text-13 bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete Connection</button>
             </div>
           </div>
         </div>

@@ -51,11 +51,13 @@ service cloud.firestore {
     }
 
     function isValidProject(data) {
-      return data.keys().hasOnly(['id', 'ownerId', 'name', 'createdAt']) &&
+      return data.keys().hasOnly(['id', 'ownerId', 'name', 'createdAt', 'pages', 'edges']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
-             data.createdAt is timestamp;
+             (data.createdAt is string || data.createdAt is timestamp) &&
+             (!('pages' in data) || data.pages is list) &&
+             (!('edges' in data) || data.edges is list);
     }
 
     // ===============================================================

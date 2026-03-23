@@ -20,7 +20,9 @@
         "id": { "type": "string", "description": "The project ID" },
         "ownerId": { "type": "string", "description": "The ID of the user who owns the project" },
         "name": { "type": "string", "description": "The name of the project" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the project was created" }
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the project was created" },
+        "pages": { "type": "array", "description": "The pages in the mind map" },
+        "edges": { "type": "array", "description": "The edges connecting pages" }
       },
       "required": ["id", "ownerId", "name", "createdAt"]
     }
