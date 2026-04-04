@@ -31,36 +31,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
   }, [onEnter]);
 
   const handleCheckout = async () => {
-    if (userEmail === 'cintiakimura20@gmail.com') {
-      onEnter();
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const session = await response.json();
-
-      if (session.error) {
-        throw new Error(session.error);
-      }
-
-      if (session.url) {
-        window.location.href = session.url;
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      alert('Payment failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    onEnter();
   };
 
   return (

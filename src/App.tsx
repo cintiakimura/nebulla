@@ -62,7 +62,7 @@ const initialEdges = [
 ];
 
 export default function App() {
-  const [showLanding, setShowLanding] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
   const [showMasterPlan, setShowMasterPlan] = useState(false);
   const [showMindMap, setShowMindMap] = useState(false);
   const [showStitchMockup, setShowStitchMockup] = useState(false);
