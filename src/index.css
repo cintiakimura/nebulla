@@ -64,9 +64,9 @@
   .nebula-glow:hover {
     box-shadow: 0 0 25px rgba(0, 230, 230, 0.1);
   }
-  .text-13 { font-size: 13px; }
-  .text-14 { font-size: 14px; }
-  .text-18 { font-size: 18px; }
+  .text-13 { font-size: 13px !important; }
+  .text-14 { font-size: 14px !important; }
+  .text-18 { font-size: 18px !important; }
   .no-bold { font-weight: 400 !important; }
   
   .workspace-grid {

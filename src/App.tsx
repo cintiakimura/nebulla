@@ -337,15 +337,15 @@ export default function App() {
                   chevron_left
                 </button>
               </div>
-              <nav className="flex-1 py-4 flex flex-col gap-0 px-2 overflow-y-auto font-mono text-13">
+              <nav className="flex-1 py-2 flex flex-col px-1 overflow-y-auto font-mono text-13">
                 {files.map((file, i) => {
                   const { icon, color } = getFileIconInfo(file.name, file.isDirectory);
                   return (
-                    <div key={i} className={`flex items-center gap-2 px-3 py-1 text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer ${file.isDirectory ? 'font-bold' : 'ml-4'}`}>
-                      <span className={`material-symbols-outlined text-[11px] ${color}`}>
+                    <div key={i} className={`flex items-center gap-1.5 px-2 h-[22px] text-slate-400 hover:text-cyan-200 hover:bg-white/5 transition-all cursor-pointer ${file.isDirectory ? 'font-bold' : 'ml-4'}`}>
+                      <span className={`material-symbols-outlined !text-[14px] ${color}`}>
                         {icon}
                       </span>
-                      <span className="no-bold">{file.name}</span>
+                      <span className="no-bold text-[13px] leading-none truncate">{file.name}</span>
                     </div>
                   );
                 })}
@@ -464,7 +464,7 @@ export default function App() {
                             onClick={() => setShowCodePreview(!showCodePreview)}
                             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-headline no-bold transition-all ${showCodePreview ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-slate-300'}`}
                           >
-                            <span className="material-symbols-outlined text-[12px]">code</span>
+                            <span className="material-symbols-outlined !text-[14px]">code</span>
                             <span className="text-[12px]">Code</span>
                           </button>
                           <span className="material-symbols-outlined text-14 text-slate-500 cursor-pointer hover:text-slate-300 transition-colors">open_in_new</span>
