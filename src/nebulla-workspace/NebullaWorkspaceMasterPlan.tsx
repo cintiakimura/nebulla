@@ -128,7 +128,7 @@ export function NebullaWorkspaceMasterPlan({
       lastSavedPagesTextRef.current = null;
       setIsSaved(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once; pagesText sync handled below
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once from localStorage; pagesText sync below
   }, []);
 
   useEffect(() => {
@@ -139,10 +139,6 @@ export function NebullaWorkspaceMasterPlan({
     }
     setIsSaved(pagesText === last);
   }, [pagesText]);
-
-  const toggle = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-  };
 
   const handleSave = () => {
     const payload: MasterPlanStored = {
@@ -158,6 +154,10 @@ export function NebullaWorkspaceMasterPlan({
     } catch {
       setIsSaved(false);
     }
+  };
+
+  const toggle = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
   };
 
   const activeContent = PLAN_SECTIONS.find((s) => s.id === expandedId)?.content ?? "";
@@ -179,8 +179,8 @@ export function NebullaWorkspaceMasterPlan({
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 rounded text-xs transition-colors border border-cyan-500/20 font-display disabled:opacity-50"
             disabled={isSaved}
+            className="flex items-center gap-1 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 rounded text-xs transition-colors border border-cyan-500/20 font-display disabled:opacity-50 disabled:pointer-events-none"
           >
             <span className="material-symbols-outlined nebulla-ws-text-14">save</span>
             {isSaved ? "Saved" : "Save"}
