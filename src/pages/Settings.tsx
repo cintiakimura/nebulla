@@ -64,6 +64,9 @@ export default function Settings() {
   const [integrationsSummary, setIntegrationsSummary] = useState<IntegrationsSummaryPayload | null>(null);
   const [dnsCopied, setDnsCopied] = useState<"A" | "CNAME" | null>(null);
   const [domainVerified, setDomainVerifiedState] = useState(false);
+  const [vercelCmd, setVercelCmd] = useState("deploy");
+  const [vercelOut, setVercelOut] = useState<string | null>(null);
+  const [vercelLoading, setVercelLoading] = useState(false);
 
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -199,6 +202,33 @@ export default function Settings() {
     setDomainVerifiedState(true);
   };
 
+  const runVercelManager = async () => {
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      alert("Set API URL first.");
+      return;
+    }
+    const token = await getSessionToken();
+    setVercelLoading(true);
+    setVercelOut(null);
+    try {
+      const res = await fetch(`${apiBase}/api/vercel/command`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: vercelCmd.trim() }),
+      });
+      const data = (await res.json()) as Record<string, unknown>;
+      setVercelOut(JSON.stringify(data, null, 2));
+    } catch {
+      setVercelOut("Request failed.");
+    } finally {
+      setVercelLoading(false);
+    }
+  };
+
   const connectGitHub = async () => {
     let supabase = getSupabaseAuthClient();
     if (!supabase) {
@@ -278,6 +308,38 @@ export default function Settings() {
               Save
             </button>
           </div>
+        </section>
+
+        <section className="space-y-2 border border-border rounded-lg p-4 bg-sidebar-bg/30">
+          <h2 className="text-lg font-medium text-white">Vercel manager</h2>
+          <p className="text-sm text-muted mb-2">
+            Runs on your backend with <code className="bg-editor-bg px-1">VERCEL_TOKEN</code> (or{" "}
+            <code className="bg-editor-bg px-1">VERCEL_ACCESS_TOKEN</code>). Try: deploy, preview, list domains, add domain
+            example.com, analytics, firewall. File uploads: <code className="bg-editor-bg px-1">POST /api/vercel/blob</code>{" "}
+            with <code className="bg-editor-bg px-1">BLOB_READ_WRITE_TOKEN</code>.
+          </p>
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              type="text"
+              value={vercelCmd}
+              onChange={(e) => setVercelCmd(e.target.value)}
+              placeholder="deploy"
+              className="flex-1 min-w-[180px] px-3 py-2 bg-editor-bg border border-border rounded text-sm text-white placeholder-muted"
+            />
+            <button
+              type="button"
+              disabled={vercelLoading}
+              onClick={() => void runVercelManager()}
+              className="px-3 py-2 bg-primary text-white rounded text-sm disabled:opacity-50"
+            >
+              {vercelLoading ? "…" : "Run"}
+            </button>
+          </div>
+          {vercelOut ? (
+            <pre className="mt-3 text-xs text-muted whitespace-pre-wrap break-words max-h-64 overflow-auto bg-editor-bg/80 p-3 rounded border border-border">
+              {vercelOut}
+            </pre>
+          ) : null}
         </section>
 
         <section className="space-y-2">

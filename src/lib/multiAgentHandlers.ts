@@ -221,7 +221,7 @@ export async function runDeployAgentPipeline(env: NodeJS.ProcessEnv): Promise<Re
     };
   }
 
-  const token = env.VERCEL_ACCESS_TOKEN?.trim();
+  const token = (env.VERCEL_TOKEN || env.VERCEL_ACCESS_TOKEN || "").trim();
   const projectId = env.VERCEL_PROJECT_ID?.trim();
   const org = env.GITHUB_AGENT_OWNER?.trim();
   const repo = env.GITHUB_AGENT_REPO?.trim();
@@ -231,7 +231,7 @@ export async function runDeployAgentPipeline(env: NodeJS.ProcessEnv): Promise<Re
   if (!token || !projectId || !org || !repo) {
     return {
       error: "deploy_not_configured",
-      hint: "Set VERCEL_DEPLOY_HOOK_URL, or VERCEL_ACCESS_TOKEN + VERCEL_PROJECT_ID + GITHUB_AGENT_OWNER + GITHUB_AGENT_REPO (+ optional VERCEL_TEAM_ID).",
+      hint: "Set VERCEL_DEPLOY_HOOK_URL, or VERCEL_TOKEN (or VERCEL_ACCESS_TOKEN) + VERCEL_PROJECT_ID + GITHUB_AGENT_OWNER + GITHUB_AGENT_REPO (+ optional VERCEL_TEAM_ID).",
     };
   }
 

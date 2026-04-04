@@ -38,6 +38,11 @@ import {
   buildProductionReadinessPayload,
   buildSecretsAlignmentPayload,
 } from "./src/lib/secretsAuditPayload.js";
+import {
+  getVercelManagerStatusPayload,
+  runVercelManagerCommand,
+  uploadVercelBlobJson,
+} from "./src/lib/vercelRestManager.js";
 import { Stitch, StitchToolClient, StitchError, type Project } from "@google/stitch-sdk";
 import { wrapStitchHtmlAsReactAppTsx } from "./src/lib/stitchWrapReact.js";
 
@@ -147,7 +152,7 @@ function getStitchApiKeyFromRequest(req: express.Request): string {
   );
 }
 
-/** Use STITCH_PROJECT_ID if set; otherwise first listed project; otherwise create "Kyn UI". */
+/** Use STITCH_PROJECT_ID if set; otherwise first listed project; otherwise create "Nebulla UI". */
 async function resolveStitchProjectForUiGen(sdk: Stitch): Promise<Project> {
   const envId = process.env.STITCH_PROJECT_ID?.trim();
   if (envId) return sdk.project(envId);
@@ -228,6 +233,45 @@ async function startServer() {
 
   app.get("/api/integrations/summary", async (_req, res) => {
     res.json(await getIntegrationsSummaryJson());
+  });
+
+  app.get("/api/vercel/status", resolveUserId, (_req, res) => {
+    res.json(getVercelManagerStatusPayload());
+  });
+
+  app.post("/api/vercel/command", resolveUserId, async (req, res) => {
+    try {
+      const body = (req.body ?? {}) as {
+        message?: string;
+        action?: string;
+        domain?: string;
+        branch?: string;
+        enableWaf?: boolean;
+      };
+      const out = await runVercelManagerCommand(body);
+      res.json(out);
+    } catch (e) {
+      console.error("[vercel/command]", e);
+      res.status(500).json({
+        reply: e instanceof Error ? e.message : String(e),
+        line: "Vercel integration active. What do you want to do?",
+        error: true,
+      });
+    }
+  });
+
+  const vercelBlobJson = express.json({ limit: "15mb" });
+  app.post("/api/vercel/blob", resolveUserId, vercelBlobJson, async (req, res) => {
+    try {
+      const out = await uploadVercelBlobJson(req.body ?? {});
+      res.json({ ...out, line: "Vercel integration active. What do you want to do?" });
+    } catch (e) {
+      res.status(400).json({
+        reply: e instanceof Error ? e.message : String(e),
+        line: "Vercel integration active. What do you want to do?",
+        error: true,
+      });
+    }
   });
 
   // Ephemeral token for Grok Voice Agent WebSocket (client uses this to connect to wss://api.x.ai/v1/realtime)

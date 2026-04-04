@@ -1,6 +1,8 @@
 # AGENTS.md — AI / Cursor agent instructions
 
-This repo is **backend-first**: secrets and vendor APIs live in the **host environment** (`.env`, Vercel, Railway). The browser is UI + OAuth redirects only (except optional local secret overrides in Settings).
+This app is **Nebulla**. The repo is **backend-first**: secrets and vendor APIs live in the **host environment** (`.env`, Vercel, Railway). The browser is UI + OAuth redirects only (except optional local secret overrides in Settings).
+
+**Vercel manager (in-app):** `GET /api/vercel/status`, `POST /api/vercel/command` (JSON `{ "message": "deploy" | "preview" | "list domains" | "add domain example.com" | "analytics" | "firewall" | … }`), `POST /api/vercel/blob` (JSON `{ filename, contentBase64, contentType? }`). Server uses `Authorization: Bearer` from `VERCEL_TOKEN` or `VERCEL_ACCESS_TOKEN`; Blob uses `BLOB_READ_WRITE_TOKEN`.
 
 ## Read first
 

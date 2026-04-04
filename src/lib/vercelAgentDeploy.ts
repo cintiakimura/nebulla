@@ -17,14 +17,15 @@ export async function triggerVercelDeployHook(hookUrl: string): Promise<{ ok: bo
   return { ok: r.ok, status: r.status, text: text.slice(0, 500) };
 }
 
-/** Create a preview deployment from GitHub ref (requires Vercel project linked to that repo). */
-export async function createVercelGithubPreviewDeployment(opts: {
+/** Create a production or preview deployment from a GitHub ref (Vercel project must be linked to that repo). */
+export async function createVercelGithubDeployment(opts: {
   token: string;
   projectId: string;
   org: string;
   repo: string;
   ref: string;
   teamId?: string;
+  target: "production" | "preview";
 }): Promise<VercelDeployResult> {
   const q = opts.teamId ? `?teamId=${encodeURIComponent(opts.teamId)}` : "";
   const r = await fetch(`https://api.vercel.com/v13/deployments${q}`, {
@@ -35,7 +36,7 @@ export async function createVercelGithubPreviewDeployment(opts: {
     },
     body: JSON.stringify({
       project: opts.projectId,
-      target: "preview",
+      target: opts.target,
       gitSource: {
         type: "github",
         org: opts.org,
@@ -65,4 +66,16 @@ export async function createVercelGithubPreviewDeployment(opts: {
     inspectorUrl: d.inspectorUrl,
     raw,
   };
+}
+
+/** Preview deployment — same as createVercelGithubDeployment with target "preview". */
+export async function createVercelGithubPreviewDeployment(opts: {
+  token: string;
+  projectId: string;
+  org: string;
+  repo: string;
+  ref: string;
+  teamId?: string;
+}): Promise<VercelDeployResult> {
+  return createVercelGithubDeployment({ ...opts, target: "preview" });
 }

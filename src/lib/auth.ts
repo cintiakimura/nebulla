@@ -20,7 +20,7 @@ export function isOpenMode(): boolean {
     h === DASHBOARD_DOMAIN ||
     h === `www.${DASHBOARD_DOMAIN}` ||
     // Demo deployments on Vercel: treat kyn-*.vercel.app as open mode.
-    (h.endsWith(".vercel.app") && h.startsWith("kyn-"))
+    (h.endsWith(".vercel.app") && (h.startsWith("kyn-") || h.startsWith("nebulla-")))
   );
 }
 

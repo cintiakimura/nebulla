@@ -20,7 +20,7 @@ async function fetchVercelProjectMeta(): Promise<{
   latestDeployment?: { state?: string; url?: string; createdAt?: number };
   error?: string;
 }> {
-  const token = process.env.VERCEL_ACCESS_TOKEN?.trim();
+  const token = process.env.VERCEL_TOKEN?.trim() || process.env.VERCEL_ACCESS_TOKEN?.trim();
   const projectId = process.env.VERCEL_PROJECT_ID?.trim();
   if (!token || !projectId) {
     return { linked: false };
@@ -111,7 +111,7 @@ export async function getIntegrationsSummaryJson(): Promise<Record<string, unkno
         ...(vercelMeta.linked
           ? {}
           : {
-              hint: "Add VERCEL_ACCESS_TOKEN (account token) + VERCEL_PROJECT_ID to show project name & latest deployment here.",
+              hint: "Add VERCEL_TOKEN or VERCEL_ACCESS_TOKEN + VERCEL_PROJECT_ID to show project name, latest deployment, and the in-app Vercel manager.",
             }),
       },
     },

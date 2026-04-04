@@ -29,7 +29,13 @@ export function buildSecretsAuditPayload() {
     { key: "STRIPE_WEBHOOK_SECRET", category: "billing" as const, configured: envConfigured("STRIPE_WEBHOOK_SECRET") },
     { key: "FIREBASE_PROJECT_ID", category: "optional" as const, configured: envConfigured("FIREBASE_PROJECT_ID") },
     { key: "GITHUB_CLIENT_ID", category: "optional" as const, configured: envConfigured("GITHUB_CLIENT_ID") },
-    { key: "VERCEL_ACCESS_TOKEN", category: "optional" as const, configured: envConfigured("VERCEL_ACCESS_TOKEN") },
+    {
+      key: "VERCEL_TOKEN",
+      category: "optional" as const,
+      configured: envConfigured("VERCEL_TOKEN") || envConfigured("VERCEL_ACCESS_TOKEN"),
+      aliases: ["VERCEL_ACCESS_TOKEN"],
+    },
+    { key: "BLOB_READ_WRITE_TOKEN", category: "optional" as const, configured: envConfigured("BLOB_READ_WRITE_TOKEN") },
     { key: "VERCEL_PROJECT_ID", category: "optional" as const, configured: envConfigured("VERCEL_PROJECT_ID") },
     {
       key: "STRICT_SERVER_API_KEYS",

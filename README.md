@@ -1,4 +1,4 @@
-# kyn - Developer-First SaaS Starter
+# Nebulla - Developer-First SaaS Starter
 
 **Hosted at [kyn.app](https://kyn.app) — sign up to build. Self-host source for Pro users (export only).** Pro: €19.90/mo for unlimited projects, Grok chats, export, GitHub, custom domains.
 

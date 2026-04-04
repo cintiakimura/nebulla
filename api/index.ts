@@ -178,12 +178,12 @@ function getGrokApiKey(): string | null {
 const defaultCode = `export default function App() {
   return (
     <div style={{ padding: 20, fontFamily: 'sans-serif' }}>
-      <h1>Hello from kyn Builder</h1>
+      <h1>Hello from Nebulla Builder</h1>
       <p>Start editing to see some magic happen!</p>
     </div>
   );
 }`;
-const defaultPackageJson = JSON.stringify({ name: "kyn-app", private: true, version: "0.0.0" }, null, 2);
+const defaultPackageJson = JSON.stringify({ name: "nebulla-app", private: true, version: "0.0.0" }, null, 2);
 
 /** Serve /api/config so frontend gets Supabase url + anon key for OAuth (e.g. Connect GitHub). No server load. */
 function handleConfig(method: string, pathname: string, res: VercelResponse): boolean {
@@ -719,6 +719,72 @@ async function handleMultiAgent(
   return false;
 }
 
+async function handleVercelRoutes(
+  method: string,
+  pathname: string,
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<boolean> {
+  if (pathname === "/api/vercel/status" && method === "GET") {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return true;
+    }
+    const { getVercelManagerStatusPayload } = await import("../src/lib/vercelRestManager.js");
+    res.status(200).json(getVercelManagerStatusPayload());
+    return true;
+  }
+  if (pathname === "/api/vercel/command" && method === "POST") {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return true;
+    }
+    const { runVercelManagerCommand } = await import("../src/lib/vercelRestManager.js");
+    const body =
+      typeof req.body === "object" && req.body
+        ? (req.body as { message?: string; action?: string; domain?: string; branch?: string; enableWaf?: boolean })
+        : {};
+    try {
+      const out = await runVercelManagerCommand(body);
+      res.status(200).json(out);
+    } catch (e) {
+      res.status(500).json({
+        reply: e instanceof Error ? e.message : String(e),
+        line: "Vercel integration active. What do you want to do?",
+        error: true,
+      });
+    }
+    return true;
+  }
+  if (pathname === "/api/vercel/blob" && method === "POST") {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return true;
+    }
+    const { uploadVercelBlobJson } = await import("../src/lib/vercelRestManager.js");
+    const body = typeof req.body === "object" && req.body ? (req.body as Record<string, unknown>) : {};
+    try {
+      const out = await uploadVercelBlobJson({
+        filename: typeof body.filename === "string" ? body.filename : undefined,
+        contentBase64: typeof body.contentBase64 === "string" ? body.contentBase64 : undefined,
+        contentType: typeof body.contentType === "string" ? body.contentType : undefined,
+      });
+      res.status(200).json({ ...out, line: "Vercel integration active. What do you want to do?" });
+    } catch (e) {
+      res.status(400).json({
+        reply: e instanceof Error ? e.message : String(e),
+        line: "Vercel integration active. What do you want to do?",
+        error: true,
+      });
+    }
+    return true;
+  }
+  return false;
+}
+
 let appPromise: Promise<Awaited<ReturnType<typeof import("../server").createApp>>> | null = null;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -734,7 +800,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Avoid loading Express + better-sqlite3 (server.ts) for simple probes.
   if ((req.method ?? "GET") === "GET" && pathname === "/api/health") {
-    res.status(200).json({ ok: true, service: "kyn-api" });
+    res.status(200).json({ ok: true, service: "nebulla-api" });
     return;
   }
 
@@ -771,6 +837,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const authUserHandled = await handleAuthUserApi(req.method ?? "GET", pathname, req, res);
   if (authUserHandled) return;
+
+  const vercelHandled = await handleVercelRoutes(req.method ?? "GET", pathname, req, res);
+  if (vercelHandled) return;
 
   const agentHandled = await handleMultiAgent(req.method ?? "GET", pathname, req, res);
   if (agentHandled) return;
