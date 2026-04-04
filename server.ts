@@ -19,7 +19,10 @@ async function startServer() {
   let stripeClient: Stripe | null = null;
   function getStripe(): Stripe {
     if (!stripeClient) {
-      const key = process.env.STRIPE_SECRET_KEY || 'mk_1Sei2ePNRjrb3o88qQWC7Hsz';
+      const key = process.env.STRIPE_SECRET_KEY;
+      if (!key) {
+        throw new Error('STRIPE_SECRET_KEY environment variable is required');
+      }
       stripeClient = new Stripe(key);
     }
     return stripeClient;

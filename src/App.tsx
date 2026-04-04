@@ -66,7 +66,7 @@ export default function App() {
   const [showMindMap, setShowMindMap] = useState(false);
   const [showStitchMockup, setShowStitchMockup] = useState(false);
   const [showCodePreview, setShowCodePreview] = useState(false);
-  const [dashboardTab, setDashboardTab] = useState<DashboardTab | null>(null);
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab | null>('projects');
   
   const [pages, setPages] = useState(initialPages);
   const [edges, setEdges] = useState(initialEdges);
