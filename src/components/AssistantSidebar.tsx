@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, Type } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
+import { VoiceLinesIcon } from './VoiceLinesIcon';
 
 let nextPlayTime = 0;
 
-function playPcmChunk(base64Data: string, audioCtx: AudioContext) {
+function playPcmChunk(base64Data: string, audioCtx: AudioContext, isSoundOn: boolean) {
+  if (!isSoundOn) return;
   const binaryString = atob(base64Data);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
@@ -32,6 +34,9 @@ function playPcmChunk(base64Data: string, audioCtx: AudioContext) {
 export function AssistantSidebar({ width = 320 }: { width?: number }) {
   const [isLive, setIsLive] = useState(false);
   const [isMicOpen, setIsMicOpen] = useState(false);
+  const [isSoundOn, setIsSoundOn] = useState(true);
+  const isSoundOnRef = useRef(isSoundOn);
+  useEffect(() => { isSoundOnRef.current = isSoundOn; }, [isSoundOn]);
   const [messages, setMessages] = useState<{role: string, text: string}[]>([
     { role: 'model', text: 'System initialized. Ready to collaborate.' }
   ]);
@@ -207,7 +212,7 @@ Debug Rules (VETR loop):
           },
           onmessage: (message: LiveServerMessage) => {
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (base64Audio && audioCtxRef.current) playPcmChunk(base64Audio, audioCtxRef.current);
+            if (base64Audio && audioCtxRef.current) playPcmChunk(base64Audio, audioCtxRef.current, isSoundOnRef.current);
             
             const parts = message.serverContent?.modelTurn?.parts;
             if (parts) {
@@ -360,17 +365,9 @@ Debug Rules (VETR loop):
             <button 
               onClick={toggleLive}
               className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isLive ? 'bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(255,0,0,0.2)]' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'}`}
-              title={isLive ? "End Call" : "Start Call"}
+              title={isLive ? "End Talk" : "Start Talk"}
             >
-              <span className="material-symbols-outlined text-18">{isLive ? 'call_end' : 'call'}</span>
-            </button>
-            <button 
-              onClick={() => { if(isLive) setIsMicOpen(!isMicOpen); }}
-              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isMicOpen && isLive ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.2)]' : 'hover:bg-white/5 text-slate-500 hover:text-cyan-300'}`}
-              title={isMicOpen ? "Mute Mic" : "Unmute Mic"}
-              disabled={!isLive}
-            >
-              <span className="material-symbols-outlined text-18">{isMicOpen && isLive ? 'mic' : 'mic_off'}</span>
+              <VoiceLinesIcon className="w-4 h-4" active={isLive} />
             </button>
             <button 
               onClick={toggleTextRecording}
@@ -378,6 +375,13 @@ Debug Rules (VETR loop):
               title={isRecordingText ? "Stop Recording" : "Dictate Text"}
             >
               <span className="material-symbols-outlined text-18">mic</span>
+            </button>
+            <button 
+              onClick={() => setIsSoundOn(!isSoundOn)}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-white/5 ${!isSoundOn ? 'text-red-400' : 'text-slate-500 hover:text-cyan-300'}`}
+              title={isSoundOn ? "Mute Sound" : "Unmute Sound"}
+            >
+              <span className="material-symbols-outlined text-18">{isSoundOn ? 'volume_up' : 'volume_off'}</span>
             </button>
           </div>
           <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 text-slate-500 hover:text-cyan-300 transition-all" title="Upload File">
