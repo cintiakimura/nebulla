@@ -235,11 +235,11 @@ async function startServer() {
     res.json(await getIntegrationsSummaryJson());
   });
 
-  app.get("/api/vercel/status", resolveUserId, (_req, res) => {
+  app.get("/api/vercel/status", resolveUserId, requireAuth, (_req, res) => {
     res.json(getVercelManagerStatusPayload());
   });
 
-  app.post("/api/vercel/command", resolveUserId, async (req, res) => {
+  app.post("/api/vercel/command", resolveUserId, requireAuth, async (req, res) => {
     try {
       const body = (req.body ?? {}) as {
         message?: string;
@@ -261,7 +261,7 @@ async function startServer() {
   });
 
   const vercelBlobJson = express.json({ limit: "15mb" });
-  app.post("/api/vercel/blob", resolveUserId, vercelBlobJson, async (req, res) => {
+  app.post("/api/vercel/blob", resolveUserId, requireAuth, vercelBlobJson, async (req, res) => {
     try {
       const out = await uploadVercelBlobJson(req.body ?? {});
       res.json({ ...out, line: "Vercel integration active. What do you want to do?" });

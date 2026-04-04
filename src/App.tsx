@@ -11,6 +11,8 @@ import Setup from "./pages/Setup";
 import Settings from "./pages/Settings";
 import MasterPlanBrainstorming from "./pages/MasterPlanBrainstorming";
 import LockedSummary from "./pages/LockedSummary";
+import NebullaWorkspace from "./pages/NebullaWorkspace";
+import { NebullaLogo } from "./components/NebullaLogo";
 import { ensureSupabaseConfig } from "./lib/supabaseAuth";
 import { isOpenMode } from "./lib/auth";
 
@@ -29,7 +31,8 @@ export default function App() {
 
   if (!configReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-sans bg-background text-foreground">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 font-sans bg-background text-foreground">
+        <NebullaLogo size={48} />
         <p className="font-display text-lg text-primary/90">Loading…</p>
       </div>
     );
@@ -51,6 +54,7 @@ export default function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/master-plan-brainstorming" element={<MasterPlanBrainstorming />} />
+          <Route path="/workspace" element={<NebullaWorkspace />} />
           <Route path="/project/:projectId/locked-summary" element={<LockedSummary />} />
         </Routes>
       </div>

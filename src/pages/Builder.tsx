@@ -26,6 +26,7 @@ import { playGrokTts } from "../lib/grokVoiceAgent";
 import { extractUiGeneratePrompt } from "../lib/uiGenerateIntent";
 import UpgradeProModal, { logFreeTierAttempt } from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
+import { NebullaLogo } from "../components/NebullaLogo";
 import { runBuilderAgentChain } from "../lib/builderAgentChain";
 import { loadAgentTaskMemory } from "../lib/multiAgentMemory";
 
@@ -195,7 +196,7 @@ function BuilderBottomPanel({
             <div className={`flex-1 min-h-0 overflow-auto p-3 ${sandpackConsole ? "" : "pt-3"}`} style={{ backgroundColor: BUILDER_BG }}>
               {sandpackConsole ? (
                 <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: BUILDER_MUTED }}>
-                  Kyn activity
+                  Nebulla activity
                 </div>
               ) : null}
               {logs.map((log, i) => (
@@ -320,7 +321,7 @@ export default function Builder() {
   const [code, setCode] = useState(`export default function App() {
   return (
     <div style={{ padding: 20, fontFamily: 'sans-serif' }}>
-      <h1>Hello from kyn Builder</h1>
+      <h1>Hello from Nebulla Builder</h1>
       <p>Start editing to see some magic happen!</p>
     </div>
   );
@@ -328,12 +329,12 @@ export default function Builder() {
   
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [bottomPanelTab, setBottomPanelTab] = useState<BottomPanelTabId>("terminal");
-  const [logs, setLogs] = useState<string[]>(["[kyn] Builder initialized.", "[kyn] Ready for VETR loop (Verify, Explain, Trace, Repair)."]);
+  const [logs, setLogs] = useState<string[]>(["[nebulla] Builder initialized.", "[nebulla] Ready for VETR loop (Verify, Explain, Trace, Repair)."]);
   type TabId = 'preview' | '/App.tsx' | '/package.json';
   const [openTabs, setOpenTabs] = useState<TabId[]>(['preview', '/App.tsx']);
   const [activeTabId, setActiveTabId] = useState<TabId>('preview');
   const [packageJsonContent, setPackageJsonContent] = useState(`{
-  "name": "kyn-app",
+  "name": "nebulla-app",
   "private": true,
   "version": "0.0.0"
 }`);
@@ -1646,6 +1647,14 @@ export default function Builder() {
       >
         <button
           type="button"
+          className="mb-3 p-0 rounded-lg border-0 bg-transparent cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40"
+          title="Nebulla"
+          onClick={() => navigate("/builder")}
+        >
+          <NebullaLogo size={28} />
+        </button>
+        <button
+          type="button"
           className="p-2 rounded-md mb-2"
           style={{ color: BUILDER_MUTED }}
           title="Projects"
@@ -2111,7 +2120,7 @@ export default function Builder() {
                                 border: `1px solid ${BUILDER_BORDER}`,
                               }}
                             >
-                              Kyn Sandbox – Upgrade for full access
+                              Nebulla Sandbox – Upgrade for full access
                             </div>
                           )}
                         </div>

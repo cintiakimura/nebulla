@@ -12,6 +12,7 @@ import {
   type SecretKey,
 } from "../lib/storedSecrets";
 import { getConnectedServices, setDomainVerified } from "../lib/setupStorage";
+import { NebullaLogo } from "../components/NebullaLogo";
 
 type IntegrationsSummaryPayload = {
   strictServerSecretsOnly?: boolean;
@@ -289,7 +290,10 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-background text-white p-6 md:p-8">
       <div className="max-w-2xl mx-auto space-y-8">
-        <h1 className="text-2xl font-semibold text-white">Settings</h1>
+        <div className="flex items-center gap-3">
+          <NebullaLogo size={36} />
+          <h1 className="text-2xl font-semibold text-white">Settings</h1>
+        </div>
 
         <section className="space-y-2">
           <h2 className="text-lg font-medium text-white">API URL</h2>

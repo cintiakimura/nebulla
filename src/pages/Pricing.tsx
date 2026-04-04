@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import { NebullaLogo } from "../components/NebullaLogo";
 import { getUserId } from "../lib/auth";
 import { getApiBase } from "../lib/api";
 
@@ -50,7 +51,7 @@ export default function Pricing() {
         <div className="grid md:grid-cols-2 gap-8 text-left">
           <div className="p-8 bg-sidebar-bg border border-border rounded-2xl">
             <h3 className="text-2xl font-semibold text-primary mb-2">Free</h3>
-            <p className="text-muted mb-6">Perfect for trying kyn.</p>
+            <p className="text-muted mb-6">Perfect for trying Nebulla.</p>
             <div className="text-4xl font-bold text-white mb-8">€0<span className="text-lg text-muted font-normal">/mo</span></div>
             <ul className="space-y-4 mb-8 text-white">
               <li className="flex items-center gap-2">✓ 3 projects</li>

@@ -50,6 +50,7 @@ import UpgradeProModal from "../components/UpgradeProModal";
 import UpgradeBubble from "../components/UpgradeBubble";
 import MindMapFromPlan, { type MindMapData } from "../components/MindMapFromPlan";
 import SettingsDrawer from "../components/SettingsDrawer";
+import { NebullaLogo } from "../components/NebullaLogo";
 
 type ProjectStatus = "Live" | "Preview" | "Draft";
 
@@ -1387,7 +1388,10 @@ Use one central node "App Idea" and branch nodes for each planning theme we cove
       {/* Status bar: Run test + Final debugging test always visible */}
       <div className="h-8 flex-shrink-0 flex items-center justify-between px-3 bg-vs-status text-vs-foreground text-xs font-medium border-t border-vs-border gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="flex-shrink-0">Kyn</span>
+          <span className="flex-shrink-0 flex items-center gap-1.5">
+            <NebullaLogo size={14} />
+            <span>Nebulla</span>
+          </span>
           <button
             type="button"
             onClick={handleRunQuickTest}

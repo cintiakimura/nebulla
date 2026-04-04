@@ -1,23 +1,36 @@
 import { useNavigate } from "react-router-dom";
+import { NebullaLogo } from "../components/NebullaLogo";
 
 export default function Landing() {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background text-white font-sans selection:bg-primary/30 antialiased">
-      <header className="flex justify-end gap-4 px-6 py-4 border-b border-border">
+      <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
         <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="flex items-center gap-3 text-left rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        >
+          <NebullaLogo size={36} />
+          <span className="font-display text-xl font-semibold tracking-tight text-white">Nebulla</span>
+        </button>
+        <div className="flex items-center gap-4">
+        <button
+          type="button"
           onClick={() => navigate("/login")}
           className="text-[15px] text-[#9cdcfe] hover:text-white transition-colors"
         >
           Login
         </button>
         <button
+          type="button"
           onClick={() => navigate("/login")}
           className="text-[15px] px-4 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors"
         >
           Sign up
         </button>
+        </div>
       </header>
 
       {/* Hero: text left, prices right */}
@@ -28,9 +41,12 @@ export default function Landing() {
 
         <div className="relative max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-12 md:gap-16">
           <div className="text-left max-w-xl">
-            <h1 className="text-[clamp(3rem,10vw,5.5rem)] font-extralight tracking-[-0.04em] text-white mb-6">
-              kyn
-            </h1>
+            <div className="flex flex-wrap items-center gap-5 mb-6">
+              <NebullaLogo size={72} />
+              <h1 className="text-[clamp(2.25rem,8vw,4.5rem)] font-extralight tracking-[-0.04em] text-white">
+                Nebulla
+              </h1>
+            </div>
             <p className="text-[18px] text-muted mb-4 font-light leading-relaxed">
               The first Grok-powered builder that starts with architecture, not code.
             </p>

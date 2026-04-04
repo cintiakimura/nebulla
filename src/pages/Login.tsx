@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Lock } from "lucide-react";
+import { NebullaLogo } from "../components/NebullaLogo";
 import { setUserIdAfterLogin } from "../lib/auth";
 import { getApiBase, setBackendUnavailable, clearBackendUnavailable } from "../lib/api";
 import { ensureSupabaseConfig, getSupabaseAuthClient, isSupabaseAuthConfigured } from "../lib/supabaseAuth";
@@ -159,7 +160,10 @@ export default function Login() {
       </button>
 
       <div className="w-full max-w-md bg-sidebar-bg border border-border rounded-2xl p-8 shadow-2xl">
-        <div className="text-3xl font-bold text-primary tracking-tighter mb-2">kyn.</div>
+        <div className="flex items-center gap-3 mb-2">
+          <NebullaLogo size={44} />
+          <div className="text-3xl font-bold text-primary tracking-tight">Nebulla</div>
+        </div>
         <p className="text-muted mb-6">Sign in to your account</p>
 
         {useSupabase ? (

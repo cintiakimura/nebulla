@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { NebullaLogo } from "../components/NebullaLogo";
 import { setFirstLoginDone } from "../lib/supabaseAuth";
 
 export default function SimpleStart() {
@@ -11,8 +12,9 @@ export default function SimpleStart() {
 
   return (
     <div className="min-h-screen bg-background text-white font-sans flex flex-col items-center justify-center px-4">
+      <NebullaLogo size={88} className="mb-6" />
       <h1 className="text-4xl md:text-5xl font-light tracking-tight text-center mb-8 text-white">
-        Kyn. Let&apos;s build.
+        Nebulla. Let&apos;s build.
       </h1>
       <button
         type="button"
