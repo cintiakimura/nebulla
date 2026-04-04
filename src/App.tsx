@@ -81,19 +81,49 @@ export default function App() {
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
 
   const [user, setUser] = useState<User | null>(null);
+  const [isPaid, setIsPaid] = useState(false);
   const [files, setFiles] = useState<{name: string, isDirectory: boolean}[]>([]);
   const [terminalHistory, setTerminalHistory] = useState<{command: string, output: string}[]>([]);
   const [terminalInput, setTerminalInput] = useState('');
   const terminalEndRef = useRef<HTMLDivElement>(null);
+
+  const triggerCheckout = async () => {
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const session = await response.json();
+      if (session.error) throw new Error(session.error);
+      if (session.url) window.location.href = session.url;
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Payment failed. Please try again.');
+    }
+  };
 
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [terminalHistory]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('success')) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+          await setDoc(userRef, { isPaid: true }, { merge: true });
+          setIsPaid(true);
+        } else if (userSnap.exists() && userSnap.data().isPaid) {
+          setIsPaid(true);
+        } else {
+          setIsPaid(false);
+        }
+
         const docRef = doc(db, 'projects', 'default');
         getDoc(docRef).then(docSnap => {
           if (docSnap.exists()) {
@@ -167,19 +197,62 @@ export default function App() {
     }
   };
 
+  const handleActionRequiresPayment = (actionName: string) => {
+    if (!user || !isPaid) {
+      triggerCheckout();
+    } else {
+      alert(`${actionName} initiated successfully.`);
+    }
+  };
+
+  useEffect(() => {
+    const handleCopyPaste = (e: ClipboardEvent) => {
+      if (!user || !isPaid) {
+        e.preventDefault();
+        alert('Please log in and subscribe to copy or paste.');
+      }
+    };
+
+    document.addEventListener('copy', handleCopyPaste);
+    document.addEventListener('paste', handleCopyPaste);
+
+    return () => {
+      document.removeEventListener('copy', handleCopyPaste);
+      document.removeEventListener('paste', handleCopyPaste);
+    };
+  }, [user, isPaid]);
+
   const handleLockDesign = () => {
     setShowStitchMockup(false);
     // Return to default view or mind map
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider).catch(console.error);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const userRef = doc(db, 'users', result.user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists() || !userSnap.data().isPaid) {
+        triggerCheckout();
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const handleGithubLogin = () => {
+  const handleGithubLogin = async () => {
     const provider = new GithubAuthProvider();
-    signInWithPopup(auth, provider).catch(console.error);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const userRef = doc(db, 'users', result.user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists() || !userSnap.data().isPaid) {
+        triggerCheckout();
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
   
   const handleLogout = () => {
@@ -227,6 +300,20 @@ export default function App() {
           <h1 className="font-headline text-lg font-light tracking-tighter text-cyan-300 no-bold">nebulla</h1>
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => handleActionRequiresPayment('Deploy')}
+            className="text-xs px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 transition-colors font-headline flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
+            Deploy
+          </button>
+          <button 
+            onClick={() => handleActionRequiresPayment('Download')}
+            className="text-xs px-3 py-1.5 bg-white/5 text-slate-300 border border-white/10 rounded hover:bg-white/10 transition-colors font-headline flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[14px]">download</span>
+            Download
+          </button>
           {user ? (
             <div className="flex items-center gap-3">
               <img src={user.photoURL || ''} alt="User" className="w-6 h-6 rounded-full border border-white/10" referrerPolicy="no-referrer" />
