@@ -10,6 +10,7 @@ import { MindMap } from './components/MindMap';
 import { StitchMockup } from './components/StitchMockup';
 import { Dashboard, DashboardTab } from './components/Dashboard';
 import { LandingPage } from './components/LandingPage';
+import { Logo } from './components/Logo';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -222,7 +223,7 @@ export default function App() {
       {/* TopAppBar */}
       <header className="h-12 w-full z-50 flex justify-between items-center px-6 bg-[#040f1a]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_0_20px_rgba(96,0,159,0.05)]">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-cyan-400">terminal</span>
+          <Logo className="w-6 h-6" />
           <h1 className="font-headline text-lg font-light tracking-tighter text-cyan-300 no-bold">nebulla</h1>
         </div>
         <div className="flex items-center gap-4">

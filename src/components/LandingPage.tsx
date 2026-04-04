@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { Logo } from './Logo';
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -67,7 +68,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       {/* Header */}
       <header className="h-16 border-b border-white/5 flex items-center px-8 justify-between shrink-0 glass-panel">
         <div className="flex items-center gap-2 text-cyan-300">
-          <span className="material-symbols-outlined">terminal</span>
+          <Logo className="w-8 h-8" />
           <span className="font-headline text-lg font-normal">nebulla</span>
         </div>
         <button 
