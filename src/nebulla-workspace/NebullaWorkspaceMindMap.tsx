@@ -32,10 +32,10 @@ const PageNode = ({ data, id }: { data: Record<string, unknown>; id: string }) =
           {isCreated ? (
             <span className="text-[10px] text-emerald-400 flex items-center gap-1">
               <span className="material-symbols-outlined text-[12px]">link</span>
-              Linked
+              Live Link
             </span>
           ) : (
-            <span className="text-[10px] text-slate-500">Pending</span>
+            <span className="text-[10px] text-slate-500">Pending Creation</span>
           )}
         </div>
         <button

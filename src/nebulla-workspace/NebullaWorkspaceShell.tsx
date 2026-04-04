@@ -12,12 +12,18 @@ import { NebullaWorkspaceMindMap } from "./NebullaWorkspaceMindMap";
 import { NebullaWorkspaceStitchMockup } from "./NebullaWorkspaceStitchMockup";
 
 const MOCK_FILES = [
-  { name: "package.json", isDirectory: false },
-  { name: "vite.config.ts", isDirectory: false },
+  { name: ".env.example", isDirectory: false },
+  { name: ".gitignore", isDirectory: false },
+  { name: "dist", isDirectory: true },
+  { name: "node_modules", isDirectory: true },
+  { name: "public", isDirectory: true },
   { name: "server.ts", isDirectory: false },
   { name: "src", isDirectory: true },
-  { name: "App.tsx", isDirectory: false },
-  { name: "index.css", isDirectory: false },
+  { name: "tsconfig.json", isDirectory: false },
+  { name: "vite.config.ts", isDirectory: false },
+  { name: "index.html", isDirectory: false },
+  { name: "metadata.json", isDirectory: false },
+  { name: "package.json", isDirectory: false },
 ];
 
 const initialPages: Node[] = [
@@ -28,31 +34,41 @@ const initialPages: Node[] = [
       label: "Authentication Portal",
       isCritical: true,
       isCreated: true,
-      description: "Supabase OAuth (GitHub / Google).",
+      description: "GitHub and Google OAuth integration interface.",
     },
     position: { x: 50, y: 250 },
   },
   {
     id: "2",
     type: "pageNode",
-    data: { label: "Project Dashboard", isCritical: true, isCreated: false, description: "Projects list + limits." },
+    data: {
+      label: "Project Dashboard",
+      isCritical: true,
+      isCreated: false,
+      description: "Project creation, naming, and auto-provisioning status tracker.",
+    },
     position: { x: 350, y: 250 },
   },
   {
     id: "3",
     type: "pageNode",
     data: {
-      label: "Builder Workspace",
+      label: "Voice-First Workspace",
       isCritical: true,
       isCreated: true,
-      description: "Stitch + Grok + Sandpack preview.",
+      description: "Main IDE interface featuring voice-command visualizer, code editor, and terminal.",
     },
     position: { x: 650, y: 250 },
   },
   {
     id: "4",
     type: "pageNode",
-    data: { label: "Settings & Deploy", isCritical: false, isCreated: false, description: "Secrets, Vercel manager." },
+    data: {
+      label: "Settings Panel",
+      isCritical: false,
+      isCreated: false,
+      description: "Environment variable management, deployment configurations, and integration settings.",
+    },
     position: { x: 950, y: 250 },
   },
 ];
@@ -112,10 +128,10 @@ export function NebullaWorkspaceShell() {
   }, []);
 
   const [showMasterPlan, setShowMasterPlan] = useState(false);
-  const [showMindMap, setShowMindMap] = useState(false);
+  const [showMindMap, setShowMindMap] = useState(true);
   const [showStitchMockup, setShowStitchMockup] = useState(false);
   const [showCodePreview, setShowCodePreview] = useState(false);
-  const [dashboardTab, setDashboardTab] = useState<NebullaDashboardTab | null>("projects");
+  const [dashboardTab, setDashboardTab] = useState<NebullaDashboardTab | null>(null);
 
   const [pages, setPages] = useState<Node[]>(() => loadWorkspaceGraph({ pages: initialPages, edges: initialEdges }).pages);
   const [edges, setEdges] = useState<Edge[]>(() => loadWorkspaceGraph({ pages: initialPages, edges: initialEdges }).edges);
@@ -197,40 +213,84 @@ export function NebullaWorkspaceShell() {
 
   return (
     <div className="nebulla-workspace flex flex-col h-screen min-h-0 w-full overflow-hidden bg-[#020C17] text-[#d4e7ff] font-sans selection:bg-cyan-500/20">
-      <header className="h-12 w-full z-50 flex justify-between items-center px-6 bg-[#040f1a]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_0_20px_rgba(96,0,159,0.05)] shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="h-12 w-full z-50 flex justify-between items-center px-4 sm:px-6 bg-[#040f1a]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_0_20px_rgba(96,0,159,0.05)] shrink-0 gap-2">
+        <div className="flex items-center gap-3 min-w-0 shrink-0">
           <div className="nebulla-logo-pulse shrink-0">
             <NebullaLogo size={28} tray />
           </div>
           <h1 className="font-display text-lg font-light tracking-tighter text-cyan-300 nebulla-ws-no-bold truncate">
             nebulla
           </h1>
+        </div>
+        <div className="hidden md:flex flex-1 justify-center pointer-events-none">
+          <span className="text-xs text-slate-500 font-display tracking-wide nebulla-ws-no-bold">nebula.</span>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 flex-wrap justify-end">
           <button
             type="button"
             onClick={() => navigate("/builder")}
-            className="ml-2 text-[11px] px-2 py-1 rounded border border-white/10 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/30 transition-colors font-display shrink-0"
+            className="text-xs px-2.5 sm:px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 transition-colors font-display flex items-center gap-1 nebulla-ws-no-bold"
+            title="Open Builder to deploy"
           >
-            Builder
+            <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
+            <span className="hidden sm:inline">Deploy</span>
           </button>
-        </div>
-        <div className="flex items-center gap-4 shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate("/builder")}
+            className="text-xs px-2.5 sm:px-3 py-1.5 bg-white/5 text-slate-300 border border-white/10 rounded hover:bg-white/10 transition-colors font-display flex items-center gap-1 nebulla-ws-no-bold"
+            title="Export from Builder"
+          >
+            <span className="material-symbols-outlined text-[14px]">download</span>
+            <span className="hidden sm:inline">Download</span>
+          </button>
           {signedIn ? (
-            <div className="flex items-center gap-3">
-              {userLabel ? <span className="text-xs text-slate-500 max-w-[140px] truncate hidden sm:inline">{userLabel}</span> : null}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {userLabel ? <span className="text-xs text-slate-500 max-w-[120px] truncate hidden lg:inline">{userLabel}</span> : null}
               {!isOpenMode() ? (
-                <button type="button" onClick={() => void logout()} className="text-xs text-slate-400 hover:text-cyan-300 transition-colors font-display">
+                <button type="button" onClick={() => void logout()} className="text-xs text-slate-400 hover:text-cyan-300 transition-colors font-display nebulla-ws-no-bold">
                   Logout
                 </button>
               ) : null}
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => navigate("/login")}
-              className="text-xs px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 transition-colors font-display"
-            >
-              Sign in
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="text-xs px-2 sm:px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 transition-colors font-display flex items-center gap-1.5 nebulla-ws-no-bold"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <path
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    fill="#4285F4"
+                  />
+                  <path
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    fill="#34A853"
+                  />
+                  <path
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    fill="#FBBC05"
+                  />
+                  <path
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    fill="#EA4335"
+                  />
+                </svg>
+                <span className="hidden sm:inline">Google</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="text-xs px-2 sm:px-3 py-1.5 bg-slate-800 text-slate-300 border border-slate-700 rounded hover:bg-slate-700 transition-colors font-display flex items-center gap-1.5 nebulla-ws-no-bold"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden>
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                </svg>
+                <span className="hidden sm:inline">GitHub</span>
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -598,7 +658,7 @@ export function NebullaWorkspaceShell() {
                     onChange={(e) => setTerminalInput(e.target.value)}
                     onKeyDown={handleTerminalKey}
                     className="flex-1 bg-transparent border-none outline-none text-slate-300 placeholder-slate-600"
-                    placeholder="Type a command (preview)…"
+                    placeholder="Type a command and press Enter…"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -632,8 +692,8 @@ export function NebullaWorkspaceShell() {
         <button type="button" className="material-symbols-outlined text-slate-500 hover:text-cyan-100 nebulla-ws-no-bold transition-all active:scale-95 duration-200" title="History">
           history
         </button>
-        <button type="button" className="material-symbols-outlined text-slate-500 hover:text-cyan-100 nebulla-ws-no-bold transition-all active:scale-95 duration-200" title="Issues">
-          bug_report
+        <button type="button" className="material-symbols-outlined text-slate-500 hover:text-cyan-100 nebulla-ws-no-bold transition-all active:scale-95 duration-200" title="Ideas">
+          lightbulb
         </button>
       </footer>
     </div>

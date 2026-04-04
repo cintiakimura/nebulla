@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 
-const KEY = "nebulla_workspace_graph_v1";
+const KEY = "nebulla_workspace_graph_v2";
 
 export type StoredGraph = { pages: Node[]; edges: Edge[] };
 

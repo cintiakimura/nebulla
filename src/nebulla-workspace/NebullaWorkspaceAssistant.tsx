@@ -6,7 +6,7 @@ import { getBackendSecretHeaders } from "../lib/storedSecrets";
 
 export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([
-    { role: "model", text: "Workspace assistant — powered by Grok via /api/agent/chat. Ask about layout, plan, or deploy." },
+    { role: "model", text: "System initialized. Ready to collaborate." },
   ]);
   const [inputText, setInputText] = useState("");
   const [pending, setPending] = useState(false);
@@ -91,7 +91,7 @@ export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
       <div className="h-12 px-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
         <div className="flex items-center gap-2 text-cyan-300">
           <span className="material-symbols-outlined nebulla-ws-text-18">smart_toy</span>
-          <span className="font-display text-xs tracking-widest uppercase">Assistant</span>
+          <span className="font-display text-xs tracking-widest uppercase">Nebulla Partner</span>
         </div>
       </div>
 
@@ -121,11 +121,11 @@ export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
         <div ref={endRef} />
       </div>
 
-      <div className="p-3 border-t border-white/5 shrink-0">
-        <div className="flex gap-2 mb-2">
+      <div className="p-3 border-t border-white/5 shrink-0 space-y-2">
+        <div className="flex gap-1.5 flex-wrap">
           <button
             type="button"
-            title="Append voice to message (browser STT)"
+            title="Microphone (browser STT)"
             onClick={toggleVoiceAppend}
             className={`p-2 rounded-md border transition-colors ${
               isRecordingText
@@ -135,6 +135,27 @@ export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
           >
             <span className="material-symbols-outlined nebulla-ws-text-18">mic</span>
           </button>
+          <button
+            type="button"
+            title="Voice session"
+            className="p-2 rounded-md border bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300 transition-colors"
+          >
+            <span className="material-symbols-outlined nebulla-ws-text-18">headset_mic</span>
+          </button>
+          <button
+            type="button"
+            title="Mute"
+            className="p-2 rounded-md border bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300 transition-colors"
+          >
+            <span className="material-symbols-outlined nebulla-ws-text-18">mic_off</span>
+          </button>
+          <button
+            type="button"
+            title="Attach"
+            className="p-2 rounded-md border bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300 transition-colors"
+          >
+            <span className="material-symbols-outlined nebulla-ws-text-18">attach_file</span>
+          </button>
         </div>
         <div className="flex gap-2">
           <input
@@ -142,7 +163,7 @@ export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void send()}
-            placeholder="Message Grok…"
+            placeholder="Start a call or type here…"
             disabled={pending}
             className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-500/40"
           />
@@ -150,9 +171,10 @@ export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
             type="button"
             disabled={pending}
             onClick={() => void send()}
-            className="px-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 disabled:opacity-50 font-display text-sm"
+            className="px-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 disabled:opacity-50 font-display text-sm shrink-0"
+            title="Send"
           >
-            Send
+            <span className="material-symbols-outlined nebulla-ws-text-18">send</span>
           </button>
         </div>
       </div>
