@@ -29,6 +29,12 @@ import UpgradeBubble from "../components/UpgradeBubble";
 import { NebullaLogo } from "../components/NebullaLogo";
 import { runBuilderAgentChain } from "../lib/builderAgentChain";
 import { loadAgentTaskMemory } from "../lib/multiAgentMemory";
+import { lockedDesignSystemDirective } from "../nebulla-workspace/lockedDesignStorage";
+
+function stitchGeneratePromptWithLockedStyle(base: string): string {
+  const lock = lockedDesignSystemDirective();
+  return lock ? `${base.trim()}\n\n${lock}` : base.trim();
+}
 
 /** Builder — Celestial Fluidity: tonal layers + soft separators (see src/index.css). Layout unchanged. */
 const BUILDER_BG = "var(--celestial-surface)";
@@ -1210,7 +1216,7 @@ export default function Builder() {
           const res = await fetch(`${getApiBase()}/api/stitch/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
-            body: JSON.stringify({ prompt: uiPrompt, userId }),
+            body: JSON.stringify({ prompt: stitchGeneratePromptWithLockedStyle(uiPrompt), userId }),
           });
           const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
           if (res.ok && data.code) {
@@ -1276,7 +1282,7 @@ export default function Builder() {
           const res = await fetch(`${getApiBase()}/api/stitch/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...getBackendSecretHeaders() },
-            body: JSON.stringify({ prompt: uiPrompt, userId }),
+            body: JSON.stringify({ prompt: stitchGeneratePromptWithLockedStyle(uiPrompt), userId }),
           });
               const data = await res.json().catch(() => ({})) as { code?: string; error?: string; placeholder?: boolean };
               if (res.ok && data.code) {

@@ -45,6 +45,7 @@ import {
 } from "./src/lib/vercelRestManager.js";
 import { Stitch, StitchToolClient, StitchError, type Project } from "@google/stitch-sdk";
 import { wrapStitchHtmlAsReactAppTsx } from "./src/lib/stitchWrapReact.js";
+import { extractSvgFromStitchHtml } from "./src/lib/stitchMockupSvg.js";
 
 type RequestWithUserId = express.Request & { userId?: string };
 
@@ -1276,6 +1277,143 @@ async function startServer() {
     } catch (err) {
       console.error("[stitch generate outer]", err);
       res.status(500).json({ error: "UI code generation failed", details: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Google Stitch: Nebulla workspace — one SVG mockup per call (same key + rate limits as /api/stitch/generate)
+  app.post("/api/stitch/mockup", async (req, res) => {
+    try {
+      const { context, userId } = req.body as { context?: string; userId?: string };
+      const ctx = typeof context === "string" ? context.trim() : "";
+      if (!ctx) {
+        res.status(400).json({ error: "context is required (master plan + mind map text)" });
+        return;
+      }
+      const uid = typeof userId === "string" ? userId : "";
+      const apiKey = getStitchApiKeyFromRequest(req);
+      if (!apiKey || apiKey === "PLACEHOLDER") {
+        res.status(503).json({
+          error:
+            "Google Stitch not configured. Add STITCH_API_KEY to .env and Vercel (https://stitch.withgoogle.com/docs).",
+          placeholder: true,
+        });
+        return;
+      }
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
+      let isPaid = false;
+      if (supabaseUrl && supabaseKey && uid && supabaseUrl !== "PLACEHOLDER" && supabaseKey !== "PLACEHOLDER") {
+        try {
+          const { createClient } = await import("@supabase/supabase-js");
+          const supabase = createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
+          const { data: row } = await supabase.from("users").select("paid, is_pro").eq("id", uid).maybeSingle();
+          isPaid = row?.paid === true || row?.is_pro === true;
+        } catch (_) {}
+      }
+      if (!isPaid && uid) {
+        const usage = getUiGenUsage(uid);
+        if (usage.count >= UI_GEN_FREE_DAILY_LIMIT) {
+          res.status(429).json({
+            error: `Rate limit – try later or upgrade. Free tier: ${UI_GEN_FREE_DAILY_LIMIT} UI generations per day.`,
+          });
+          return;
+        }
+      }
+
+      const stitchPrompt = `You are generating ONE high-fidelity product mockup as pure vector graphics inside an HTML document.
+
+Output requirements:
+- Return a complete valid HTML5 document. Inside <body>, there must be exactly one root element: a single inline SVG.
+- The SVG must include xmlns="http://www.w3.org/2000/svg" and a viewBox for a wide layout (e.g. viewBox="0 0 1200 675").
+- Visual style: dark "Nebulla / celestial IDE" — near-black blue background (#020617–#020C17), cyan and teal glass panels, thin white/5 borders, soft glow accents — suggesting a workspace with left file tree, center canvas, right assistant strip, bottom terminal.
+- Use short readable labels only (e.g. Mind Map, Master Plan, Terminal). No paragraphs of tiny text.
+- No JavaScript, no external URLs, no <img>, no iframe — only SVG elements (rect, path, line, circle, text, linearGradient, etc.).
+
+Base the layout and labels on this master plan and mind map summary:
+
+${ctx.slice(0, 14000)}`;
+
+      const client = new StitchToolClient({ apiKey });
+      try {
+        const sdk = new Stitch(client);
+        const project = await resolveStitchProjectForUiGen(sdk);
+        const screen = await project.generate(stitchPrompt, "DESKTOP", "GEMINI_3_FLASH");
+        const htmlRef = await screen.getHtml();
+        let html = "";
+        if (htmlRef && /^https?:\/\//i.test(htmlRef)) {
+          const hr = await fetch(htmlRef);
+          if (!hr.ok) {
+            res.status(502).json({ error: `Stitch HTML download failed (${hr.status})` });
+            return;
+          }
+          html = await hr.text();
+        } else {
+          html = htmlRef || "";
+        }
+        if (!html.trim()) {
+          res.status(502).json({ error: "Stitch returned empty HTML" });
+          return;
+        }
+        const svg = extractSvgFromStitchHtml(html);
+        if (!svg || !svg.includes("<svg")) {
+          res.status(502).json({
+            error:
+              "Google Stitch did not return an inline SVG in the HTML. Try Regenerate — the model occasionally returns a page without a root <svg>.",
+            hint: "regenerate",
+          });
+          return;
+        }
+        if (!isPaid && uid) incrementUiGenUsage(uid);
+        res.json({
+          svg,
+          raw: {
+            provider: "stitch",
+            projectId: project.projectId,
+            screenId: screen.screenId,
+          },
+        });
+      } catch (err) {
+        if (err instanceof StitchError) {
+          if (err.code === "AUTH_FAILED") {
+            res.status(503).json({
+              error:
+                "Google Stitch auth failed. Check STITCH_API_KEY in .env / Vercel (stitch.withgoogle.com).",
+              placeholder: true,
+            });
+            return;
+          }
+          if (err.code === "RATE_LIMITED") {
+            res.status(429).json({ error: "Stitch rate limit — try again shortly." });
+            return;
+          }
+          if (err.code === "NOT_FOUND" || err.code === "PERMISSION_DENIED") {
+            res.status(503).json({
+              error:
+                err.message ||
+                "Stitch project or permission error. Set STITCH_PROJECT_ID to a valid project if needed.",
+            });
+            return;
+          }
+          res.status(503).json({
+            error: err.message || "Google Stitch service error",
+            suggestion: err.suggestion,
+          });
+          return;
+        }
+        console.error("[stitch mockup]", err);
+        res.status(500).json({
+          error: "Stitch mockup generation failed",
+          details: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        await client.close().catch(() => {});
+      }
+    } catch (err) {
+      console.error("[stitch mockup outer]", err);
+      res.status(500).json({
+        error: "Stitch mockup generation failed",
+        details: err instanceof Error ? err.message : String(err),
+      });
     }
   });
 

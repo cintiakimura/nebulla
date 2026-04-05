@@ -4,7 +4,23 @@ import { getApiBase } from "../lib/api";
 import { getUserId } from "../lib/auth";
 import { getBackendSecretHeaders } from "../lib/storedSecrets";
 
-export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
+function userWantsStitchMockup(text: string): boolean {
+  const t = text.toLowerCase();
+  if (/\bcreate\s+mockup\b/.test(t)) return true;
+  if (/\b(create|make|generate)\s+(a\s+)?(ui\s+)?mockup\b/.test(t)) return true;
+  if (/\bgenerate\s+ui\b/.test(t)) return true;
+  if (/\bmake\s+ui\b/.test(t)) return true;
+  if (/\b(create|make|generate)\s+(the\s+)?(ui\s+)?(screen|design)\b/.test(t) && /\bui\b/.test(t)) return true;
+  if (/\b(stitch|google\s*stitch)\b/.test(t) && /\b(mockup|ui|svg|screen|design|generate)\b/.test(t)) return true;
+  return false;
+}
+
+type AssistantProps = {
+  width?: number;
+  onRequestStitchMockup?: () => void;
+};
+
+export function NebullaWorkspaceAssistant({ width = 320, onRequestStitchMockup }: AssistantProps) {
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([
     { role: "model", text: "System initialized. Ready to collaborate." },
   ]);
@@ -50,6 +66,24 @@ export function NebullaWorkspaceAssistant({ width = 320 }: { width?: number }) {
   const send = async () => {
     const text = inputText.trim();
     if (!text || pending) return;
+
+    if (userWantsStitchMockup(text) && onRequestStitchMockup) {
+      const apiBase = getApiBase() || "";
+      setInputText("");
+      setMessages((m) => [
+        ...m,
+        { role: "user", text },
+        {
+          role: "model",
+          text:
+            (apiBase ? "" : "Set **API URL** in Settings so the host can call Google Stitch. ") +
+            "Opening **UI mockup (Stitch)** — **POST /api/stitch/mockup** with your Master Plan and Mind Map. Use **Create Mockup** / **Regenerate** (up to **3** variants), then **Lock this design** to save and apply the style app-wide.",
+        },
+      ]);
+      onRequestStitchMockup();
+      return;
+    }
+
     const apiBase = getApiBase() || "";
     if (!apiBase) {
       setMessages((m) => [...m, { role: "user", text }, { role: "model", text: "Set API URL in Settings." }]);

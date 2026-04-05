@@ -179,6 +179,25 @@ async function runTests() {
       record("Builder UI generate", false, e.message);
     }
 
+    try {
+      const mockRes = await fetch(testBase + "/api/stitch/mockup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: "Test: one-node mind map labeled Dashboard",
+          userId: userId,
+        }),
+      });
+      const mockData = await mockRes.json().catch(() => ({}));
+      const hasSvg = mockRes.ok && mockData && typeof mockData.svg === "string" && mockData.svg.includes("<svg");
+      const mock503 = mockRes.status === 503 && (mockData.placeholder || mockData.error);
+      if (hasSvg) record("POST /api/stitch/mockup", true, "svg returned");
+      else if (mock503) record("POST /api/stitch/mockup", true, "503 (STITCH_API_KEY not set)");
+      else record("POST /api/stitch/mockup", false, mockRes.status + " " + JSON.stringify(mockData).slice(0, 80));
+    } catch (e) {
+      record("POST /api/stitch/mockup", false, e.message);
+    }
+
     console.log("\n--- 6. Stripe & update-paid-status (410 = removed) ---");
     try {
       const checkoutRes = await fetch(testBase + "/api/create-checkout-session", {

@@ -15,6 +15,7 @@ import NebullaWorkspace from "./pages/NebullaWorkspace";
 import { NebullaLogo } from "./components/NebullaLogo";
 import { ensureSupabaseConfig } from "./lib/supabaseAuth";
 import { isOpenMode } from "./lib/auth";
+import { syncStitchLockedRootFromStorage } from "./components/StitchMockupPanel";
 
 function RootRedirect() {
   return isOpenMode() ? <SimpleStart /> : <Landing />;
@@ -27,6 +28,20 @@ export default function App() {
     ensureSupabaseConfig()
       .then(() => setConfigReady(true))
       .catch(() => setConfigReady(true));
+  }, []);
+
+  useEffect(() => {
+    syncStitchLockedRootFromStorage();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "nebulla_locked_ui_design_v1") syncStitchLockedRootFromStorage();
+    };
+    const onLocked = () => syncStitchLockedRootFromStorage();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("nebulla:stitch-locked", onLocked);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("nebulla:stitch-locked", onLocked);
+    };
   }, []);
 
   if (!configReady) {

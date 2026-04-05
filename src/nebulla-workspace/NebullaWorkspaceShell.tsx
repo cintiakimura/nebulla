@@ -9,7 +9,7 @@ import { NebullaWorkspaceAssistant } from "./NebullaWorkspaceAssistant";
 import { NebullaWorkspaceDashboard, type NebullaDashboardTab } from "./NebullaWorkspaceDashboard";
 import { NebullaWorkspaceMasterPlan } from "./NebullaWorkspaceMasterPlan";
 import { NebullaWorkspaceMindMap } from "./NebullaWorkspaceMindMap";
-import { NebullaWorkspaceStitchMockup } from "./NebullaWorkspaceStitchMockup";
+import { StitchMockupPanel } from "../components/StitchMockupPanel";
 
 const MOCK_FILES = [
   { name: ".env.example", isDirectory: false },
@@ -184,8 +184,31 @@ export function NebullaWorkspaceShell() {
     );
   }, [pages]);
 
+  const mindMapSummary = useMemo(() => {
+    const nodeLines = pages.map((p) => {
+      const label = String(p.data.label ?? "");
+      const created = Boolean(p.data.isCreated);
+      return `  • ${label}${created ? " — Live link" : " — Pending creation"}`;
+    });
+    const edgeLines = edges.map((e) => `  ${e.source} → ${e.target}`);
+    return (
+      `Nodes (${pages.length}):\n${nodeLines.join("\n")}` +
+      (edges.length ? `\n\nConnections (${edges.length}):\n${edgeLines.join("\n")}` : "")
+    );
+  }, [pages, edges]);
+
+  const [stitchMockupNonce, setStitchMockupNonce] = useState(0);
+
   const handleSaveToMasterPlan = () => {
     saveWorkspaceGraph({ pages, edges });
+  };
+
+  const handleOpenStitchFromAssistant = () => {
+    setShowMindMap(false);
+    setShowMasterPlan(false);
+    setDashboardTab(null);
+    setShowStitchMockup(true);
+    queueMicrotask(() => setStitchMockupNonce((n) => n + 1));
   };
 
   const handleLockDesign = () => {
@@ -494,7 +517,7 @@ export function NebullaWorkspaceShell() {
               ) : showStitchMockup ? (
                 <>
                   <span className="material-symbols-outlined text-14">design_services</span>
-                  <span className="nebulla-ws-no-bold">UI mockup (Grok SVG)</span>
+                  <span className="nebulla-ws-no-bold">UI mockup (Stitch)</span>
                 </>
               ) : showMasterPlan ? (
                 <>
@@ -536,7 +559,12 @@ export function NebullaWorkspaceShell() {
                 </div>
               ) : showStitchMockup ? (
                 <div className="flex-1 flex flex-col min-h-0">
-                  <NebullaWorkspaceStitchMockup onLock={handleLockDesign} pagesText={pagesText} />
+                  <StitchMockupPanel
+                    pagesText={pagesText}
+                    mindMapSummary={mindMapSummary}
+                    generationNonce={stitchMockupNonce}
+                    onClose={handleLockDesign}
+                  />
                 </div>
               ) : showMasterPlan ? (
                 <div className="flex-1 flex flex-col min-h-0">
@@ -674,7 +702,7 @@ export function NebullaWorkspaceShell() {
           onMouseDown={() => setIsResizing("right")}
         />
 
-        <NebullaWorkspaceAssistant width={rightWidth} />
+        <NebullaWorkspaceAssistant width={rightWidth} onRequestStitchMockup={handleOpenStitchFromAssistant} />
       </main>
 
       <footer className="h-10 w-full flex justify-center items-center gap-8 z-50 bg-[#040f1a]/80 backdrop-blur-md border-t border-white/5 shrink-0">

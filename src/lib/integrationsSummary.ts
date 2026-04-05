@@ -97,7 +97,7 @@ export async function getIntegrationsSummaryJson(): Promise<Record<string, unkno
       },
       stitch: {
         configured: stitchUi,
-        routes: ["/api/stitch/generate"],
+        routes: ["/api/stitch/generate", "/api/stitch/mockup"],
       },
       stripe: {
         secretKey: stripe,
