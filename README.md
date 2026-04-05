@@ -2,7 +2,7 @@
 
 **Hosted at [kyn.app](https://kyn.app) — sign up to build. Self-host source for Pro users (export only).** Pro: €19.90/mo for unlimited projects, Grok chats, export, GitHub, custom domains.
 
-One-time setup after login—no repeats. Platform owner fills env once.
+One-time setup after login—no repeats. Platform owner fills env once. New projects can be auto-created backend-only (POST `/api/projects/create`, Pro): your `SUPABASE_PAT`, org slug, and `VERCEL_TOKEN` — never exposed to the browser.
 
 **AI / Cursor agents:** see **`AGENTS.md`** (backend-first, Grok + Stitch, no Builder.io).
 

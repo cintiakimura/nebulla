@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import { getApiBase } from "../lib/api";
+import { getSessionToken } from "../lib/supabaseAuth";
 
 export type NebullaDashboardTab = "projects" | "project-settings" | "user-settings" | "secrets";
 
@@ -11,7 +13,7 @@ export function NebullaWorkspaceDashboard({ activeTab, onTabChange }: DashboardP
   return (
     <div className="flex-1 flex flex-col h-full bg-[#040f1a]/40 backdrop-blur-sm border border-white/5 rounded-lg overflow-hidden">
       <div className="h-14 border-b border-white/5 bg-white/5 flex items-center px-6 shrink-0">
-        <h2 className="text-lg font-display text-cyan-300 flex items-center gap-2">
+        <h2 className="text-lg font-headline text-cyan-300 flex items-center gap-2">
           <span className="material-symbols-outlined">
             {activeTab === "projects"
               ? "grid_view"
@@ -44,11 +46,66 @@ export function NebullaWorkspaceDashboard({ activeTab, onTabChange }: DashboardP
 }
 
 function ProjectsTab() {
+  const [provisionMsg, setProvisionMsg] = useState<string | null>(null);
+  const [provisionBusy, setProvisionBusy] = useState(false);
+
+  const newCloudProject = async () => {
+    setProvisionMsg(null);
+    const api = getApiBase() || "";
+    if (!api) {
+      setProvisionMsg("Set API URL in Settings.");
+      return;
+    }
+    setProvisionBusy(true);
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setProvisionMsg("Sign in required.");
+        setProvisionBusy(false);
+        return;
+      }
+      const name = window.prompt("Project name", "MyApp")?.trim() || "MyApp";
+      const repoUrl = window.prompt("GitHub repo URL (optional)", "")?.trim() || undefined;
+      const res = await fetch(`${api}/api/projects/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, repoUrl: repoUrl || undefined }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        projectId?: string;
+        supabaseUrl?: string;
+        vercelUrl?: string;
+        error?: string;
+      };
+      if (res.ok && data.success) {
+        setProvisionMsg(
+          `Created ${data.projectId?.slice(0, 8)}… · ${data.supabaseUrl ?? ""}${data.vercelUrl ? ` · ${data.vercelUrl}` : ""}`
+        );
+      } else {
+        setProvisionMsg(data.error || `HTTP ${res.status}`);
+      }
+    } catch {
+      setProvisionMsg("Request failed");
+    } finally {
+      setProvisionBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-xl font-display text-cyan-300 mb-1">User Projects</h3>
+        <h3 className="text-xl font-headline text-cyan-300 mb-1">User Projects</h3>
         <p className="text-sm text-slate-500 mb-6">Manage workspaces; data lives in Supabase (or local fallback).</p>
+        <button
+          type="button"
+          disabled={provisionBusy}
+          onClick={() => void newCloudProject()}
+          className="px-4 py-2 rounded-lg bg-cyan-500/15 text-cyan-200 border border-cyan-500/30 text-sm font-headline no-bold hover:bg-cyan-500/25 disabled:opacity-40 transition-colors"
+        >
+          {provisionBusy ? "Creating…" : "New Project"}
+        </button>
+        {provisionMsg ? <p className="text-xs text-slate-500 mt-2 font-mono">{provisionMsg}</p> : null}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -57,11 +114,11 @@ function ProjectsTab() {
             <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400">
               <span className="material-symbols-outlined">rocket_launch</span>
             </div>
-            <span className="px-2 py-1 bg-green-500/10 text-green-400 text-[10px] uppercase tracking-wider rounded font-display border border-green-500/20">
+            <span className="px-2 py-1 bg-green-500/10 text-green-400 text-[10px] uppercase tracking-wider rounded font-headline border border-green-500/20">
               Active
             </span>
           </div>
-          <h4 className="text-slate-200 font-display mb-1 group-hover:text-cyan-300 transition-colors">Nebulla Core</h4>
+          <h4 className="text-slate-200 font-headline mb-1 group-hover:text-cyan-300 transition-colors">Nebulla Core</h4>
           <p className="text-xs text-slate-500 mb-4">React + Vite + Supabase + Vercel</p>
           <div className="flex items-center justify-between text-[11px] text-slate-600 border-t border-white/5 pt-3">
             <span>Main app</span>
@@ -74,11 +131,11 @@ function ProjectsTab() {
             <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
               <span className="material-symbols-outlined">language</span>
             </div>
-            <span className="px-2 py-1 bg-slate-500/10 text-slate-400 text-[10px] uppercase tracking-wider rounded font-display border border-slate-500/20">
+            <span className="px-2 py-1 bg-slate-500/10 text-slate-400 text-[10px] uppercase tracking-wider rounded font-headline border border-slate-500/20">
               Draft
             </span>
           </div>
-          <h4 className="text-slate-200 font-display mb-1 group-hover:text-cyan-300 transition-colors">Marketing Site</h4>
+          <h4 className="text-slate-200 font-headline mb-1 group-hover:text-cyan-300 transition-colors">Marketing Site</h4>
           <p className="text-xs text-slate-500 mb-4">Static + API routes</p>
           <div className="flex items-center justify-between text-[11px] text-slate-600 border-t border-white/5 pt-3">
             <span>Preview</span>
@@ -88,7 +145,7 @@ function ProjectsTab() {
 
         <div className="p-5 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all cursor-pointer min-h-[180px]">
           <span className="material-symbols-outlined text-3xl mb-2">add_circle</span>
-          <span className="font-display text-sm">Create New Project</span>
+          <span className="font-headline text-sm">Create New Project</span>
         </div>
       </div>
     </div>
@@ -99,12 +156,12 @@ function ProjectSettingsTab() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-xl font-display text-cyan-300 mb-1">Project Settings</h3>
+        <h3 className="text-xl font-headline text-cyan-300 mb-1">Project Settings</h3>
         <p className="text-sm text-slate-500 mb-6">Domains and DNS — use Vercel manager in Settings or REST.</p>
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-        <h4 className="text-sm font-display text-slate-200 mb-2">Custom Domain</h4>
+        <h4 className="text-sm font-headline text-slate-200 mb-2">Custom Domain</h4>
         <p className="text-xs text-slate-500 mb-4">Point DNS to Vercel (A / CNAME).</p>
         <div className="flex gap-3 flex-wrap">
           <input
@@ -114,7 +171,7 @@ function ProjectSettingsTab() {
           />
           <button
             type="button"
-            className="px-5 py-2 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-lg hover:bg-cyan-500/20 transition-colors text-sm font-display"
+            className="px-5 py-2 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-lg hover:bg-cyan-500/20 transition-colors text-sm font-headline"
           >
             Add Domain
           </button>
@@ -124,7 +181,7 @@ function ProjectSettingsTab() {
       <div className="bg-white/5 border border-white/10 rounded-xl p-6">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h4 className="text-sm font-display text-slate-200 mb-1">DNS Records</h4>
+            <h4 className="text-sm font-headline text-slate-200 mb-1">DNS Records</h4>
             <p className="text-xs text-slate-500">Typical Vercel targets shown below.</p>
           </div>
           <button type="button" className="text-xs px-3 py-1.5 bg-white/5 border border-white/10 rounded hover:bg-white/10 text-slate-300 transition-colors">
@@ -136,13 +193,13 @@ function ProjectSettingsTab() {
           <table className="w-full text-left text-sm text-slate-400">
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-slate-500">
-                <th className="pb-3 font-display font-normal">Type</th>
-                <th className="pb-3 font-display font-normal">Name</th>
-                <th className="pb-3 font-display font-normal">Value</th>
-                <th className="pb-3 font-display font-normal">Status</th>
+                <th className="pb-3 font-headline font-normal">Type</th>
+                <th className="pb-3 font-headline font-normal">Name</th>
+                <th className="pb-3 font-headline font-normal">Value</th>
+                <th className="pb-3 font-headline font-normal">Status</th>
               </tr>
             </thead>
-            <tbody className="font-mono nebulla-ws-text-13">
+            <tbody className="font-mono text-13">
               <tr className="border-b border-white/5">
                 <td className="py-4 text-cyan-400">A</td>
                 <td className="py-4">@</td>
@@ -175,12 +232,12 @@ function SecretsTab() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-xl font-display text-cyan-300 mb-1">Secrets & Integrations</h3>
+        <h3 className="text-xl font-headline text-cyan-300 mb-1">Secrets & Integrations</h3>
         <p className="text-sm text-slate-500 mb-6">Host env on Vercel/Railway — Grok, Stitch, Supabase, Vercel token.</p>
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-        <h4 className="text-sm font-display text-slate-200 mb-2">Environment variables (host)</h4>
+        <h4 className="text-sm font-headline text-slate-200 mb-2">Environment variables (host)</h4>
         <p className="text-xs text-slate-500 mb-4">Mirror optional browser overrides in app Settings.</p>
 
         <div className="flex gap-3 mb-6 flex-wrap">
@@ -196,7 +253,7 @@ function SecretsTab() {
           />
           <button
             type="button"
-            className="px-5 py-2 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-lg hover:bg-cyan-500/20 transition-colors text-sm font-display"
+            className="px-5 py-2 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-lg hover:bg-cyan-500/20 transition-colors text-sm font-headline"
           >
             Add
           </button>
@@ -218,7 +275,7 @@ function SecretsTab() {
       </div>
 
       <div>
-        <h4 className="text-sm font-display text-slate-200 mb-4">Connected services</h4>
+        <h4 className="text-sm font-headline text-slate-200 mb-4">Connected services</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-5 border border-white/10 rounded-xl bg-white/5 flex items-center justify-between">
             <div className="flex items-center gap-4 min-w-0">
@@ -228,7 +285,7 @@ function SecretsTab() {
                 </svg>
               </div>
               <div className="min-w-0">
-                <div className="text-sm text-slate-200 font-display">GitHub</div>
+                <div className="text-sm text-slate-200 font-headline">GitHub</div>
                 <div className="text-xs text-slate-500 truncate">Supabase OAuth</div>
               </div>
             </div>
@@ -243,11 +300,11 @@ function SecretsTab() {
                 <span className="material-symbols-outlined">deployed_code</span>
               </div>
               <div>
-                <div className="text-sm text-slate-200 font-display">Vercel</div>
+                <div className="text-sm text-slate-200 font-headline">Vercel</div>
                 <div className="text-xs text-slate-500">Deploy + domains API</div>
               </div>
             </div>
-            <button type="button" className="text-xs px-4 py-1.5 bg-white/10 text-slate-300 rounded-lg hover:bg-white/20 transition-colors font-display">
+            <button type="button" className="text-xs px-4 py-1.5 bg-white/10 text-slate-300 rounded-lg hover:bg-white/20 transition-colors font-headline">
               Docs
             </button>
           </div>
@@ -261,19 +318,19 @@ function UserSettingsTab({ onNavigate }: { onNavigate: (t: NebullaDashboardTab) 
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h3 className="text-xl font-display text-cyan-300 mb-1">User Settings</h3>
+        <h3 className="text-xl font-headline text-cyan-300 mb-1">User Settings</h3>
         <p className="text-sm text-slate-500 mb-6">Profile and app preferences — full controls in app Settings.</p>
         <button
           type="button"
           onClick={() => onNavigate("secrets")}
-          className="text-xs text-cyan-400 hover:underline font-display"
+          className="text-xs text-cyan-400 hover:underline font-headline"
         >
           Open Secrets tab →
         </button>
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-6">
-        <h4 className="text-sm font-display text-slate-200 border-b border-white/5 pb-2">Profile</h4>
+        <h4 className="text-sm font-headline text-slate-200 border-b border-white/5 pb-2">Profile</h4>
         <p className="text-sm text-slate-400">Use Supabase Auth (GitHub / Google) from the main Login page.</p>
       </div>
     </div>

@@ -46,6 +46,7 @@ import {
 import { Stitch, StitchToolClient, StitchError, type Project } from "@google/stitch-sdk";
 import { wrapStitchHtmlAsReactAppTsx } from "./src/lib/stitchWrapReact.js";
 import { extractSvgFromStitchHtml } from "./src/lib/stitchMockupSvg.js";
+import { registerPostApiProjectsCreate } from "./src/api/projects/create.js";
 
 type RequestWithUserId = express.Request & { userId?: string };
 
@@ -747,6 +748,8 @@ async function startServer() {
   // Export project as zip (auth required)
   app.get("/api/export/:id", resolveUserId, requireAuth, handleExportProject);
 
+  registerPostApiProjectsCreate(app, { resolveUserId, requireAuth });
+
   // /api/projects — REST scoped by auth (Bearer). Free tier: 3 projects.
   app.get("/api/projects", resolveUserId, requireAuth, async (req, res) => {
     try {
@@ -839,7 +842,20 @@ async function startServer() {
         res.status(404).json({ error: "Project not found" });
         return;
       }
-      res.json(project);
+      let specsObj: Record<string, unknown> = {};
+      try {
+        specsObj = JSON.parse(project.specs || "{}") as Record<string, unknown>;
+      } catch {
+        specsObj = {};
+      }
+      const mm = specsObj.nebulla_mind_map_json;
+      const mind_map_json =
+        typeof mm === "string" ? mm : JSON.stringify(mm ?? { pages: [], edges: [] });
+      res.json({
+        ...project,
+        mind_map_json,
+        plan: specsObj.nebulla_plan ?? {},
+      });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Failed to get project" });
@@ -850,7 +866,7 @@ async function startServer() {
     try {
       const userId = (req as RequestWithUserId).userId!;
       const { projectId } = req.params;
-      const { code, package_json, chat_messages, name, status, last_edited, specs } = req.body as {
+      const { code, package_json, chat_messages, name, status, last_edited, specs, mind_map_json, plan } = req.body as {
         code?: string;
         package_json?: string;
         chat_messages?: string;
@@ -858,8 +874,29 @@ async function startServer() {
         status?: string;
         last_edited?: string;
         specs?: string | Record<string, string>;
+        mind_map_json?: string | Record<string, unknown>;
+        plan?: Record<string, unknown> | string;
       };
       const specsStr = specs === undefined ? undefined : typeof specs === "string" ? specs : JSON.stringify(specs);
+      const mindMapStr =
+        mind_map_json === undefined
+          ? undefined
+          : typeof mind_map_json === "string"
+            ? mind_map_json
+            : JSON.stringify(mind_map_json ?? {});
+      const planPayload =
+        plan === undefined
+          ? undefined
+          : typeof plan === "string"
+            ? ((): Record<string, unknown> => {
+                try {
+                  const p = JSON.parse(plan) as unknown;
+                  return typeof p === "object" && p !== null && !Array.isArray(p) ? (p as Record<string, unknown>) : {};
+                } catch {
+                  return {};
+                }
+              })()
+            : plan;
       const updates = {
         code,
         package_json,
@@ -868,6 +905,8 @@ async function startServer() {
         status,
         last_edited,
         specs: specsStr,
+        ...(mindMapStr !== undefined && { mind_map_json: mindMapStr }),
+        ...(planPayload !== undefined && { plan: planPayload }),
       };
       if (isSupabaseConfigured()) {
         const ok = await supabaseUpdateProject(userId, projectId, updates);
@@ -878,7 +917,29 @@ async function startServer() {
         res.json({ ok: true });
         return;
       }
-      const ok = db.updateProject(userId, projectId, updates);
+      const proj = db.getProject(userId, projectId);
+      if (!proj) {
+        res.status(404).json({ error: "Project not found" });
+        return;
+      }
+      let specsObj: Record<string, unknown> = {};
+      try {
+        specsObj = JSON.parse((specsStr ?? proj.specs) || "{}") as Record<string, unknown>;
+      } catch {
+        specsObj = {};
+      }
+      if (mindMapStr !== undefined) specsObj.nebulla_mind_map_json = mindMapStr;
+      if (planPayload !== undefined) specsObj.nebulla_plan = planPayload;
+      const mergedSpecs = JSON.stringify(specsObj);
+      const ok = db.updateProject(userId, projectId, {
+        code,
+        package_json,
+        chat_messages: typeof chat_messages === "string" ? chat_messages : JSON.stringify(chat_messages ?? []),
+        name,
+        status,
+        last_edited,
+        specs: mergedSpecs,
+      });
       if (!ok) {
         res.status(404).json({ error: "Project not found" });
         return;

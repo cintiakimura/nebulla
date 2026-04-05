@@ -152,21 +152,21 @@ export function StitchMockupPanel({ pagesText, mindMapSummary, generationNonce, 
       {busy && (
         <div className="flex flex-col items-center gap-6">
           <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
-          <p className="text-sm text-slate-500 nebulla-ws-no-bold text-center">Stitch mockup…</p>
+          <p className="text-sm text-slate-500 no-bold text-center">Stitch mockup…</p>
         </div>
       )}
 
       {!busy && !hasVariants && (
         <div className="flex flex-col items-center gap-5 max-w-md text-center">
           {error ? (
-            <p className="text-sm text-red-400/95 nebulla-ws-no-bold border border-red-500/25 bg-red-500/10 rounded-lg px-4 py-3">{error}</p>
+            <p className="text-sm text-red-400/95 no-bold border border-red-500/25 bg-red-500/10 rounded-lg px-4 py-3">{error}</p>
           ) : (
-            <p className="text-sm text-slate-500 nebulla-ws-no-bold">From Master Plan + Mind Map via POST /api/stitch/mockup.</p>
+            <p className="text-sm text-slate-500 no-bold">From Master Plan + Mind Map via POST /api/stitch/mockup.</p>
           )}
           <button
             type="button"
             onClick={() => void run("replace")}
-            className="px-8 py-3 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-display nebulla-ws-no-bold hover:bg-cyan-500/30 transition-colors"
+            className="px-8 py-3 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-headline no-bold hover:bg-cyan-500/30 transition-colors"
           >
             Create Mockup
           </button>
@@ -177,8 +177,8 @@ export function StitchMockupPanel({ pagesText, mindMapSummary, generationNonce, 
         <div className="flex flex-col items-center w-full max-w-5xl gap-6 min-h-0">
           <div className="w-full rounded-xl border border-white/10 bg-black/40 overflow-hidden shadow-2xl flex flex-col min-h-[240px] max-h-[min(56vh,520px)]">
             <div className="px-3 py-2 border-b border-white/10 bg-white/5 flex justify-between shrink-0">
-              <span className="text-[11px] text-slate-500 font-display uppercase tracking-wider nebulla-ws-no-bold">Preview</span>
-              <span className="text-[11px] text-cyan-500/80 nebulla-ws-no-bold">
+              <span className="text-[11px] text-slate-500 font-headline uppercase tracking-wider no-bold">Preview</span>
+              <span className="text-[11px] text-cyan-500/80 no-bold">
                 {index + 1} / {variants.length}
               </span>
             </div>
@@ -235,9 +235,9 @@ export function StitchMockupPanel({ pagesText, mindMapSummary, generationNonce, 
               }
               onClose?.();
             }}
-            className="flex items-center gap-2 px-10 py-3 rounded-full border border-cyan-500/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 transition-all font-display font-medium nebulla-ws-no-bold"
+            className="flex items-center gap-2 px-10 py-3 rounded-full border border-cyan-500/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 transition-all font-headline font-medium no-bold"
           >
-            <span className="material-symbols-outlined nebulla-ws-text-18">lock</span>
+            <span className="material-symbols-outlined text-18">lock</span>
             Lock this design
           </button>
         </div>

@@ -117,98 +117,106 @@ export function NebullaWorkspaceAssistant({ width = 320, onRequestStitchMockup }
     }
   };
 
+  const handleSendText = () => void send();
+
   return (
     <aside
       className="flex flex-col border-l border-white/5 bg-[#040f1a]/40 backdrop-blur-md shrink-0 h-full min-h-0"
       style={{ width }}
     >
-      <div className="h-12 px-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
-        <div className="flex items-center gap-2 text-cyan-300">
-          <span className="material-symbols-outlined nebulla-ws-text-18">smart_toy</span>
-          <span className="font-display text-xs tracking-widest uppercase">Nebulla Partner</span>
+      <div className="p-4 border-b border-white/5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-13 font-headline text-slate-300 no-bold">Nebula Partner</span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+      <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 min-h-0">
         {messages.map((msg, i) => (
           <div
             key={i}
-            className={`flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
+            className={`p-3 rounded-xl max-w-[90%] border ${
+              msg.role === "user"
+                ? "bg-white/5 rounded-tr-none self-end border-white/5 text-slate-300"
+                : msg.role === "system"
+                  ? "bg-cyan-900/20 rounded-xl self-center border-cyan-500/20 text-cyan-300 text-xs text-center w-full"
+                  : "bg-secondary-container/10 rounded-tl-none self-start border-secondary-dim/10 text-secondary"
+            }`}
           >
-            <div
-              className={`max-w-[95%] rounded-lg px-3 py-2 text-sm nebulla-ws-no-bold ${
-                msg.role === "user"
-                  ? "bg-cyan-500/15 text-cyan-100 border border-cyan-500/20"
-                  : "bg-white/5 text-slate-300 border border-white/10"
-              }`}
-            >
-              {msg.role === "model" ? (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown>{msg.text}</ReactMarkdown>
-                </div>
-              ) : (
-                msg.text
-              )}
-            </div>
+            {msg.role === "model" ? (
+              <div className="text-13 no-bold prose prose-invert prose-sm max-w-none prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/10 prose-pre:p-2 prose-pre:rounded-md">
+                <ReactMarkdown>{msg.text}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-13 no-bold whitespace-pre-wrap">{msg.text}</p>
+            )}
           </div>
         ))}
         <div ref={endRef} />
       </div>
 
-      <div className="p-3 border-t border-white/5 shrink-0 space-y-2">
-        <div className="flex gap-1.5 flex-wrap">
-          <button
-            type="button"
-            title="Microphone (browser STT)"
-            onClick={toggleVoiceAppend}
-            className={`p-2 rounded-md border transition-colors ${
-              isRecordingText
-                ? "bg-red-500/20 border-red-500/40 text-red-300"
-                : "bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300"
-            }`}
-          >
-            <span className="material-symbols-outlined nebulla-ws-text-18">mic</span>
-          </button>
-          <button
-            type="button"
-            title="Voice session"
-            className="p-2 rounded-md border bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300 transition-colors"
-          >
-            <span className="material-symbols-outlined nebulla-ws-text-18">headset_mic</span>
-          </button>
-          <button
-            type="button"
-            title="Mute"
-            className="p-2 rounded-md border bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300 transition-colors"
-          >
-            <span className="material-symbols-outlined nebulla-ws-text-18">mic_off</span>
-          </button>
-          <button
-            type="button"
-            title="Attach"
-            className="p-2 rounded-md border bg-white/5 border-white/10 text-slate-400 hover:text-cyan-300 transition-colors"
-          >
-            <span className="material-symbols-outlined nebulla-ws-text-18">attach_file</span>
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
+      <div className="p-4 border-t border-white/5 flex flex-col gap-3 shrink-0">
+        <div className="relative flex flex-col gap-2">
+          <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void send()}
-            placeholder="Start a call or type here…"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendText();
+              }
+            }}
             disabled={pending}
-            className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-cyan-500/40"
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-13 no-bold focus:outline-none focus:border-cyan-500/50 resize-none h-20 placeholder:text-slate-600 transition-all disabled:opacity-50"
+            placeholder="Start a call or type here..."
           />
+          <div className="absolute bottom-2 right-2 flex gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleSendText}
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-container/20 text-primary hover:shadow-[0_0_15px_rgba(0,255,255,0.2)] transition-all disabled:opacity-50"
+              title="Send"
+            >
+              <span className="material-symbols-outlined text-18">send</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleVoiceAppend}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${
+                isRecordingText
+                  ? "bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(255,0,0,0.2)]"
+                  : "hover:bg-white/5 text-slate-500 hover:text-cyan-300"
+              }`}
+              title={isRecordingText ? "Stop Recording" : "Dictate Text"}
+            >
+              <span className="material-symbols-outlined text-18">mic</span>
+            </button>
+            <button
+              type="button"
+              className="w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-white/5 text-slate-500 hover:text-cyan-300"
+              title="Voice session"
+            >
+              <span className="material-symbols-outlined text-18">headset_mic</span>
+            </button>
+            <button
+              type="button"
+              className="w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-white/5 text-slate-500 hover:text-cyan-300"
+              title="Mute"
+            >
+              <span className="material-symbols-outlined text-18">mic_off</span>
+            </button>
+          </div>
           <button
             type="button"
-            disabled={pending}
-            onClick={() => void send()}
-            className="px-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 disabled:opacity-50 font-display text-sm shrink-0"
-            title="Send"
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 text-slate-500 hover:text-cyan-300 transition-all"
+            title="Upload File"
           >
-            <span className="material-symbols-outlined nebulla-ws-text-18">send</span>
+            <span className="material-symbols-outlined text-18">attach_file</span>
           </button>
         </div>
       </div>

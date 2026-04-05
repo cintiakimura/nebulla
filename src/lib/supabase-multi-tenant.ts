@@ -40,7 +40,8 @@ export type ProjectRow = {
   package_json: string;
   chat_messages: string;
   specs: string;
-  plan: string | null;
+  plan: unknown;
+  mind_map_json?: string;
   created_at: string;
 };
 
@@ -187,6 +188,7 @@ export async function updateProject(
     chat_messages?: string;
     specs?: string;
     plan?: Record<string, unknown> | string;
+    mind_map_json?: string;
     code_versions?: unknown[] | string;
     deployment_status?: string;
     live_url?: string | null;
@@ -194,7 +196,19 @@ export async function updateProject(
 ): Promise<boolean> {
   const supabase = getAdminClient();
   if (!supabase) return false;
-  const planVal = updates.plan === undefined ? undefined : typeof updates.plan === "string" ? updates.plan : JSON.stringify(updates.plan);
+  const planForDb =
+    updates.plan === undefined
+      ? undefined
+      : typeof updates.plan === "string"
+        ? ((): Record<string, unknown> => {
+            try {
+              const p = JSON.parse(updates.plan) as unknown;
+              return typeof p === "object" && p !== null && !Array.isArray(p) ? (p as Record<string, unknown>) : {};
+            } catch {
+              return {};
+            }
+          })()
+        : (updates.plan as Record<string, unknown>);
   const codeVersionsVal = updates.code_versions === undefined ? undefined : typeof updates.code_versions === "string" ? updates.code_versions : JSON.stringify(updates.code_versions ?? []);
   const brandingAssetsVal =
     updates.branding_assets === undefined
@@ -222,7 +236,11 @@ export async function updateProject(
       ...(updates.package_json !== undefined && { package_json: updates.package_json }),
       ...(updates.chat_messages !== undefined && { chat_messages: updates.chat_messages }),
       ...(updates.specs !== undefined && { specs: updates.specs }),
-      ...(planVal !== undefined && { plan: planVal }),
+      ...(planForDb !== undefined && { plan: planForDb }),
+      ...(updates.mind_map_json !== undefined && {
+        mind_map_json:
+          typeof updates.mind_map_json === "string" ? updates.mind_map_json : JSON.stringify(updates.mind_map_json ?? {}),
+      }),
       ...(codeVersionsVal !== undefined && { code_versions: codeVersionsVal }),
       ...(updates.deployment_status !== undefined && { deployment_status: updates.deployment_status }),
       ...(updates.live_url !== undefined && { live_url: updates.live_url }),

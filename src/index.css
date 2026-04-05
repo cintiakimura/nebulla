@@ -1,30 +1,61 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /*
- * Celestial Fluidity — “The Infinite Horizon”
- * Midnight foundation, nebula luminescence, glass + tonal separation (no harsh grid lines).
+ * Nebulla.gs palette + tokens (github.com/cintiakimura/nebulla.gs).
+ * Celestial bundle vars in :root remain for legacy panels.
  */
 
 @theme inline {
-  /* Surfaces — layered midnight blues (no pure grey) */
-  --color-background: #040f1a;
-  --color-foreground: #c8d9e8;
-  --color-primary: #00e6e6;
-  --color-primary-dim: #00b8b8;
-  --color-secondary: #a533ff;
+  /* Nebulla.gs / Material semantic palette */
+  --color-on-tertiary-container: #660066;
+  --color-primary-container: #00ffff;
+  --color-on-primary-fixed-variant: #006262;
+  --color-primary-fixed: #00f5f5;
+  --color-surface-container: #081b2b;
+  --color-on-surface-variant: #96adc8;
+  --color-surface-container-low: #051422;
+  --color-secondary-container: #3c0066;
+  --color-primary-fixed-dim: #00e6e6;
+  --color-secondary: #dfb7ff;
+  --color-primary-dim: #00e6e6;
+  --color-on-surface: #d4e7ff;
+  --color-surface-variant: #0e273d;
+  --color-surface-tint: #c1fffe;
+  --color-background: #020c17;
+  --color-tertiary: #ffabf3;
+  --color-outline: #607890;
+  --color-error-container: #8a1a1e;
+  --color-inverse-surface: #f7f9ff;
+  --color-surface-container-high: #0b2134;
+  --color-surface-container-lowest: #000000;
+  --color-outline-variant: #334a61;
+  --color-secondary-dim: #a533ff;
+  --color-error: #ff716c;
+  --color-on-secondary-fixed: #60009f;
+  --color-on-primary: #006767;
+  --color-surface: #020c17;
+  --color-on-secondary-fixed-variant: #8800de;
+  --color-primary: #c1fffe;
+  --color-surface-dim: #020c17;
+  --color-on-primary-container: #005d5d;
+  --color-surface-bright: #112e46;
+  --color-surface-container-highest: #0e273d;
 
-  /* Legacy VS-style names → celestial (existing class names keep working) */
-  --color-vs-bg: #040f1a;
+  --color-foreground: #d4e7ff;
+
+  /* Legacy VS-style names → current palette */
+  --color-vs-bg: #020c17;
   --color-vs-editor: #051422;
   --color-vs-accent: #00e6e6;
-  --color-vs-foreground: #c8d9e8;
-  --color-vs-muted: #7a9aad;
+  --color-vs-foreground: #d4e7ff;
+  --color-vs-muted: #96adc8;
   --color-vs-hover: #0b2134;
   --color-vs-border: rgba(51, 74, 97, 0.14);
-  --color-vs-status: #040f1a;
+  --color-vs-status: #020c17;
   --color-vs-secondary: #c1fffe;
 
-  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
 
   --radius-sm: 0.5rem;
@@ -37,7 +68,7 @@
 @layer base {
   :root {
     /* Celestial tokens */
-    --celestial-surface: #040f1a;
+    --celestial-surface: #020c17;
     --celestial-surface-dim: #031018;
     --celestial-surface-container-low: #051422;
     --celestial-surface-container: rgba(11, 33, 52, 0.55);
@@ -54,8 +85,8 @@
     --celestial-nebula-violet: #8800de;
     --celestial-secondary-dim: #a533ff;
 
-    --celestial-on-surface: #b8cad8;
-    --celestial-on-surface-muted: #7a9aad;
+    --celestial-on-surface: #d4e7ff;
+    --celestial-on-surface-muted: #96adc8;
     --celestial-on-surface-bright: #e2f0fa;
 
     --celestial-outline-variant: #334a61;
@@ -66,19 +97,19 @@
     --celestial-ambient-shadow: 0 24px 48px -12px rgba(96, 0, 159, 0.05);
 
     /* Back-compat bundle */
-    --color-primary: #00e6e6;
-    --color-background: #040f1a;
-    --color-text: #c8d9e8;
-    --bg-primary: #040f1a;
+    --color-primary: #c1fffe;
+    --color-background: #020c17;
+    --color-text: #d4e7ff;
+    --bg-primary: #020c17;
     --bg-editor: #051422;
     --bg-sidebar: #0b2134;
     --accent: #00e6e6;
     --accent-hover: #33eeea;
     --secondary: #c1fffe;
-    --text-primary: #c8d9e8;
-    --text-secondary: #7a9aad;
+    --text-primary: #d4e7ff;
+    --text-secondary: #96adc8;
     --hover: #0b2134;
-    --status-bg: #040f1a;
+    --status-bg: #020c17;
     --border: rgba(51, 74, 97, 0.18);
     --border-subtle: rgba(193, 255, 254, 0.06);
     --syntax-string: #ce9178;
@@ -92,32 +123,28 @@
   }
 
   body {
-    background-color: var(--celestial-surface);
-    color: var(--celestial-on-surface);
+    background-color: var(--color-background);
+    background-image:
+      radial-gradient(circle at 0% 0%, #0f0825 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, #0f0825 0%, transparent 50%);
+    color: var(--color-on-surface);
     font-family: var(--font-sans);
     min-height: 100vh;
     position: relative;
   }
 
-  /* Nebula bleed — large radial washes (non-interactive) */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background:
-      radial-gradient(ellipse 120% 80% at 100% -20%, rgba(60, 0, 102, 0.22) 0%, transparent 55%),
-      radial-gradient(ellipse 90% 70% at -10% 110%, rgba(136, 0, 222, 0.12) 0%, transparent 50%),
-      radial-gradient(ellipse 60% 50% at 50% 100%, rgba(0, 230, 230, 0.04) 0%, transparent 45%);
-  }
-
   #root {
     position: relative;
     z-index: 1;
+    min-height: 100vh;
   }
 
   .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  .font-headline {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
   }
@@ -256,13 +283,43 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  .glass-panel {
+    background: rgba(4, 15, 26, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
   .nebulla-ws-glass-panel {
     background: rgba(4, 15, 26, 0.4);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .nebula-glow:hover {
+    box-shadow: 0 0 25px rgba(0, 230, 230, 0.1);
   }
 
   .nebulla-ws-nebula-glow-hover:hover {
     box-shadow: 0 0 25px rgba(0, 230, 230, 0.1);
+  }
+
+  .text-12 {
+    font-size: 12px !important;
+  }
+  .text-13 {
+    font-size: 13px !important;
+  }
+  .text-14 {
+    font-size: 14px !important;
+  }
+  .text-18 {
+    font-size: 18px !important;
+  }
+  .text-24 {
+    font-size: 24px !important;
+  }
+  .no-bold {
+    font-weight: 400 !important;
   }
 
   .nebulla-ws-text-13 {

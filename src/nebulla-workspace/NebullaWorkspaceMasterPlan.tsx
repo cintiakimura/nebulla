@@ -1,18 +1,35 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getApiBase } from "../lib/api";
+import { getUserId } from "../lib/auth";
+import { getBackendSecretHeaders } from "../lib/storedSecrets";
 
-const MASTER_PLAN_STORAGE_KEY = "nebulla_workspace_master_plan_v1";
+export const NEBULLA_PLAN_SECTION_ORDER = [
+  "objective",
+  "roles",
+  "data",
+  "constraints",
+  "branding",
+  "pages",
+  "competition",
+  "pricing",
+  "kpis",
+] as const;
 
-type MasterPlanStored = {
+export type NebullaPlanSectionId = (typeof NEBULLA_PLAN_SECTION_ORDER)[number];
+
+export type NebullaMasterPlanSlice = {
   v: 1;
-  pagesText: string;
-  expandedId: string | null;
-  savedAt: string;
+  sections: Partial<Record<NebullaPlanSectionId, { locked: boolean; summary: string }>>;
 };
 
-const STATIC_SECTIONS = [
+export function defaultNebullaMasterPlanSlice(): NebullaMasterPlanSlice {
+  return { v: 1, sections: {} };
+}
+
+const STATIC_SECTIONS: { id: NebullaPlanSectionId; title: string; content: string }[] = [
   {
     id: "objective",
-    title: "1. Objective & Goal & Scope",
+    title: "Objective & Goal & Scope",
     content: `OBJECTIVE & GOAL & SCOPE
 
 Construct Nebulla: a voice-friendly builder that starts from architecture (mind map + master plan), not raw code.
@@ -22,13 +39,13 @@ Rapid UI prototyping with Grok, Google Stitch for UI generation, Supabase for au
 
 SCOPE:
 - Grok chat + optional multi-agent pipeline
-- Stitch → React preview in Builder
+- Stitch to React preview in Builder
 - Supabase multi-tenant projects + optional SQLite fallback
 - Vercel REST manager (deploy, domains, blob) from host env`,
   },
   {
     id: "roles",
-    title: "2. User Roles",
+    title: "User Roles",
     content: `USER ROLES
 
 - Owner: full project + secrets on host / Settings.
@@ -37,7 +54,7 @@ SCOPE:
   },
   {
     id: "data",
-    title: "3. Data & Models",
+    title: "Data & Models",
     content: `DATA & MODELS
 
 - User (Supabase Auth)
@@ -46,7 +63,7 @@ SCOPE:
   },
   {
     id: "constraints",
-    title: "4. Constraints & Edges",
+    title: "Constraints & Edges",
     content: `CONSTRAINTS
 
 - LLM and Stitch rate limits; free-tier Grok daily cap unless Pro.
@@ -55,119 +72,289 @@ SCOPE:
   },
   {
     id: "branding",
-    title: "5. Branding System",
+    title: "Branding System",
     content: `BRANDING
 
 Celestial Fluidity: midnight surfaces, cyan primary, glass panels, Space Grotesk + Manrope.`,
   },
   {
+    id: "pages",
+    title: "Pages & Navigation",
+    content: "",
+  },
+  {
     id: "competition",
-    title: "7. Competition Analysis",
-    content: `COMPETITORS: Cursor, Copilot, v0.
+    title: "Competition Analysis",
+    content: `COMPETITION ANALYSIS
+
+COMPETITORS: Cursor, Copilot, v0.
 
 DIFFERENTIATORS: architecture-first flow, Stitch-backed UI generation, Grok VETR loop in Builder.`,
   },
   {
     id: "pricing",
-    title: "8. Pricing",
-    content: `Free tier limits on projects/Grok; Pro for unlimited (see product config).`,
+    title: "Pricing",
+    content: `PRICING STRATEGY
+
+(Draft / TBD)
+
+- Free Tier: limited projects and Grok usage.
+- Pro Tier: unlimited projects, export, integrations.`,
   },
   {
     id: "kpis",
-    title: "9. KPIs",
-    content: `KPIs (draft)
+    title: "KPIs",
+    content: `KEY PERFORMANCE INDICATORS (KPIs)
 
-- Time from idea → first preview
-- Stitch regen → lock rate
+- Time from idea to first preview
+- Voice intent accuracy
 - Deploy success on Vercel`,
   },
 ];
 
+const VOICE_PROMPTS: Record<NebullaPlanSectionId, string> = {
+  objective: "State the product objective, goal, and scope in your own words.",
+  roles: "Who are the user roles and what can each one do?",
+  data: "What data entities and relationships matter for this product?",
+  constraints: "What technical or product constraints should we never violate?",
+  branding: "Describe the visual and voice branding you want.",
+  pages: "Review the Pages & Navigation list. Say lock in when it matches your intent.",
+  competition: "Who competes with this product and how are you different?",
+  pricing: "Outline pricing tiers or constraints.",
+  kpis: "Which KPIs will you measure first?",
+};
+
+type WkRec = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: (e: Event) => void;
+  onend: () => void;
+  onerror: () => void;
+  start: () => void;
+  stop: () => void;
+};
+
+function parseRepeatSummary(raw: string): { repeat: string; summary: string } {
+  const m = raw.match(/REPEAT:\s*([^\n]+)\s*\n+SUMMARY:\s*([\s\S]+)/i);
+  if (m) return { repeat: m[1].trim(), summary: m[2].trim() };
+  const lines = raw.trim().split("\n").filter(Boolean);
+  return { repeat: lines[0] ?? raw.trim(), summary: lines.slice(1).join("\n").trim() || raw.trim() };
+}
+
 export function NebullaWorkspaceMasterPlan({
   onClose,
   pagesText,
+  planSlice,
+  onPlanSliceChange,
 }: {
   onClose: () => void;
   pagesText: string;
+  planSlice: NebullaMasterPlanSlice;
+  onPlanSliceChange: (next: NebullaMasterPlanSlice) => void;
 }) {
-  const PLAN_SECTIONS = useMemo(
-    () => [
-      ...STATIC_SECTIONS.slice(0, 5),
-      { id: "pages", title: "6. Pages & Navigation", content: pagesText },
-      ...STATIC_SECTIONS.slice(5),
-    ],
-    [pagesText]
-  );
-
-  const sectionIds = useMemo(() => new Set(PLAN_SECTIONS.map((s) => s.id)), [PLAN_SECTIONS]);
-
-  const [expandedId, setExpandedId] = useState<string | null>(PLAN_SECTIONS[0]?.id ?? null);
-  const [isSaved, setIsSaved] = useState(false);
-  const lastSavedPagesTextRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(MASTER_PLAN_STORAGE_KEY);
-      if (!raw) {
-        lastSavedPagesTextRef.current = null;
-        setIsSaved(false);
-        return;
-      }
-      const p = JSON.parse(raw) as Partial<MasterPlanStored>;
-      if (p.v !== 1 || typeof p.pagesText !== "string") {
-        lastSavedPagesTextRef.current = null;
-        setIsSaved(false);
-        return;
-      }
-      lastSavedPagesTextRef.current = p.pagesText;
-      setIsSaved(p.pagesText === pagesText);
-      if (p.expandedId === null || (typeof p.expandedId === "string" && sectionIds.has(p.expandedId))) {
-        setExpandedId(p.expandedId);
-      }
-    } catch {
-      lastSavedPagesTextRef.current = null;
-      setIsSaved(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once from localStorage; pagesText sync below
-  }, []);
-
-  useEffect(() => {
-    const last = lastSavedPagesTextRef.current;
-    if (last === null) {
-      setIsSaved(false);
-      return;
-    }
-    setIsSaved(pagesText === last);
+  const PLAN_SECTIONS = useMemo(() => {
+    return STATIC_SECTIONS.map((s) =>
+      s.id === "pages" ? { ...s, content: pagesText || "(No pages yet — add nodes on the Mind Map.)" } : s
+    );
   }, [pagesText]);
 
-  const handleSave = () => {
-    const payload: MasterPlanStored = {
-      v: 1,
-      pagesText,
-      expandedId,
-      savedAt: new Date().toISOString(),
+  const [activeTab, setActiveTab] = useState<NebullaPlanSectionId>(NEBULLA_PLAN_SECTION_ORDER[0]);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "answer" | "repeat" | "lock">("idle");
+  const [lastTranscript, setLastTranscript] = useState("");
+  const [repeatLine, setRepeatLine] = useState("");
+  const [draftSummary, setDraftSummary] = useState("");
+  const [voiceErr, setVoiceErr] = useState<string | null>(null);
+  const [holding, setHolding] = useState(false);
+  const transcriptBuf = useRef("");
+  const recRef = useRef<WkRec | null>(null);
+  const voiceBusy = useRef(false);
+  const draftSummaryRef = useRef("");
+  const voicePhaseRef = useRef(voicePhase);
+  const planSliceRef = useRef(planSlice);
+  const pagesTextRef = useRef(pagesText);
+  const onPlanSliceChangeRef = useRef(onPlanSliceChange);
+  voicePhaseRef.current = voicePhase;
+  planSliceRef.current = planSlice;
+  pagesTextRef.current = pagesText;
+  onPlanSliceChangeRef.current = onPlanSliceChange;
+
+  const firstUnlockedId = useMemo((): NebullaPlanSectionId | null => {
+    for (const id of NEBULLA_PLAN_SECTION_ORDER) {
+      if (!planSlice.sections[id]?.locked) return id;
+    }
+    return null;
+  }, [planSlice.sections]);
+
+  const voiceTargetId = firstUnlockedId;
+
+  const handleSpeechEndRef = useRef<(text: string) => void>(() => {});
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("webkitSpeechRecognition" in window)) return;
+    const Ctor = (window as unknown as { webkitSpeechRecognition: new () => WkRec }).webkitSpeechRecognition;
+    const r = new Ctor();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = "en-US";
+    r.onresult = (ev: Event) => {
+      const e = ev as unknown as {
+        resultIndex: number;
+        results: { length: number; item: (i: number) => { 0: { transcript: string } } };
+      };
+      let t = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        t += e.results.item(i)[0].transcript;
+      }
+      transcriptBuf.current = (transcriptBuf.current + " " + t).trim();
     };
+    r.onend = () => {
+      setHolding(false);
+      const text = transcriptBuf.current.trim();
+      transcriptBuf.current = "";
+      void handleSpeechEndRef.current(text);
+    };
+    r.onerror = () => {
+      setHolding(false);
+      setVoiceErr("Speech recognition error");
+      voiceBusy.current = false;
+    };
+    recRef.current = r;
+  }, []);
+
+  const runGrokRepeatSummary = useCallback(async (sectionId: NebullaPlanSectionId, spoken: string) => {
+    const api = getApiBase() || "";
+      if (!api) {
+      setRepeatLine(`You said: ${spoken}`);
+      draftSummaryRef.current = spoken;
+      setDraftSummary(spoken);
+      setVoicePhase("repeat");
+      voiceBusy.current = false;
+      return;
+    }
+    const userId = await getUserId();
+    const headers = { "Content-Type": "application/json", ...getBackendSecretHeaders() } as Record<string, string>;
+    const title = STATIC_SECTIONS.find((s) => s.id === sectionId)?.title ?? sectionId;
+    const res = await fetch(`${api}/api/agent/chat`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content:
+              `Master plan section: "${title}". User said:\n"""${spoken}"""\n\n` +
+              `Reply with exactly two lines and nothing else:\n` +
+              `REPEAT: one short sentence paraphrasing them (start with "You want to").\n` +
+              `SUMMARY: plain text only, no markdown, no bold — a tight paragraph to store as the locked section text.`,
+          },
+        ],
+        userId,
+        interactionMode: "talk",
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { message?: { content?: string }; error?: string };
+    const raw = typeof data.message?.content === "string" ? data.message.content : data.error || spoken;
+    const { repeat, summary } = parseRepeatSummary(raw);
+    setRepeatLine(repeat);
+    setDraftSummary(summary || spoken);
+    setVoicePhase("repeat");
+    voiceBusy.current = false;
+  }, []);
+
+  const handleSpeechEnd = useCallback(
+    async (text: string) => {
+      if (!text || voiceBusy.current) return;
+      const phase = voicePhaseRef.current;
+      const slice = planSliceRef.current;
+      const ptext = pagesTextRef.current;
+      const firstOpen = NEBULLA_PLAN_SECTION_ORDER.find((id) => !slice.sections[id]?.locked) ?? null;
+      if (!firstOpen) return;
+      const tid = firstOpen;
+      setLastTranscript(text);
+      setVoiceErr(null);
+
+      if (phase === "idle" || phase === "answer") {
+        if (tid === "pages") {
+          setRepeatLine("Pages & Navigation is taken from the mind map (sorted left to right).");
+          draftSummaryRef.current = ptext;
+          setDraftSummary(ptext);
+          setVoicePhase("repeat");
+          return;
+        }
+        voiceBusy.current = true;
+        setVoicePhase("answer");
+        await runGrokRepeatSummary(tid, text);
+        return;
+      }
+
+      if (phase === "repeat") {
+        if (/lock\s*in/i.test(text)) {
+          const summaryVal = tid === "pages" ? ptext : draftSummary || text;
+          const next: NebullaMasterPlanSlice = {
+            ...slice,
+            v: 1,
+            sections: {
+              ...slice.sections,
+              [tid]: { locked: true, summary: summaryVal },
+            },
+          };
+          onPlanSliceChangeRef.current(next);
+          setVoicePhase("idle");
+          setRepeatLine("");
+          setDraftSummary("");
+          setLastTranscript("");
+        } else {
+          setVoiceErr('Say "lock in" clearly to save this section and move on.');
+        }
+      }
+    },
+    [runGrokRepeatSummary]
+  );
+
+  handleSpeechEndRef.current = handleSpeechEnd;
+
+  const startHold = () => {
+    const r = recRef.current;
+    if (!r) {
+      setVoiceErr("Speech recognition not supported in this browser.");
+      return;
+    }
+    setVoiceErr(null);
+    transcriptBuf.current = "";
+    setHolding(true);
     try {
-      localStorage.setItem(MASTER_PLAN_STORAGE_KEY, JSON.stringify(payload));
-      lastSavedPagesTextRef.current = pagesText;
-      setIsSaved(true);
+      r.start();
     } catch {
-      setIsSaved(false);
+      setHolding(false);
+      setVoiceErr("Could not start microphone.");
     }
   };
 
-  const toggle = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+  const endHold = () => {
+    const r = recRef.current;
+    if (!r) return;
+    try {
+      r.stop();
+    } catch {
+      setHolding(false);
+    }
   };
 
-  const activeContent = PLAN_SECTIONS.find((s) => s.id === expandedId)?.content ?? "";
+  const activeSection = PLAN_SECTIONS.find((s) => s.id === activeTab);
+  const displayBody =
+    activeTab === "pages"
+      ? pagesText || "(No pages yet — add nodes on the Mind Map.)"
+      : planSlice.sections[activeTab]?.locked && planSlice.sections[activeTab]?.summary
+        ? planSlice.sections[activeTab]!.summary
+        : activeSection?.content ?? "";
 
   return (
-    <div className="flex flex-col h-full nebulla-ws-glass-panel rounded-md border border-white/5 overflow-hidden shadow-2xl">
+    <div className="flex flex-col h-full glass-panel rounded-md border border-white/5 overflow-hidden shadow-2xl">
       <div className="h-12 px-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
         <div className="flex items-center gap-3 text-cyan-300">
-          <span className="material-symbols-outlined nebulla-ws-text-18">menu_book</span>
-          <span className="font-display text-sm tracking-wide">Master Plan</span>
+          <span className="material-symbols-outlined text-18">menu_book</span>
+          <span className="font-headline text-sm tracking-wide">Master Plan</span>
           <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 flex items-center gap-1">
             <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>
               lock
@@ -176,22 +363,13 @@ export function NebullaWorkspaceMasterPlan({
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaved}
-            className="flex items-center gap-1 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 rounded text-xs transition-colors border border-cyan-500/20 font-display disabled:opacity-50 disabled:pointer-events-none"
-          >
-            <span className="material-symbols-outlined nebulla-ws-text-14">save</span>
-            {isSaved ? "Saved" : "Save"}
-          </button>
           <div className="w-px h-4 bg-white/10" />
           <button
             type="button"
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-red-400 transition-colors"
           >
-            <span className="material-symbols-outlined nebulla-ws-text-18">close</span>
+            <span className="material-symbols-outlined text-18">close</span>
           </button>
         </div>
       </div>
@@ -199,38 +377,87 @@ export function NebullaWorkspaceMasterPlan({
       <div className="flex flex-1 min-h-0 overflow-hidden flex-col md:flex-row">
         <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/5 bg-black/20 p-3 flex flex-col gap-1 overflow-y-auto shrink-0 max-h-[40vh] md:max-h-none">
           {PLAN_SECTIONS.map((section) => {
-            const open = expandedId === section.id;
+            const locked = planSlice.sections[section.id]?.locked === true;
             return (
-              <div key={section.id} className="rounded-md border border-white/5 overflow-hidden bg-black/10">
-                <button
-                  type="button"
-                  onClick={() => toggle(section.id)}
-                  className={`w-full text-left px-3 py-2.5 nebulla-ws-text-13 transition-all font-display tracking-wide flex items-center justify-between gap-2 ${
-                    open
-                      ? "bg-cyan-500/10 text-cyan-300 border-b border-cyan-500/20"
-                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                  }`}
-                >
-                  <span className="flex-1 min-w-0">{section.title}</span>
-                  <span className={`material-symbols-outlined nebulla-ws-text-14 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
-                    expand_more
-                  </span>
-                </button>
-                {open ? (
-                  <div className="md:hidden px-3 py-2 border-t border-white/5 max-h-48 overflow-y-auto">
-                    <pre className="font-mono nebulla-ws-text-13 text-slate-400 whitespace-pre-wrap">{section.content}</pre>
-                  </div>
-                ) : null}
-              </div>
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveTab(section.id)}
+                className={`text-left px-3 py-2.5 rounded-md text-13 transition-all font-headline tracking-wide border ${
+                  activeTab === section.id
+                    ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/20 shadow-[inset_2px_0_0_0_rgba(0,255,255,0.5)]"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200 border-transparent"
+                }`}
+              >
+                <span className="no-bold">
+                  {locked ? "✓ " : ""}
+                  {section.title}
+                </span>
+              </button>
             );
           })}
         </div>
 
-        <div className="flex-1 bg-[#020810] p-6 md:p-8 overflow-y-auto min-h-0 hidden md:block">
-          <div className="max-w-3xl mx-auto bg-white/[0.02] border border-white/5 rounded-xl p-8 min-h-full shadow-lg">
-            <pre className="font-mono nebulla-ws-text-13 text-slate-300 leading-relaxed whitespace-pre-wrap outline-none">
-              {activeContent}
-            </pre>
+        <div className="flex-1 flex flex-col min-h-0 bg-[#020810]">
+          <div className="flex-1 p-6 md:p-8 overflow-y-auto min-h-0">
+            <div className="max-w-3xl mx-auto bg-white/[0.02] border border-white/5 rounded-xl p-8 min-h-full shadow-lg">
+              <pre className="font-mono text-13 text-slate-300 leading-relaxed whitespace-pre-wrap outline-none font-normal no-bold">
+                {displayBody}
+              </pre>
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 bg-black/30 p-4 shrink-0 space-y-3">
+            <div className="text-[11px] text-slate-500 font-mono uppercase tracking-wide">Voice (sequential)</div>
+            {!voiceTargetId ? (
+              <p className="text-13 text-emerald-400/90">All sections are locked. Plan is complete.</p>
+            ) : (
+              <>
+                <p className="text-13 text-slate-400">
+                  Next section:{" "}
+                  <span className="text-cyan-300">{STATIC_SECTIONS.find((s) => s.id === voiceTargetId)?.title}</span>
+                  {voicePhase === "idle" || voicePhase === "answer" ? (
+                    <> — {VOICE_PROMPTS[voiceTargetId]}</>
+                  ) : (
+                    <> — Confirm, then say &quot;lock in&quot; to save.</>
+                  )}
+                </p>
+                {voicePhase === "repeat" && repeatLine ? (
+                  <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-2 text-13 text-slate-300">
+                    <div>
+                      <span className="text-slate-500">Repeat back: </span>
+                      {repeatLine}
+                    </div>
+                    {draftSummary && voiceTargetId !== "pages" ? (
+                      <pre className="font-mono text-xs text-slate-400 whitespace-pre-wrap font-normal">{draftSummary}</pre>
+                    ) : null}
+                  </div>
+                ) : null}
+                {lastTranscript && voicePhase !== "repeat" ? (
+                  <p className="text-12 text-slate-500 font-mono">Heard: {lastTranscript}</p>
+                ) : null}
+                {voiceErr ? <p className="text-12 text-amber-400">{voiceErr}</p> : null}
+                <button
+                  type="button"
+                  className={`w-full md:w-auto px-6 py-3 rounded-lg border-2 font-headline text-13 transition-colors ${
+                    holding
+                      ? "bg-emerald-500/20 border-emerald-400 text-emerald-200"
+                      : "bg-cyan-500/10 border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/20"
+                  }`}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    startHold();
+                  }}
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    endHold();
+                  }}
+                  onPointerLeave={() => holding && endHold()}
+                >
+                  {holding ? "Listening… (release to send)" : "Hold to speak"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

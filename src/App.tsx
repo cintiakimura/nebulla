@@ -46,16 +46,16 @@ export default function App() {
 
   if (!configReady) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 font-sans bg-background text-foreground">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 font-sans bg-background text-on-surface">
         <NebullaLogo size={48} />
-        <p className="font-display text-lg text-primary/90">Loading…</p>
+        <p className="font-headline text-lg text-primary no-bold">Loading…</p>
       </div>
     );
   }
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen font-sans bg-background text-foreground selection:bg-primary/25 selection:text-[#042028]">
+      <div className="min-h-screen font-sans bg-background text-on-surface selection:bg-primary/25 selection:text-[#042028]">
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/landing" element={<Landing />} />

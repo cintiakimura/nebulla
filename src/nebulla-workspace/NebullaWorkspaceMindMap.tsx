@@ -21,21 +21,30 @@ import "@xyflow/react/dist/style.css";
 
 const PageNode = ({ data, id }: { data: Record<string, unknown>; id: string }) => {
   const onDelete = data.onDelete as (x: string) => void;
+  const onOpenEdit = data.onOpenEdit as ((nodeId: string) => void) | undefined;
   const label = String(data.label ?? "");
   const isCreated = Boolean(data.isCreated);
+  const desc = String(data.description ?? "");
   return (
-    <div className="px-4 py-2 shadow-lg rounded-md bg-[#040f1a] border border-cyan-500/30 min-w-[150px] relative group">
+    <div
+      className="px-4 py-2 shadow-lg rounded-md bg-[#040f1a] border border-cyan-500/30 min-w-[150px] max-w-[220px] relative group cursor-pointer"
+      onClick={() => onOpenEdit?.(id)}
+      onKeyDown={(e) => e.key === "Enter" && onOpenEdit?.(id)}
+      role="button"
+      tabIndex={0}
+    >
       <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-cyan-400" />
-      <div className="flex justify-between items-center gap-4">
-        <div className="flex flex-col">
-          <span className="text-sm font-display text-cyan-300">{label}</span>
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-headline text-cyan-300 truncate">{label}</span>
+          {desc ? <span className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{desc}</span> : null}
           {isCreated ? (
-            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+            <span className="text-[10px] text-emerald-400 flex items-center gap-1 mt-1">
               <span className="material-symbols-outlined text-[12px]">link</span>
               Live Link
             </span>
           ) : (
-            <span className="text-[10px] text-slate-500">Pending Creation</span>
+            <span className="text-[10px] text-slate-500 mt-1">Pending Creation</span>
           )}
         </div>
         <button
@@ -44,9 +53,9 @@ const PageNode = ({ data, id }: { data: Record<string, unknown>; id: string }) =
             e.stopPropagation();
             onDelete(id);
           }}
-          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-opacity shrink-0"
         >
-          <span className="material-symbols-outlined nebulla-ws-text-14">delete</span>
+          <span className="material-symbols-outlined text-14">delete</span>
         </button>
       </div>
       <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-cyan-400" />
@@ -66,7 +75,7 @@ function ZoomToolbar({ onToggleCollapse }: { onToggleCollapse: () => void }) {
         onClick={onToggleCollapse}
         className="flex items-center justify-center w-9 h-9 rounded-md bg-[#040f1a]/90 border border-white/10 text-cyan-300 hover:bg-cyan-500/10 transition-colors"
       >
-        <span className="material-symbols-outlined nebulla-ws-text-18">unfold_less</span>
+        <span className="material-symbols-outlined text-18">unfold_less</span>
       </button>
       <button
         type="button"
@@ -74,7 +83,7 @@ function ZoomToolbar({ onToggleCollapse }: { onToggleCollapse: () => void }) {
         onClick={() => zoomIn()}
         className="flex items-center justify-center w-9 h-9 rounded-md bg-[#040f1a]/90 border border-white/10 text-cyan-300 hover:bg-cyan-500/10"
       >
-        <span className="material-symbols-outlined nebulla-ws-text-18">add</span>
+        <span className="material-symbols-outlined text-18">add</span>
       </button>
       <button
         type="button"
@@ -82,7 +91,7 @@ function ZoomToolbar({ onToggleCollapse }: { onToggleCollapse: () => void }) {
         onClick={() => zoomOut()}
         className="flex items-center justify-center w-9 h-9 rounded-md bg-[#040f1a]/90 border border-white/10 text-cyan-300 hover:bg-cyan-500/10"
       >
-        <span className="material-symbols-outlined nebulla-ws-text-18">remove</span>
+        <span className="material-symbols-outlined text-18">remove</span>
       </button>
       <button
         type="button"
@@ -90,7 +99,7 @@ function ZoomToolbar({ onToggleCollapse }: { onToggleCollapse: () => void }) {
         onClick={() => fitView({ padding: 0.2 })}
         className="flex items-center justify-center w-9 h-9 rounded-md bg-[#040f1a]/90 border border-white/10 text-cyan-300 hover:bg-cyan-500/10"
       >
-        <span className="material-symbols-outlined nebulla-ws-text-18">fit_screen</span>
+        <span className="material-symbols-outlined text-18">fit_screen</span>
       </button>
     </Panel>
   );
@@ -115,6 +124,9 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
   const [edgeToDelete, setEdgeToDelete] = useState<string | null>(null);
   const [showEdgeDeleteConfirm, setShowEdgeDeleteConfirm] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   const handleDeleteRequest = useCallback((id: string) => {
     setNodeToDelete(id);
@@ -153,9 +165,11 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
         }
         return;
       }
+      const nonSelect = changes.filter((c) => c.type !== "select");
       setEdges((eds) => applyEdgeChanges(changes, eds));
+      if (nonSelect.length > 0) onSaveToMasterPlan();
     },
-    [setEdges]
+    [setEdges, onSaveToMasterPlan]
   );
 
   const onConnect = useCallback((params: Connection) => {
@@ -191,6 +205,30 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
     setNodeToDelete(null);
   };
 
+  const openEdit = useCallback(
+    (nid: string) => {
+      const n = pages.find((p) => p.id === nid);
+      if (!n) return;
+      setEditingNodeId(nid);
+      setEditLabel(String(n.data.label ?? ""));
+      setEditDescription(String(n.data.description ?? ""));
+    },
+    [pages]
+  );
+
+  const saveEdit = () => {
+    if (!editingNodeId || !editLabel.trim()) return;
+    setPages((nds) =>
+      nds.map((n) =>
+        n.id === editingNodeId
+          ? { ...n, data: { ...n.data, label: editLabel.trim(), description: editDescription.trim() } }
+          : n
+      )
+    );
+    setEditingNodeId(null);
+    onSaveToMasterPlan();
+  };
+
   const handleAddNode = () => {
     if (!newPageName.trim()) return;
     const newNode: Node = {
@@ -213,7 +251,7 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
 
   const nodesWithCallbacks = pages.map((node) => ({
     ...node,
-    data: { ...node.data, onDelete: handleDeleteRequest },
+    data: { ...node.data, onDelete: handleDeleteRequest, onOpenEdit: openEdit },
   }));
 
   const nodeToDeleteData = pages.find((n) => n.id === nodeToDelete);
@@ -221,7 +259,7 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
   if (collapsed) {
     return (
       <div className="h-12 flex items-center justify-between px-3 border-b border-white/5 bg-[#040f1a]/80 shrink-0">
-        <span className="nebulla-ws-text-13 text-slate-400 font-display">Mind map collapsed</span>
+        <span className="text-13 text-slate-400 font-headline">Mind map collapsed</span>
         <button
           type="button"
           onClick={onToggleCollapse}
@@ -234,7 +272,7 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
   }
 
   return (
-    <div className="w-full h-full min-h-[240px] relative bg-[#020810] rounded-md overflow-hidden border border-white/5 shadow-2xl nebulla-ws-nebula-glow-hover" style={{ resize: "both" }}>
+    <div className="w-full h-full relative bg-[#020810] rounded-md overflow-hidden border border-white/5 shadow-2xl">
       <ReactFlow
         nodes={nodesWithCallbacks}
         edges={edges}
@@ -242,6 +280,9 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
+        nodesDraggable
+        nodesConnectable
+        elementsSelectable
         fitView
         className="bg-transparent"
         colorMode="dark"
@@ -249,15 +290,15 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
         maxZoom={1.8}
       >
         <Background color="#00ffff" gap={16} size={1} />
-        <Controls className="bg-[#040f1a]! border border-white/10! [&_button]:fill-cyan-300! [&_button]:text-cyan-300!" />
+        <Controls className="bg-[#040f1a] border border-white/10 fill-cyan-300 text-cyan-300 [&_button]:fill-cyan-300 [&_button]:text-cyan-300" />
         <ZoomToolbar onToggleCollapse={onToggleCollapse} />
         <Panel position="top-left" className="m-4">
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-md nebulla-ws-text-13 font-display hover:bg-cyan-500/20 transition-all shadow-[0_0_10px_rgba(0,255,255,0.1)]"
+            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-md text-13 font-headline hover:bg-cyan-500/20 transition-all shadow-[0_0_10px_rgba(0,255,255,0.1)]"
           >
-            <span className="material-symbols-outlined nebulla-ws-text-14">add</span>
+            <span className="material-symbols-outlined text-14">add</span>
             Add Page
           </button>
         </Panel>
@@ -266,16 +307,16 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
       {showConnectConfirm && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-[#040f1a] border border-white/10 p-6 rounded-lg shadow-2xl max-w-sm w-full">
-            <h3 className="text-lg font-display text-cyan-300 mb-2">Connect pages?</h3>
-            <p className="nebulla-ws-text-13 text-slate-300 mb-6">
-              This updates the architecture flow. Continue?
+            <h3 className="text-lg font-headline text-cyan-300 mb-2">Connect Pages?</h3>
+            <p className="text-13 text-slate-300 mb-6">
+              Are you sure you want to connect these pages? This will update the application&apos;s architecture and navigation flow.
             </p>
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => { setShowConnectConfirm(false); setPendingConnection(null); }} className="px-4 py-2 rounded nebulla-ws-text-13 text-slate-400 hover:bg-white/5">
+              <button type="button" onClick={() => { setShowConnectConfirm(false); setPendingConnection(null); }} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">
                 Cancel
               </button>
-              <button type="button" onClick={confirmConnect} className="px-4 py-2 rounded nebulla-ws-text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                Connect
+              <button type="button" onClick={confirmConnect} className="px-4 py-2 rounded text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors">
+                Yes, Connect
               </button>
             </div>
           </div>
@@ -284,14 +325,20 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
 
       {showEdgeDeleteConfirm && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#040f1a] border border-red-500/30 p-6 rounded-lg max-w-sm w-full">
-            <h3 className="text-lg font-display text-red-400 mb-2">Remove connection?</h3>
-            <div className="flex justify-end gap-3 mt-4">
-              <button type="button" onClick={() => { setShowEdgeDeleteConfirm(false); setEdgeToDelete(null); }} className="px-4 py-2 rounded nebulla-ws-text-13 text-slate-400 hover:bg-white/5">
+          <div className="bg-[#040f1a] border border-red-500/30 p-6 rounded-lg shadow-2xl max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="material-symbols-outlined text-red-400 text-24">warning</span>
+              <h3 className="text-lg font-headline text-red-400">Delete Connection?</h3>
+            </div>
+            <p className="text-13 text-slate-300 mb-6">
+              Are you sure you want to remove this connection? This will impact the application&apos;s routing and architecture.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => { setShowEdgeDeleteConfirm(false); setEdgeToDelete(null); }} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">
                 Cancel
               </button>
-              <button type="button" onClick={confirmEdgeDelete} className="px-4 py-2 rounded nebulla-ws-text-13 bg-red-500/20 text-red-400 border border-red-500/30">
-                Remove
+              <button type="button" onClick={confirmEdgeDelete} className="px-4 py-2 rounded text-13 bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">
+                Delete Connection
               </button>
             </div>
           </div>
@@ -300,42 +347,88 @@ function MindMapFlowInner({ pages, setPages, edges, setEdges, onSaveToMasterPlan
 
       {showDeleteConfirm && nodeToDeleteData && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#040f1a] border border-red-500/30 p-6 rounded-lg max-w-sm w-full">
-            <h3 className="text-lg font-display text-red-400 mb-2">Delete page?</h3>
-            <p className="nebulla-ws-text-13 text-slate-300 mb-4">
-              <strong>{String(nodeToDeleteData.data.label)}</strong>
+          <div className="bg-[#040f1a] border border-red-500/30 p-6 rounded-lg shadow-2xl max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="material-symbols-outlined text-red-400 text-24">warning</span>
+              <h3 className="text-lg font-headline text-red-400">Delete Page?</h3>
+            </div>
+            <p className="text-13 text-slate-300 mb-4">
+              You are about to delete <strong>{String(nodeToDeleteData.data.label)}</strong>.
             </p>
+            {nodeToDeleteData.data.isCritical ? (
+              <div className="bg-red-500/10 border border-red-500/20 p-3 rounded text-12 text-red-200 mb-6">
+                <strong>CRITICAL PAGE WARNING:</strong> Deleting this page will severely impact the application&apos;s architecture. It may break routing, authentication flows, or core data relationships. Proceed with extreme caution.
+              </div>
+            ) : null}
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => { setShowDeleteConfirm(false); setNodeToDelete(null); }} className="px-4 py-2 rounded nebulla-ws-text-13 text-slate-400 hover:bg-white/5">
+              <button type="button" onClick={() => { setShowDeleteConfirm(false); setNodeToDelete(null); }} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">
                 Cancel
               </button>
-              <button type="button" onClick={confirmDelete} className="px-4 py-2 rounded nebulla-ws-text-13 bg-red-500/20 text-red-400 border border-red-500/30">
-                Delete
+              <button type="button" onClick={confirmDelete} className="px-4 py-2 rounded text-13 bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">
+                Delete Page
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {editingNodeId ? (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#040f1a] border border-white/10 p-6 rounded-lg max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-headline text-cyan-300 mb-4">Edit page</h3>
+            <label className="block text-12 text-slate-500 mb-1">Name</label>
+            <input
+              type="text"
+              value={editLabel}
+              onChange={(e) => setEditLabel(e.target.value)}
+              className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-13 text-white focus:outline-none focus:border-cyan-500/50 mb-3"
+            />
+            <label className="block text-12 text-slate-500 mb-1">Description</label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={3}
+              className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-13 text-white focus:outline-none focus:border-cyan-500/50 mb-6 resize-y"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditingNodeId(null)}
+                className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                className="px-4 py-2 rounded text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showAddModal && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#040f1a] border border-white/10 p-6 rounded-lg max-w-sm w-full">
-            <h3 className="text-lg font-display text-cyan-300 mb-4">Add page</h3>
+          <div className="bg-[#040f1a] border border-white/10 p-6 rounded-lg shadow-2xl max-w-sm w-full">
+            <h3 className="text-lg font-headline text-cyan-300 mb-4">Add New Page</h3>
             <input
               type="text"
               value={newPageName}
               onChange={(e) => setNewPageName(e.target.value)}
-              placeholder="Page name"
-              className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 nebulla-ws-text-13 text-white focus:outline-none focus:border-cyan-500/50 mb-6"
+              placeholder="Page Name (e.g., User Profile)"
+              className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-13 text-white focus:outline-none focus:border-cyan-500/50 mb-6"
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleAddNode()}
             />
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded nebulla-ws-text-13 text-slate-400 hover:bg-white/5">
+              <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded text-13 text-slate-400 hover:bg-white/5 transition-colors">
                 Cancel
               </button>
-              <button type="button" onClick={handleAddNode} className="px-4 py-2 rounded nebulla-ws-text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                Add
+              <button type="button" onClick={handleAddNode} className="px-4 py-2 rounded text-13 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors">
+                Add Page
               </button>
             </div>
           </div>
